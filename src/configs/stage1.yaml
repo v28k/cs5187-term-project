@@ -1,0 +1,63 @@
+# Stage 1 baseline experiment against a real PostgreSQL (Member A's harness).
+#
+#   1. start the instrumented server (Member A), adjust 'dsn' / 'server_log' / 'coverage_command'
+#   2. python -m pgfuzz selftest configs/stage1.yaml      # all checks must pass
+#   3. python -m pgfuzz run configs/stage1.yaml
+#
+# The three arms of the study are declared here. The random/mutation arm is
+# Member B's stage 1 generator; the grammar arm is stage 2. The LLM arm stays
+# off until stage 3.
+experiment: stage1
+output_dir: ../results
+trials: 5                   # use >= 10 for the final evaluation (Klees et al., CCS'18)
+seed: 5187
+budget:
+  seconds: 3600             # identical wall-clock budget for every arm
+coverage_interval_s: 60
+snapshot_interval_s: 10
+log_sql: failures
+max_repros: 3
+max_harness_errors: 20
+known_bugs: ../known_bugs/known_bugs.yaml
+baseline: random
+
+executor:
+  plugin: pgfuzz.reference.pg_executor:PostgresExecutor
+  params:
+    # With --jobs N, start N servers on ports 5432..5432+N-1; {port} = base_port + worker.
+    # 127.0.0.1, not localhost: on Windows "localhost" tries IPv6 first and stalls ~2 minutes.
+    dsn: "host=127.0.0.1 port={port} dbname=postgres user=postgres"
+    isolation: savepoint
+    statement_timeout_ms: 5000
+    setup_sql: "{config_dir}/../corpus/schema.sql"
+    reset_sql: "{config_dir}/../corpus/schema.sql"
+    # Mount the server log from the container so assertion/PANIC/signal lines are seen:
+    # server_log: /path/to/pgdata/log/postgresql.log
+    # Script from Member A's harness printing {"lines_covered": .., "lines_total": .., ...}:
+    # coverage_command: "bash ../harness/coverage.sh"
+
+configs:
+  - name: random
+    label: Random/Mutation
+    generator:
+      plugin: generator.random_generator.generator:RandomGenerator
+      params:
+        schema: "{config_dir}/../corpus/schema.yaml"
+        min_mutations: 1
+        max_mutations: 4
+        pure_random_fraction: 0.05
+
+  - name: grammar
+    label: Grammar
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        schema: "{config_dir}/../corpus/schema.yaml"
+
+  - name: grammar_llm
+    label: Grammar+LLM
+    enabled: false
+    generator:
+      plugin: llm.generator:LLMGuidedGrammarGenerator  # stage 3
+      params: {}

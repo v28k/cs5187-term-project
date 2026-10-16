@@ -1,0 +1,38 @@
+# Pipeline smoke test: simulated server, no PostgreSQL needed, ~30 seconds.
+#   python -m pgfuzz run configs/smoke.yaml
+# The numbers it produces test the tooling only. Never put them in the paper.
+experiment: smoke
+output_dir: ../results
+trials: 3
+seed: 5187
+budget:
+  seconds: 4
+coverage_interval_s: 1
+snapshot_interval_s: 0.5
+log_sql: failures
+known_bugs: ../known_bugs/known_bugs.yaml
+baseline: random
+
+executor:
+  plugin: pgfuzz.reference.mock_executor:MockExecutor
+  params:
+    tables: [t0, t1, t2, tp, v0]
+
+configs:
+  - name: random
+    label: Random
+    generator:
+      plugin: pgfuzz.reference.generators:RandomGenerator
+      params: {mode: random, tables: {t0: [c0, c1, c2], t1: [c0, c1, c2, c3]}}
+
+  - name: mutation
+    label: Mutation
+    generator:
+      plugin: pgfuzz.reference.generators:RandomGenerator
+      params: {mode: mutation, seeds: ["{config_dir}/../corpus/seeds"]}
+
+  - name: seeds
+    label: Seed replay
+    generator:
+      plugin: pgfuzz.reference.generators:CorpusGenerator
+      params: {paths: ["{config_dir}/../corpus/seeds"], unit: statement, loop: true, shuffle: true}

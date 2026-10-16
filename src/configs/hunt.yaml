@@ -1,0 +1,40 @@
+# Bug hunting on the assert-enabled master build (harness/local/pg_local.sh).
+# Not a scientific comparison: one long grammar campaign per server, differential
+# plan oracle on. Run with one job per server:
+#
+#   python -m pgfuzz run configs/hunt.yaml -j 2 --no-plots
+#
+# Every bug candidate lands in ../results/hunt/grammar/trial-NN/failures/<signature>/.
+experiment: hunt
+output_dir: ../results
+trials: 2
+seed: 20261015
+budget:
+  seconds: 14400          # 4 hours per trial
+coverage_interval_s: 3600
+snapshot_interval_s: 60
+log_sql: failures
+known_bugs: ../known_bugs/known_bugs.yaml
+base_port: 5432
+
+executor:
+  plugin: pgfuzz.reference.pg_executor:PostgresExecutor
+  params:
+    dsn: "host=127.0.0.1 port={port} dbname=postgres user=postgres"
+    isolation: savepoint
+    statement_timeout_ms: 3000
+    setup_sql: "{config_dir}/../corpus/schema.sql"
+    reset_sql: "{config_dir}/../corpus/schema.sql"
+    # Python on Windows, servers in WSL. Inside WSL use /home/charan/pgfuzz/data/pg-{worker}/postgresql.log
+    server_log: "//wsl.localhost/Ubuntu/home/charan/pgfuzz/data/pg-{worker}/postgresql.log"
+    differential: {per_query: 2}
+
+configs:
+  - name: grammar
+    label: Grammar
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        schema: "{config_dir}/../corpus/schema.yaml"
+        mutate_prob: 0.5

@@ -1,0 +1,27 @@
+# Known PostgreSQL bugs used for the "known-bug reproduction" metric.
+#
+# Rules (see paper/STYLE.md: no invented facts):
+#   * add a bug only with a public source you have read (pgsql-bugs thread,
+#     fixing commit, CVE entry) and the server version that still contains it;
+#   * the evaluation server must be built from that version, otherwise the bug
+#     cannot be reproduced and the metric is meaningless;
+#   * put a minimal reproducer in known_bugs/pocs/<id>.sql and check it with
+#       python -m pgfuzz replay configs/stage1.yaml known_bugs/pocs/<id>.sql --expect-bug
+#
+# Format (all 'match' fields are optional, but at least one is required, and
+# every field given must match the oracle's classification):
+#
+#   - id: pgbug-NNNNN
+#     title: "short description"
+#     source: "https://www.postgresql.org/message-id/..."
+#     fixed_in: "commit <sha> / 16.3"
+#     affected: "16.0 - 16.2"
+#     match:
+#       outcome: assertion          # crash | assertion | panic | internal_error | data_corruption
+#       sqlstate: XX000
+#       message_regex: "unrecognized node type"
+#       assert_regex: "nodeAgg\\.c: .*"
+#       frame_regex: "^ExecInitAgg$"
+#     poc: pocs/pgbug-NNNNN.sql
+
+bugs: []

@@ -1,0 +1,20 @@
+[project]
+name = "pgfuzz"
+version = "0.1.0"
+description = "Evaluation harness for grammar-aware and LLM-guided fuzzing of PostgreSQL (CS-5187 term project)"
+requires-python = ">=3.10"
+dependencies = ["PyYAML>=6.0"]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.1"]
+report = ["matplotlib>=3.7"]
+test = ["pytest>=7.0", "scipy>=1.10"]
+
+[project.scripts]
+pgfuzz = "pgfuzz.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["pgfuzz*", "generator*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
