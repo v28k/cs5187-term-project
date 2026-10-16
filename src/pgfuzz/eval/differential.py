@@ -96,6 +96,10 @@ def eligible(sql: str) -> bool:
     for i, x in enumerate(w[:-1]):
         if x in _ORDER_SENSITIVE_AGGS and w[i + 1] == "(" and not _has_order_by_inside(w, i + 1):
             return False
+        # ARRAY(SELECT ...) collects rows in scan order, like an unordered array_agg.
+        if (x == "ARRAY" and w[i + 1] == "(" and i + 2 < len(w) and w[i + 2] in ("SELECT", "VALUES", "TABLE", "(")
+                and not _has_order_by_inside(w, i + 1)):
+            return False
     return True
 
 

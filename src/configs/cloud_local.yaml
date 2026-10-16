@@ -1,0 +1,40 @@
+# Development config for servers started with harness/local/pg_local.sh
+# (assert-enabled build, no coverage). Used for selftest, replay, minimize and
+# quick grammar checks:
+#
+#   python -m pgfuzz selftest configs/local.yaml
+#   python -m pgfuzz replay configs/local.yaml some.sql
+#
+# server_log: "/home/pg/pgfuzz/data/pg-{worker}/postgresql.log"
+# the \\wsl.localhost\<distro>\home\<user>\pgfuzz\data\pg-{worker}\postgresql.log path.
+experiment: cloud_local
+output_dir: ../results
+trials: 1
+seed: 5187
+budget:
+  seconds: 300
+coverage_interval_s: 600
+snapshot_interval_s: 10
+log_sql: failures
+known_bugs: ../known_bugs/known_bugs.yaml
+base_port: 5432
+
+executor:
+  plugin: pgfuzz.reference.pg_executor:PostgresExecutor
+  params:
+    dsn: "host=127.0.0.1 port={port} dbname=postgres user=postgres"
+    isolation: savepoint
+    statement_timeout_ms: 5000
+    setup_sql: "{config_dir}/../corpus/schema.sql"
+    reset_sql: "{config_dir}/../corpus/schema.sql"
+    server_log: "/home/pg/pgfuzz/data/pg-{worker}/postgresql.log"
+    differential: {per_query: 2}
+
+configs:
+  - name: grammar
+    label: Grammar
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        schema: "{config_dir}/../corpus/schema.yaml"
