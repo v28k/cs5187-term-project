@@ -46,7 +46,7 @@ sibling bug):
 | # | Source | Verdict |
 |---|---|---|
 | 1 | grammar hunt, `wrong_result` under `enable_hashagg=off` | **False positive** in our oracle: `ARRAY(SELECT ... EXCEPT ALL ...)` has no ORDER BY, so element order depends on the plan. Fixed `eval/differential.py` `eligible()`, test added. |
-| 2 | grammar hunt trial 0, `assertion` (`list_length(rcexpr->inputcollids) == nopers`, execExpr.c:2078) | **REAL BUG**, see [BUG-01](BUG-01-json_table-collation.md): JSON_TABLE never assigns collations to its context item / PASSING args. Wrong result and spurious collation errors on 18.6 too. Patch + tests ready. |
+| 2 | grammar hunt trial 0, `assertion` (`list_length(rcexpr->inputcollids) == nopers`, execExpr.c:2078) | **REAL BUG**, see [BUG-01](BUG-01-json_table-collation.md): JSON_TABLE never assigns collations to its context item / PASSING args. Wrong result and spurious collation errors on 18.6 too. Patch + tests ready. Reported as **BUG #19768**; v1 patch verified (239/239 `make check`, pgindent clean). |
 | 3 | grammar hunt trial 1, `wrong_result` under `no_hashagg` / `parallel` | False positives, `ARRAY(SELECT ...)` again (run started before the filter fix reached it). |
 
 ## Tooling issues found on the way
