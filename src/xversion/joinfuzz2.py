@@ -96,7 +96,7 @@ GUCS = [
     ("enable_groupagg", ["off"]),
     ("join_collapse_limit", ["1"]),
     ("from_collapse_limit", ["1"]),
-    ("work_mem", ["64kB"]),
+    ("work_mem", ["'64kB'"]),
     ("debug_parallel_query", ["on"]),
 ]
 PARALLEL = ["SET LOCAL parallel_setup_cost = 0", "SET LOCAL parallel_tuple_cost = 0",
