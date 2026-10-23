@@ -1,0 +1,65 @@
+diff --git a/src/backend/statistics/dependencies.c b/src/backend/statistics/dependencies.c
+index 48d5a53c..d12d5f27 100644
+--- a/src/backend/statistics/dependencies.c
++++ b/src/backend/statistics/dependencies.c
+@@ -1493,22 +1493,17 @@ dependencies_clauselist_selectivity(PlannerInfo *root,
+ 		/* make sure the attnum is positive (valid AttrNumber) */
+ 		attnum = list_attnums[i] + attnum_offset;
+ 
+-		/*
+-		 * Either it's a regular attribute, or it's an expression, in which
+-		 * case we must not have seen it before (expressions are unique).
+-		 *
+-		 * XXX Check whether it's a regular attribute has to be done using the
+-		 * original attnum, while the second check has to use the value with
+-		 * an offset.
+-		 */
+-		Assert(AttrNumberIsForUserDefinedAttr(list_attnums[i]) ||
+-			   !bms_is_member(attnum, clauses_attnums));
+-
+ 		/*
+ 		 * Remember the offset attnum, both for attributes and expressions.
+ 		 * We'll pass list_attnums to clauselist_apply_dependencies, which
+ 		 * uses it to identify clauses in a bitmap. We could also pass the
+ 		 * offset, but this is more convenient.
++		 *
++		 * Several clauses may share the same attnum, whether it's a regular
++		 * attribute or an expression (a duplicate expression was assigned the
++		 * same attnum above), so the attnum may already be in the bitmap.
++		 * clauselist_apply_dependencies estimates all the clauses for one
++		 * attnum together.
+ 		 */
+ 		list_attnums[i] = attnum;
+ 
+diff --git a/src/test/regress/expected/stats_ext.out b/src/test/regress/expected/stats_ext.out
+index 4512670d..ac79c1ef 100644
+--- a/src/test/regress/expected/stats_ext.out
++++ b/src/test/regress/expected/stats_ext.out
+@@ -1763,6 +1763,13 @@ SELECT * FROM check_estimated_rows('SELECT * FROM functional_dependencies WHERE
+          3 |    100
+ (1 row)
+ 
++-- multiple clauses referencing the same expression
++SELECT * FROM check_estimated_rows('SELECT * FROM functional_dependencies WHERE (a * 2) = 2 AND (a * 2) IN (2, 102) AND upper(b) = ''1''');
++ estimated | actual 
++-----------+--------
++         1 |     50
++(1 row)
++
+ -- ANY
+ SELECT * FROM check_estimated_rows('SELECT * FROM functional_dependencies WHERE (a * 2) = ANY (ARRAY[2, 102]) AND upper(b) = ''1''');
+  estimated | actual 
+diff --git a/src/test/regress/sql/stats_ext.sql b/src/test/regress/sql/stats_ext.sql
+index a9176e74..f2a429e6 100644
+--- a/src/test/regress/sql/stats_ext.sql
++++ b/src/test/regress/sql/stats_ext.sql
+@@ -875,6 +875,9 @@ SELECT * FROM check_estimated_rows('SELECT * FROM functional_dependencies WHERE
+ -- OR clauses referencing different attributes
+ SELECT * FROM check_estimated_rows('SELECT * FROM functional_dependencies WHERE ((a * 2) = 2 OR upper(b) = ''1'') AND upper(b) = ''1''');
+ 
++-- multiple clauses referencing the same expression
++SELECT * FROM check_estimated_rows('SELECT * FROM functional_dependencies WHERE (a * 2) = 2 AND (a * 2) IN (2, 102) AND upper(b) = ''1''');
++
+ -- ANY
+ SELECT * FROM check_estimated_rows('SELECT * FROM functional_dependencies WHERE (a * 2) = ANY (ARRAY[2, 102]) AND upper(b) = ''1''');
+ 
