@@ -43,3 +43,12 @@ def test_mwu_matches_scipy(x, y):
     ref = scipy_stats.mannwhitneyu(x, y, alternative="two-sided", method=method, use_continuity=True)
     assert ours.u == pytest.approx(ref.statistic)
     assert ours.p == pytest.approx(ref.pvalue, rel=1e-6)
+
+
+def test_median_ci_contains_the_median_and_is_reproducible():
+    from pgfuzz.eval import stats
+
+    xs = [12, 15, 11, 14, 30, 13, 12, 16, 14, 13]
+    lo, hi = stats.median_ci(xs)
+    assert lo <= stats.median(xs) <= hi and (lo, hi) == stats.median_ci(xs)
+    assert stats.median_ci([4, 4, 4]) == (4, 4) and stats.median_ci([1, 9]) == (1, 9)

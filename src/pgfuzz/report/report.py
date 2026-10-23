@@ -260,6 +260,20 @@ def _markdown(groups, order, labels, comp, bugs, exp, incomplete) -> str:
                 cells.append("-")
         out.append(f"| {m.label} | " + " | ".join(cells) + " |")
 
+    out += ["", "## Median with 95% bootstrap confidence interval", ""]
+    out.append("| Metric | " + " | ".join(labels[c] for c in order) + " |")
+    out.append("|---|" + "---:|" * len(order))
+    for m in ms:
+        cells = []
+        for c in order:
+            v = _values(groups[c], m)
+            if v:
+                lo, hi = stats.median_ci(v)
+                cells.append(f"{fmt(stats.median(v), m.kind)} [{fmt(lo, m.kind)}, {fmt(hi, m.kind)}]")
+            else:
+                cells.append("-")
+        out.append(f"| {m.label} | " + " | ".join(cells) + " |")
+
     if comp:
         out += ["", "## Pairwise comparisons", "",
                 "`A12` is the probability that B beats A on that metric (0.5 = no difference; "

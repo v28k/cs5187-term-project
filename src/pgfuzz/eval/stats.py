@@ -37,6 +37,22 @@ def iqr(xs: Sequence[float]) -> tuple[float, float]:
     return quantile(xs, 0.25), quantile(xs, 0.75)
 
 
+def median_ci(xs: Sequence[float], level: float = 0.95, resamples: int = 2000, seed: int = 5187) -> tuple[float, float]:
+    """Percentile-bootstrap confidence interval of the median (fixed seed, so a
+    report is reproducible). With fewer than 3 values the interval is the range."""
+    import random
+
+    v = [x for x in xs if x is not None and not (isinstance(x, float) and math.isnan(x))]
+    if not v:
+        return math.nan, math.nan
+    if len(v) < 3:
+        return min(v), max(v)
+    rng = random.Random(seed)
+    meds = sorted(median([rng.choice(v) for _ in v]) for _ in range(resamples))
+    a = (1 - level) / 2
+    return quantile(meds, a), quantile(meds, 1 - a)
+
+
 def a12(x: Sequence[float], y: Sequence[float]) -> float:
     """Vargha-Delaney A12: probability that a value from ``x`` beats one from ``y``
     (ties count half). 0.5 = no difference; >0.71 or <0.29 is a 'large' effect."""
