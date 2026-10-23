@@ -196,6 +196,55 @@ def cmd_sample(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_triage(a: argparse.Namespace) -> int:
+    from pgfuzz.triage.triage import load_candidate, triage, verdict_template
+
+    paths: list[Path] = []
+    for f in a.candidates:
+        p = Path(f)
+        if p.is_dir() and not (p / "failure.json").exists():   # an experiment / trial directory
+            paths += sorted(q.parent for q in p.glob("**/failures/*/failure.json"))
+            paths += sorted(q.with_suffix(".sql") for q in p.glob("tc*.json"))
+        else:
+            paths.append(p)
+    if not paths:
+        print("no candidates found", file=sys.stderr)
+        return 2
+    ex = _executor_from(a.config, a.name)
+    ref = _executor_from(a.reference, None) if a.reference else None
+    out = Path(a.out)
+    results = []
+    ex.start()
+    if ref is not None:
+        ref.start()
+    try:
+        seen: set[str] = set()
+        for p in paths:
+            cand = load_candidate(p)
+            if cand.signature in seen:
+                continue
+            seen.add(cand.signature)
+            results.append(triage(cand, ex, out, repeat=a.repeat, reduce=not a.no_reduce, reference=ref,
+                                  budget=a.budget))
+    finally:
+        ex.stop()
+        if ref is not None:
+            ref.stop()
+    out.mkdir(parents=True, exist_ok=True)
+    tmpl = out / "verdicts.template.yaml"
+    tmpl.write_text(verdict_template(results), encoding="utf-8")
+    print(f"{len(results)} candidate(s) triaged into {out}; verdict template: {tmpl}")
+    return 0
+
+
+def cmd_precision(a: argparse.Namespace) -> int:
+    from pgfuzz.triage.precision import load_verdicts, precision_table, render_latex, render_markdown
+
+    rows = precision_table(load_verdicts(a.verdicts))
+    print(render_latex(rows) if a.latex else render_markdown(rows))
+    return 0
+
+
 def cmd_features(a: argparse.Namespace) -> int:
     from pgfuzz.core.sqlsplit import split_statements
     from pgfuzz.eval.features import FEATURE_IDS, features_of
@@ -252,6 +301,23 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--repeat", type=int, default=1, help="run each file N times (flakiness check)")
     p.add_argument("--expect-bug", action="store_true", help="exit 1 if no file triggers a bug candidate")
     p.set_defaults(fn=cmd_replay)
+
+    p = sub.add_parser("triage", help="reproduce, reduce and report bug candidates")
+    p.add_argument("config", help="experiment config whose executor runs the candidates")
+    p.add_argument("candidates", nargs="+",
+                   help="failure directories, sample tcN.sql files, or an experiment/trial/sample directory")
+    p.add_argument("--name", help="use the executor of this config")
+    p.add_argument("--out", default="../results/triage")
+    p.add_argument("--repeat", type=int, default=3, help="reproduction attempts before reducing")
+    p.add_argument("--budget", type=int, default=400, help="max executions per token reduction")
+    p.add_argument("--no-reduce", action="store_true")
+    p.add_argument("--reference", help="config whose executor is a release server (shows its rows in the report)")
+    p.set_defaults(fn=cmd_triage)
+
+    p = sub.add_parser("precision", help="per-oracle precision from triage verdicts (RQ2)")
+    p.add_argument("verdicts", help="triage/verdicts.yaml")
+    p.add_argument("--latex", action="store_true")
+    p.set_defaults(fn=cmd_precision)
 
     p = sub.add_parser("features", help="show SQL feature coverage of .sql files")
     p.add_argument("files", nargs="+")

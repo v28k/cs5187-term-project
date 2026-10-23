@@ -1,0 +1,42 @@
+# Triage verdicts for every bug candidate the campaigns reported (RQ2: oracle precision).
+#   python -m pgfuzz precision ../triage/verdicts.yaml [--latex]      (from src/)
+# verdict: real | duplicate | false_positive | not_a_bug | flaky | TODO
+# Add the entries from results/triage/verdicts.template.yaml after each `pgfuzz triage` run.
+
+- signature: cde9712bc8db
+  oracle: assertion
+  outcome: assertion
+  verdict: real
+  note: "BUG-01: JSON_TABLE does not assign collations to context item / PASSING (17, 18, master)"
+  upstream: "not filed yet (docs/bughunt/BUG-01-json_table-collation.md)"
+- signature: tc112-sample-seed7
+  oracle: metamorphic:expr
+  outcome: wrong_result
+  verdict: real
+  note: "BUG-02: range containment support function returns true/false for a NULL element (17, 18, master)"
+  upstream: "not filed yet (docs/bughunt/BUG-02-range-containment-null.md)"
+- signature: 11abedc85d0c
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "ARRAY(SELECT .. EXCEPT ALL ..) without ORDER BY: element order depends on the plan. Fixed in differential.eligible()"
+- signature: 67b3ae706302
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "ARRAY(SELECT .. GROUP BY ..) without ORDER BY (same root cause as 11abedc85d0c; produced by a run started before the fix)"
+- signature: b73533693016
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "ARRAY(SELECT .. GROUP BY CUBE ..) without ORDER BY (same root cause)"
+- signature: d437283ebe37
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "ARRAY(SELECT .. GROUP BY CUBE ..) inside jsonb_build_object, without ORDER BY (same root cause)"
+- signature: tc150-xversion-seed3
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: false_positive
+  note: "t2.c2 DEFAULT now() differed between servers. Fixed: deterministic seed data, clock functions excluded"
