@@ -140,20 +140,30 @@ def _reproduces(ex: Any, cand: Any, repeat: int) -> bool:
     return any(r.reproduces(cand.statements, cand.culprit, cand.check) for _ in range(repeat))
 
 
-def attribute(bench: Bench, exp_dir: str | Path, fixed: Any, solos: list[Any], repeat: int = 2,
-              only_offline: bool = False) -> list[dict[str, Any]]:
+def attribute(bench: Bench, exp_dir: str | Path, fixed: Any, solos: list[Any], repeat: int = 2) -> list[dict[str, Any]]:
+    """Assign every failure of a campaign to injected bugs.
+
+    A crash/assertion/internal error whose signature matches exactly one benchmark
+    bug online is that bug (an assertion expression is unambiguous, and replay can
+    fail for test cases that depend on server state). Everything else is replayed:
+    on the fixed server (reproduces there: native), then on the solo servers of the
+    bugs its signature matched, or of all bugs if it matched none."""
     results = []
-    offline = {b.id for b in bench.bugs if (b.raw.get("match") or {}).get("offline")}
+    by_id = {b.id: i for i, b in enumerate(bench.bugs)}
+    online = {b.id for b in bench.bugs if not (b.raw.get("match") or {}).get("offline")}
     for f in failures(exp_dir):
-        if only_offline and f["known_bugs"] and not set(f["known_bugs"]) & offline:
-            results.append({**f, "dir": str(f["dir"]), "bugs": f["known_bugs"], "how": "signature"})
+        known = [k for k in f["known_bugs"] if k in online]
+        row = {**f, "dir": str(f["dir"])}
+        if len(known) == 1:
+            results.append({**row, "bugs": known, "how": "signature"})
             continue
         cand = load_candidate(f["dir"])
         if _reproduces(fixed, cand, repeat):
-            results.append({**f, "dir": str(f["dir"]), "bugs": [], "how": "native"})
+            results.append({**row, "bugs": [], "how": "native"})
             continue
-        hit = [b.id for b, ex in zip(bench.bugs, solos) if _reproduces(ex, cand, repeat)]
-        results.append({**f, "dir": str(f["dir"]), "bugs": hit, "how": "solo" if hit else "unattributed"})
+        pool = [by_id[k] for k in known if k in by_id] or range(len(bench.bugs))
+        hit = [bench.bugs[i].id for i in pool if _reproduces(solos[i], cand, repeat)]
+        results.append({**row, "bugs": hit, "how": "solo" if hit else "unattributed"})
     return results
 
 

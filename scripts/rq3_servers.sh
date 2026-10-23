@@ -16,7 +16,7 @@
 # 'pg' when run as root, since initdb refuses to run as root).
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd)
-ROOT=${ROOT:-$HOME/pgfuzz}
+ROOT=${ROOT:-${PGFUZZ_ROOT:-$HOME/pgfuzz}}
 BASE_PORT=${BASE_PORT:-5440}
 SRC=${SRC:-$ROOT/src/postgres-master}
 SOLO_WT=${SOLO_WT:-$ROOT/src/solo-wt}

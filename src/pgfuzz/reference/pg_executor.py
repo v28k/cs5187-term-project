@@ -270,6 +270,12 @@ class PostgresExecutor(Executor):
         self._log_pos = size
         return data.decode("utf-8", errors="replace").splitlines()
 
+    def _backend_pid(self) -> int | None:
+        try:
+            return int(self.conn.info.backend_pid)
+        except Exception:
+            return None
+
     def _alive(self) -> bool:
         return self.conn is not None and not self.conn.closed and not getattr(self.conn, "broken", False)
 
@@ -280,6 +286,7 @@ class PostgresExecutor(Executor):
             self._connect(wait=True)
 
         t0 = time.perf_counter()
+        own_pid = self._backend_pid()
         results: list[StatementResult] = []
         lost = False
         leak = False
@@ -393,8 +400,14 @@ class PostgresExecutor(Executor):
                              or any(v.get("status") != "ok" for v in (st.variants or {}).values())
                              for st in results)
         log = self._new_log_lines() if failed else []
-        return ExecResult(results, wall_ms=_ms(t0), server_log=log, server_restarted=restarted,
-                          extra={"state_leak": True} if leak else {})
+        extra: dict[str, Any] = {"state_leak": True} if leak else {}
+        foreign = _foreign_crash(log, own_pid)
+        if foreign:
+            # Another session crashed the server (a parallel tool, a manual psql): its
+            # TRAP / signal lines are not evidence against this test case.
+            extra["foreign_crash"] = foreign
+            log = []
+        return ExecResult(results, wall_ms=_ms(t0), server_log=log, server_restarted=restarted, extra=extra)
 
     def _run_variants(self, sql: str) -> dict[str, dict[str, Any]]:
         """Re-run ``sql`` under plan variants; every run is rolled back. Stops at a lost connection."""
@@ -624,6 +637,31 @@ def plan_shape_string(plan: dict[str, Any]) -> str:
     if not kids:
         return label
     return f"{label}(" + ",".join(plan_shape_string(k) for k in kids) + ")"
+
+
+_EVIDENCE = ("TRAP:", "terminated by signal", "PANIC:")
+_PIDS = (re.compile(r"PID: (\d+)"), re.compile(r"\(PID (\d+)\)"), re.compile(r"\[(\d+)\]"))
+
+
+def _foreign_crash(lines: list[str], own_pid: int | None) -> list[int]:
+    """PIDs of crash evidence in ``lines`` when all of it belongs to other backends.
+    Empty if there is no evidence, if any of it is ours, or if a PID cannot be read."""
+    if own_pid is None:
+        return []
+    pids: list[int] = []
+    for line in lines:
+        if not any(e in line for e in _EVIDENCE):
+            continue
+        if "parallel worker" in line:   # a worker of our own query: its PID is not ours, the crash is
+            return []
+        m = next((m for r in _PIDS if (m := r.search(line))), None)
+        if m is None:
+            return []
+        pid = int(m.group(1))
+        if pid == own_pid:
+            return []
+        pids.append(pid)
+    return sorted(set(pids))
 
 
 def _ms(t0: float) -> float:

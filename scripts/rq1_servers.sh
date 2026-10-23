@@ -4,20 +4,25 @@
 # mix their coverage. Worker W: port BASE_PORT+W, data $ROOT/data/cov-W,
 # counters under $ROOT/gcov/wW/<build path> (GCOV_PREFIX).
 #
-#   COVERAGE=1 PG_REF=master bash harness/local/build_pg.sh     # once: the gcov build
+#   bash scripts/rq1_servers.sh build                          # once: gcov build of master at BASE
 #   bash scripts/rq1_servers.sh init 4
 #   bash scripts/rq1_servers.sh start 4 | stop 4 | status 4
 #   bash scripts/rq1_servers.sh coverage W [reset]             # JSON line (the executor's coverage_command)
 #   bash scripts/rq1_servers.sh srcdir W                       # build tree as seen by worker W (diff coverage)
 #
-# Environment: ROOT ($HOME/pgfuzz), BASE_PORT (5450), SRC (gcov build tree,
-# default $ROOT/src/postgres-master-cov), PG_BIN ($ROOT/install/master-cov/bin),
+# BASE is the commit of the RQ3 benchmark (bench/reinjected/bugs.yaml), so RQ1,
+# RQ3 and the LLM arm all test the same revision of master.
+#
+# Environment: ROOT ($PGFUZZ_ROOT or $HOME/pgfuzz), BASE_PORT (5450), SRC (gcov
+# build tree, default $ROOT/src/cov-wt), PG_BIN ($ROOT/install/master-cov/bin),
 # RUN_AS (cluster owner; 'pg' when run as root).
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd)
-ROOT=${ROOT:-$HOME/pgfuzz}
+ROOT=${ROOT:-${PGFUZZ_ROOT:-$HOME/pgfuzz}}
 BASE_PORT=${BASE_PORT:-5450}
-SRC=${SRC:-$ROOT/src/postgres-master-cov}
+SRC=${SRC:-$ROOT/src/cov-wt}
+REPO=${REPO:-$ROOT/src/postgres-master}
+BASE=${BASE:-$(awk '/^base:/ {print $2}' "$HERE/src/bench/reinjected/bugs.yaml")}
 PG_BIN=${PG_BIN:-$ROOT/install/master-cov/bin}
 CMD=${1:-status}
 N=${2:-4}
@@ -26,6 +31,13 @@ as() { if [ -n "$RUN_AS" ]; then su "$RUN_AS" -s /bin/bash -c "$*"; else bash -c
 gdir() { echo "$ROOT/gcov/w$1"; }
 
 case "$CMD" in
+  build)
+    [ -d "$SRC" ] || git -C "$REPO" worktree add -q --detach "$SRC" "$BASE"
+    cd "$SRC" && git checkout -q --detach "$BASE"
+    ./configure --prefix="$(dirname "$PG_BIN")" --enable-debug --enable-cassert --enable-coverage --with-libxml >/dev/null
+    make -j"$(nproc)" -s >/dev/null && make -s install >/dev/null
+    chmod -R a+rX "$(dirname "$PG_BIN")"
+    echo "gcov build of $(git rev-parse --short HEAD) installed into $(dirname "$PG_BIN")" ;;
   init)
     for ((w = 0; w < N; w++)); do
       d=$ROOT/data/cov-$w

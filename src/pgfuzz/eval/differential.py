@@ -112,9 +112,17 @@ _TIME_DEPENDENT = frozenset(
 )
 
 
+# Functions whose results changed on purpose between the release and master, so a
+# cross-version difference in them is expected. Each entry names the change.
+#   corr/regr_*: master keeps Sxx/Syy exactly 0 for constant input (649828769), so
+#   corr(x, x) over equal values is NULL on master and 1 on 18.
+_XVERSION_CHANGED = frozenset("CORR REGR_R2 REGR_SLOPE REGR_INTERCEPT".split())
+
+
 def xversion_eligible(sql: str) -> bool:
-    """``eligible`` and independent of the server instance and the wall clock."""
-    return eligible(sql) and not (StmtView.of(sql).wordset & _TIME_DEPENDENT)
+    """``eligible``, independent of the server instance and the wall clock, and free of
+    functions whose behaviour changed on purpose between the two versions."""
+    return eligible(sql) and not (StmtView.of(sql).wordset & (_TIME_DEPENDENT | _XVERSION_CHANGED))
 
 
 def masks_floats(sql: str) -> bool:

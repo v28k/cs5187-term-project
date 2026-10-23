@@ -11,10 +11,10 @@
 #   COVERAGE=1 adds --enable-coverage (for diff coverage of the injected code)
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd)
-SRC=${SRC:-$HOME/pgfuzz/src/postgres-master}
+SRC=${SRC:-${PGFUZZ_ROOT:-$HOME/pgfuzz}/src/postgres-master}
 BASE=${BASE:-$(awk '/^base:/ {print $2}' "$HERE/src/bench/reinjected/bugs.yaml")}
-WT=${WT:-$HOME/pgfuzz/src/reinject-wt}
-PREFIX=${PREFIX:-$HOME/pgfuzz/install/reinjected}
+WT=${WT:-${PGFUZZ_ROOT:-$HOME/pgfuzz}/src/reinject-wt}
+PREFIX=${PREFIX:-${PGFUZZ_ROOT:-$HOME/pgfuzz}/install/reinjected}
 JOBS=${JOBS:-$(nproc)}
 EXTRA=""
 [ "${COVERAGE:-0}" = 1 ] && EXTRA="--enable-coverage"

@@ -1,6 +1,30 @@
 \section{Discussion}
 \label{sec:discussion}
-%% Question-style paragraphs that answer what a reviewer will ask:
-%%   \paragraph{Is more X always better?} No. ...
-%% End limits with "We leave this for future work." -- do not hide them.
-\paragraph{\todo{Reviewer question}?} \todo{Short, honest answer.}
+
+\paragraph{Is a larger grammar always better?} No. A larger grammar reaches
+more corner cases of the SQL semantics, and some of these break the
+assumptions of an oracle. Both false-positive classes of our smoke run came
+from SQL that a small generator would not produce: \texttt{HAVING} without
+\texttt{GROUP BY}, and \texttt{DISTINCT} over a computed \texttt{numeric} with
+values of different scale. The cost of a larger grammar is paid in oracle
+precision, and every rewrite needs a soundness check on the tree.
+
+\paragraph{Why rewrite trees instead of text?} A text rewrite must parse the
+query again to find the clause it changes, which is hard for SQL with nested
+subqueries, CTEs and set operations. On the tree, the clause is one node with a
+known span. This is what lets \tool apply TLP inside a derived table or a
+\texttt{LATERAL} subquery.
+
+\paragraph{Why compare with the last release?} Plan variants cannot catch a
+wrong result that every plan shares, for example a constant folded by the
+planner before any plan is chosen, as in Figure~\ref{fig:motivating}. The
+release does not have the newest planner rules, so it disagrees with exactly
+the bugs that new code brings. It also disagrees with intended changes in
+behaviour, which triage must recognise.
+
+\paragraph{Does the LLM need to be good at SQL?} It needs to know \pg features
+well enough to name the SQL that reaches a commit, which is what its training
+data contains. The \gate does not trust it: an alternative that does not parse,
+is never derived, fails on the server, or misses the changed lines is
+rejected and explained back to the model. \num{How often the repair succeeds
+is part of \rqref{4}.}

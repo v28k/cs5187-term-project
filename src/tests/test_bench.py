@@ -68,3 +68,24 @@ def test_failures_listing(tmp_path):
     (d / "failure.json").write_text(json.dumps({"signature": "sig1", "outcome": "assertion", "first_t": 12.5}))
     fs = rb.failures(tmp_path)
     assert fs[0]["arm"] == "grammar" and fs[0]["trial"] == "trial-00" and fs[0]["first_t"] == 12.5
+
+
+def test_attribution_policy(tmp_path, monkeypatch):
+    bugs = [rb.Bug("a", "c1", "", tmp_path, "assertion", {"match": {"outcome": "assertion"}}),
+            rb.Bug("p1", "c2", "", tmp_path, "internal_error", {"match": {"outcome": "internal_error"}}),
+            rb.Bug("p2", "c3", "", tmp_path, "internal_error", {"match": {"outcome": "internal_error"}}),
+            rb.Bug("w", "c4", "", tmp_path, "wrong_result", {"match": {"offline": True}})]
+    bench = rb.Bench(tmp_path, "base", bugs)
+    for sig, known in (("s1", ["a"]), ("s2", ["p1", "p2"]), ("s3", []), ("s4", [])):
+        d = tmp_path / "exp" / "arm" / "trial-00" / "failures" / sig
+        d.mkdir(parents=True)
+        (d / "failure.json").write_text(json.dumps({"signature": sig, "outcome": "x", "first_t": 1, "known_bugs": known}))
+    fixed, solos = "fixed", ["solo-a", "solo-p1", "solo-p2", "solo-w"]
+    truth = {"s2": {"solo-p2"}, "s3": {"solo-w"}, "s4": {"fixed", "solo-w"}}
+    tried = []
+    monkeypatch.setattr(rb, "load_candidate", lambda d: str(d).rsplit("/", 1)[1])
+    monkeypatch.setattr(rb, "_reproduces", lambda ex, c, r: tried.append((c, ex)) or ex in truth.get(c, set()))
+    res = {r["signature"]: (r["how"], r["bugs"]) for r in rb.attribute(bench, tmp_path / "exp", fixed, solos)}
+    assert res == {"s1": ("signature", ["a"]), "s2": ("solo", ["p2"]), "s3": ("solo", ["w"]), "s4": ("native", [])}
+    assert ("s1", "fixed") not in tried                                   # no replay for a unique signature
+    assert {ex for c, ex in tried if c == "s2"} == {"fixed", "solo-p1", "solo-p2"}   # only matching solos

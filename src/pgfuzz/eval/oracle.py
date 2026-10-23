@@ -250,7 +250,8 @@ def classify(
         elif st.status is StatementStatus.SKIPPED:
             outcomes.append(Outcome.OK)
         elif st.status is StatementStatus.CONNECTION_LOST:
-            if st.sqlstate and classify_sqlstate(st.sqlstate) is Outcome.CONNECTION_TERMINATED:
+            if result.extra.get("foreign_crash") or (
+                    st.sqlstate and classify_sqlstate(st.sqlstate) is Outcome.CONNECTION_TERMINATED):
                 outcomes.append(Outcome.CONNECTION_TERMINATED)
             else:
                 outcomes.append(Outcome.CRASH)

@@ -1,23 +1,32 @@
-%% Figure: overview of the tool. Steps left to right, loop dashed.
-%% Grayscale-safe (black lines, black!6 fill), \scriptsize text, numbered
-%% steps matching the "Step N" subsections.
+%% Overview of Arbor. Steps match the subsections of Section 4.
+%% Grayscale-safe (black lines, black!6 fill), \scriptsize text.
 \begin{tikzpicture}[
     x=1cm, y=1cm, font=\scriptsize,
     box/.style={draw, rounded corners=2pt, align=center, inner sep=2pt,
-                minimum height=9mm, text width=15mm, fill=white},
-    outbox/.style={draw, align=left, inner sep=2pt, fill=black!6,
-                text width=20mm, font=\tiny},
+                minimum height=10mm, text width=19mm, fill=white},
+    io/.style={draw, align=center, inner sep=2pt, fill=black!6, text width=17mm, minimum height=8mm},
     flow/.style={-{Stealth[length=1.6mm]}, line width=0.5pt},
     back/.style={-{Stealth[length=1.6mm]}, line width=0.5pt, dash pattern=on 2pt off 1.5pt},
   ]
-  \node[box, text width=10mm] (in) at (0,0) {input};
-  \node[box] (s1) at (1.8,0) {\textbf{1} step one};
-  \node[box] (s2) at (3.8,0) {\textbf{2} step two};
-  \node[box] (s3) at (5.8,0) {\textbf{3} step three};
-  \node[outbox] (o) at (3.8,-1.6) {output one\\output two};
-  \draw[flow] (in) -- (s1);
+  % top row: the fuzzing loop
+  \node[io]  (g)  at (0,0)    {typed grammar\\+ schema};
+  \node[box] (s1) at (2.5,0)  {\textbf{1} derive test case\\(derivation trees)};
+  \node[box] (s2) at (5.1,0)  {\textbf{2} attach oracles\\(tree rewrites)};
+  \node[box] (s3) at (7.7,0)  {\textbf{3} run on server\\+ plan variants\\+ release server};
+  \node[box] (s4) at (10.3,0) {\textbf{4} classify, de-duplicate,\\triage, reduce};
+  \node[io]  (out) at (12.7,0) {reduced\\reproducer\\+ verdict};
+  % bottom row: the LLM loop
+  \node[io]  (c)  at (0,-2.0)   {recent commit\\(diff, tests)};
+  \node[box] (s5) at (2.5,-2.0) {\textbf{5a} LLM proposes\\fragment + seeds};
+  \node[box] (s6) at (5.1,-2.0) {\textbf{5b} \gate on server:\\parse, reach, valid,\\diff coverage};
+  \draw[flow] (g) -- (s1);
   \draw[flow] (s1) -- (s2);
   \draw[flow] (s2) -- (s3);
-  \draw[flow] (s3.south) |- (o.east);
-  \draw[back] (s3.north) -- ++(0,0.35) -| node[pos=0.25, above] {repeat} (s2.north);
+  \draw[flow] (s3) -- (s4);
+  \draw[flow] (s4) -- (out);
+  \draw[back] (s3.north) -- ++(0,0.45) -| node[pos=0.25, above] {feedback: valid alternatives, new features and plan shapes} (s1.north);
+  \draw[flow] (c) -- (s5);
+  \draw[flow] (s5) -- (s6);
+  \draw[back] (s6.south) -- ++(0,-0.4) -| node[pos=0.25, below] {repair round: gate findings} (s5.south);
+  \draw[flow] (s6.north) -- ++(0,0.5) -| node[pos=0.75, left] {accepted fragment} (s1.south);
 \end{tikzpicture}

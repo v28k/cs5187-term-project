@@ -1,16 +1,40 @@
 \section{Threats to Validity}
 \label{sec:threats}
-%% Internal / External / Construct. For each threat: what it is, what we did
-%% about it (itemize if several guards), what remains. Report non-determinism
-%% and LLM run-to-run variation with numbers.
-\focus{\textbf{Threats to validity.} Be honest about what could make your
-  conclusions wrong. Cover all three kinds below. For each: name the threat,
-  say what you did to reduce it (itemise the guards), and what still remains.
-  Report any non-determinism or run-to-run variation with numbers. Graded on
-  honesty, not on having zero threats.}
 
-\paragraph{Internal threats.} \todo{}
+\paragraph{Internal threats.} Fuzzing is random, and one run proves little.
+We guard against this as follows:
+\begin{itemize}
+  \item every arm runs \num{5} trials with the same per-trial seeds, and we
+    report medians, interquartile ranges, Mann--Whitney U tests and
+    $\hat{A}_{12}$ effect sizes~\cite{klees2018evaluating,vargha2000a12};
+  \item arms share the server build, schema, executor, oracles and budget, so
+    a difference comes from the generator;
+  \item each trial runs in its own server and, for the release comparison, in
+    its own database, so parallel trials cannot see each other's tables;
+  \item a metamorphic mismatch counts only if it repeats, and every candidate
+    is reproduced three times on a fresh connection before triage.
+\end{itemize}
+Our own oracles can be wrong. Two false-positive classes reached the smoke
+run (Section~\ref{sec:rq2}); we fixed them and added regression tests, but
+others may remain. We therefore report the verdict of every candidate, not
+only the real bugs. Verdicts are made by us and may contain mistakes; we
+release the reduced reproducers so that others can check them. Attribution in
+RQ3 replays a test case on single-bug servers; a finding that needs two
+injected bugs at once is reported as unattributed, not credited to an arm.
 
-\paragraph{External threats.} \todo{Subjects, platform, versions.}
+\paragraph{External threats.} We test one system, \pg, at one commit, with one
+schema of 9 relations. Bugs that need other data shapes, extensions or
+concurrent sessions are out of reach. The 23 benchmark bugs are recent fixes in
+query processing with regression tests; bugs that were never fixed, or whose
+fix does not revert cleanly, are missing, and the benchmark may favour the
+features that recent \pg development touched. The LLM results hold for one
+model at one point in time; we store every prompt and response, so the ledger
+can be replayed without the model, but a new run may differ.
 
-\paragraph{Construct threats.} \todo{Does the metric measure what we claim?}
+\paragraph{Construct threats.} Line and branch coverage measure what code ran,
+not whether an oracle could have seen a bug there. A bug ``found'' in RQ3
+means a test case failed on its solo server and passed on the fixed one; the
+failure may differ from the PoC's symptom, for example a wrong result where the
+PoC shows an internal error, and we still count it, because the same fix
+removes it. For the LLM, a fragment that passes the \gate is valid and reaches
+the changed lines; it is not proof that it tests the changed behaviour.

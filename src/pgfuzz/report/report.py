@@ -343,6 +343,50 @@ def _step(points: list[tuple[float, float]], t: float) -> float | None:
     return v
 
 
+def _rq3_cells(row: dict[str, Any], arm: str) -> tuple[int, int, float | None]:
+    c = row.get(arm) or {"found": 0, "trials": 0, "median_t": None}
+    return c["found"], c["trials"], c["median_t"]
+
+
+def _rq3_markdown(table: dict[str, Any], order: list[str], labels: dict[str, str]) -> str:
+    arms = [a for a in order if a in table["found_by_arm"]]
+    out = ["", "## Re-injected bugs (RQ3)", "",
+           "Trials in which the arm found the bug, and the median time to the first finding "
+           "(failures attributed by replay on single-bug servers, `pgfuzz bench attribute`).", "",
+           "| Bug | Symptom | " + " | ".join(labels.get(a, a) for a in arms) + " |",
+           "|---|---|" + "---:|" * len(arms)]
+    for r in table["bugs"]:
+        cells = []
+        for a in arms:
+            n, k, t = _rq3_cells(r, a)
+            cells.append(f"{n}/{k}" + (f" ({t:.0f} s)" if t is not None else ""))
+        out.append(f"| {r['id']} | {r['symptom']} | " + " | ".join(cells) + " |")
+    out.append("| **bugs found** | | " + " | ".join(
+        f"**{table['found_by_arm'][a]}/{table['observable_bugs']}**" for a in arms) + " |")
+    out += ["", f"Failures that also reproduce on the fixed server (native): {table['native_failures']}; "
+            f"not attributable to one injected bug: {table['unattributed_failures']}.", ""]
+    return "\n".join(out)
+
+
+def _rq3_latex(table: dict[str, Any], order: list[str], labels: dict[str, str], exp: str) -> str:
+    arms = [a for a in order if a in table["found_by_arm"]]
+    lines = [r"\begin{table}[t]", r"  \centering", r"  \small",
+             rf"  \caption{{Re-injected bugs found per arm: trials with a finding and median time to the first "
+             rf"finding in seconds (experiment \texttt{{{tex_escape(exp)}}}).}}",
+             r"  \label{tab:rq3}", r"  \begin{tabular}{ll" + "r" * len(arms) + "}", r"    \toprule",
+             "    Bug & Symptom & " + " & ".join(tex_escape(labels.get(a, a)) for a in arms) + r" \\", r"    \midrule"]
+    for r in table["bugs"]:
+        cells = []
+        for a in arms:
+            n, k, t = _rq3_cells(r, a)
+            cells.append(f"{n}/{k}" + (f" ({t:.0f})" if t is not None else ""))
+        lines.append(f"    \\texttt{{{tex_escape(r['id'])}}} & {tex_escape(r['symptom'])} & " + " & ".join(cells) + r" \\")
+    lines += [r"    \midrule", "    Bugs found & & " + " & ".join(
+        f"{table['found_by_arm'][a]}/{table['observable_bugs']}" for a in arms) + r" \\",
+              r"    \bottomrule", r"  \end{tabular}", r"\end{table}", ""]
+    return "\n".join(lines)
+
+
 def build_report(experiment_dir: str | Path, out_dir: str | Path | None = None, plots: bool = True) -> Path:
     exp_dir = Path(experiment_dir)
     groups_all = load_experiment(exp_dir)
@@ -377,7 +421,13 @@ def build_report(experiment_dir: str | Path, out_dir: str | Path | None = None, 
     (out / "table_summary.tex").write_text(_latex_summary(groups, order, labels, exp), encoding="utf-8")
     if comp:
         (out / "table_comparison.tex").write_text(_latex_comparison(comp, labels, exp), encoding="utf-8")
-    (out / "report.md").write_text(_markdown(groups, order, labels, comp, bugs, exp, incomplete), encoding="utf-8")
+    md = _markdown(groups, order, labels, comp, bugs, exp, incomplete)
+    att = exp_dir / "attribution.json"
+    if att.exists():                     # RQ3: written by `pgfuzz bench attribute`
+        table = json.loads(att.read_text(encoding="utf-8"))["table"]
+        md += _rq3_markdown(table, order, labels)
+        (out / "table_rq3.tex").write_text(_rq3_latex(table, order, labels, exp), encoding="utf-8")
+    (out / "report.md").write_text(md, encoding="utf-8")
     if plots:
         _plot(groups, order, labels, out)
     return out

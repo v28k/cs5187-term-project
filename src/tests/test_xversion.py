@@ -40,3 +40,10 @@ def test_clock_dependent_and_one_sided_statements_are_not_compared():
     res = x.execute(TestCase(["SELECT now() AS c0", "SELECT new_function(1)"]))
     assert oracle.classify(res).outcome is Outcome.OK
     assert x.xstats == {"compared": 0, "mismatch": 0, "test_only_ok": 1, "ref_only_ok": 0, "ref_failures": 0}
+
+
+def test_intended_changes_are_not_compared_across_versions():
+    from pgfuzz.eval.differential import xversion_eligible
+
+    assert not xversion_eligible("SELECT CORR(1.0 / 3, 1.0 / 3) FROM t2")
+    assert xversion_eligible("SELECT COVAR_POP(c0, 0::float8) FROM t2")

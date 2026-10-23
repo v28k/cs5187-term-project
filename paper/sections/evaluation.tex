@@ -1,54 +1,171 @@
 \section{Evaluation}
 \label{sec:eval}
-%% Structure (keep): RQ list -> Subjects -> Baselines -> Measurements
-%% -> Setup -> one \subsection per RQ with Observations.
-%% Each RQ is a plain question a practitioner would ask.
 
-\focus{\textbf{Research questions.} State 2--4 questions a practitioner would
-  actually ask. Each is a plain yes/no or how-much question you can answer
-  with a measurement --- not ``Is our tool good?''. Cover: does it work
-  (\rqref{1}), is it better than a simpler baseline (\rqref{2}), does it
-  change the outcome for a user (\rqref{3}), and what does it cost
-  (\rqref{4}). Every RQ must be answered later by an \texttt{observation}
-  box backed by a number. This is graded.}
-
-We ask \todo{n} questions.
+We ask four questions.
 \begin{itemize}
-  \item[\rqref{1}] \todo{Question?}
-  \item[\rqref{2}] \todo{Question, compared with simpler baselines?}
-  \item[\rqref{3}] \todo{Does it change what tools/users get?}
-  \item[\rqref{4}] What does \tool cost in time \todo{and resources}?
+  \item[\rqref{1}] Does the typed grammar reach more of \pg than a
+    random-mutation generator in the same time: more valid statements, more
+    covered lines and branches, more SQL features and plan shapes?
+  \item[\rqref{2}] Which bugs does \tool find, and how precise is each oracle?
+  \item[\rqref{3}] On real bugs put back into \pg, which configuration finds
+    how many, and how fast?
+  \item[\rqref{4}] What does the commit-directed LLM extension add, and what
+    does it cost in tokens, money and repair rounds?
 \end{itemize}
 
-\subsection{Subjects}
+\subsection{Subject and Benchmark}
 \label{sec:subjects}
-%% Selection criteria as an enumerate; exact versions/commits; why these.
-We select \todo{n} subjects with the following criteria:
-\begin{enumerate}
-  \item \todo{criterion, with the reason};
-\end{enumerate}
 
-\subsection{Baselines}
+All servers are built from one commit of \pg master, \texttt{26bd08fb} of
+16~October~2026, with assertions on. For \rqref{3} we built a benchmark of
+real bugs in the style of Magma~\cite{hazimeh2020magma}, but by reverting
+fixes instead of porting bugs forward. We took every commit between
+31~July and 16~October~2026 that:
+\begin{enumerate}
+  \item changes the optimiser, executor, parser, rewriter or SQL-callable
+    functions, and says in its message that it fixes a bug, because RQ3 is
+    about bugs that reach users through SQL;
+  \item adds a regression test, because its SQL is our proof that the bug can
+    be triggered;
+  \item reverts cleanly on the base commit, alone and together with the
+    others, and the server still builds.
+\end{enumerate}
+This gives 23 fixes. We build three kinds of server: the \emph{fixed} server
+(the base), one \emph{solo} server per bug (the base with only that fix
+reverted), and the \emph{injected} server (all 23 reverted), on which the
+campaigns run. For each bug we wrote a self-contained proof of concept (PoC)
+from its regression test and ran it on the fixed and the solo server
+(Table~\ref{tab:bench}). Twenty bugs change the result of their PoC. The
+other three change only the plan, or need an equality operator that returns
+NULL for non-NULL inputs, which no built-in type has; they leave the
+denominator. On the injected server every PoC shows the same symptom as on its
+solo server, so no injected bug hides another.
+
+\begin{table}[t]
+  \centering
+  \small
+  \caption{The re-injected bug benchmark. Symptom: what the PoC shows on the
+  solo server compared with the fixed server. A crash-only fuzzer can see the
+  first two rows; the others need an oracle that knows the expected result or
+  the expected error.}
+  \label{tab:bench}
+  \begin{tabular}{lr}
+    \toprule
+    Symptom & Bugs \\
+    \midrule
+    assertion failure & 4 \\
+    internal error (\texttt{XX000}) & 5 \\
+    wrong result & 8 \\
+    missing error (the bug returns rows instead of an error) & 2 \\
+    wrong error & 1 \\
+    \midrule
+    observable, total & 20 \\
+    plan only or not triggerable with built-in types & 3 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Configurations}
 \label{sec:baselines}
-%% description list; each baseline: what it is, why it is a fair comparison.
+
+Every configuration (\emph{arm}) uses the same server, schema, executor,
+oracles, time budget and per-trial random seed; the arms differ only in the
+generator and in what the generator can attach.
 \begin{description}
-  \item[Default.] \todo{}
+  \item[\arm{Random}.] A mutation-based generator over the same schema that
+    edits seed queries at the token level. It cannot attach metamorphic
+    checks, because it has no derivation trees.
+  \item[\arm{Grammar}.] Step 1 alone: the typed grammar with
+    feature-guided corpus, no metamorphic checks, no plan guidance.
+  \item[\arm{Grammar+Oracles}.] Steps 1--4: metamorphic checks on half the
+    queries and plan-shape guidance.
+  \item[\arm{+LLM}.] \arm{Grammar+Oracles} plus the fragments and seeds that
+    passed the \gate. For \rqref{4} we also run \arm{+LLM fragments} and
+    \arm{+LLM seeds} alone. The LLM never sees the 23 benchmark fixes: the
+    commit miner excludes them.
 \end{description}
+All arms run with the plan-variant oracle and, in RQ3, the cross-version
+oracle, because these do not depend on the generator.
 
 \subsection{Measurements}
 \begin{description}
-  \item[\rqref{1}.] \todo{What exactly is measured.}
+  \item[\rqref{1}.] Statement validity (the share of statements that run without
+    error), line and branch coverage of the backend from gcov, distinct SQL
+    features from a catalogue of 148 and distinct plan shapes, over time.
+  \item[\rqref{2}.] Distinct bug candidates per oracle after signature
+    de-duplication, and the verdict of each after triage: real, duplicate,
+    false positive, not a bug, or flaky (Equation~\ref{eq:precision}).
+  \item[\rqref{3}.] For each benchmark bug and arm: the number of trials that
+    found it and the median time to the first finding. A crash or assertion is
+    attributed by its signature; a wrong result or error is attributed by
+    replaying the failing test case on the fixed server and on every solo
+    server: it belongs to bug $i$ if it fails on solo server $i$ and not on the
+    fixed server.
+  \item[\rqref{4}.] Share of commits whose proposal passes the gate, repair
+    rounds needed, reasons for rejection, diff coverage gained, tokens and
+    cost; and the \rqref{1}--\rqref{3} measures of the three LLM arms.
 \end{description}
 
 \subsection{Setup}
-%% Machine, OS, compiler/tool versions, time limits, repetitions.
-\todo{Machine, versions, repetitions.}
+Each arm runs \num{5} trials of one hour on one worker each, four workers in
+parallel, on \num{machine}. Following Klees et al.~\cite{klees2018evaluating},
+we report medians with interquartile ranges, compare arms with the two-sided
+Mann--Whitney U test, and give the Vargha--Delaney $\hat{A}_{12}$ effect
+size~\cite{vargha2000a12}. Each coverage worker writes its gcov counters to its
+own directory, so parallel trials do not mix coverage. The LLM is Claude Opus
+5.5 with structured output and a cached system prompt of about 9{,}000 tokens.
 
-\subsection{\rqref{1}: \todo{Short question}}
+\subsection{\rqref{1}: Reach}
 \label{sec:rq1}
-\todo{Table/figure first, then text that reads it.}
+\num{Table: median (IQR) validity, lines, branches, features, plan shapes per
+arm, with $\hat{A}_{12}$ against \arm{Random}; figure: coverage over time.}
 
-\begin{observation}
-\label{obs:first}
-\todo{One claim, with the number that supports it.}
-\end{observation}
+After 270 seconds of a smoke run on the injected server (one trial per arm),
+each grammar arm had produced 101 distinct SQL features and more than
+2{,}000 distinct plan shapes, the random arm 17 features and 17 plan shapes.
+Of the 19{,}846 statements the \arm{Grammar} arm sent, 19{,}780 (99.7\%) ran
+without error.
+\num{Replace with the full campaign.}
+
+\subsection{\rqref{2}: Bugs and Oracle Precision}
+\label{sec:rq2}
+\num{Table: candidates and verdicts per oracle (from the triage ledger).}
+
+So far \tool found two bugs that were not known. The first is the wrong result
+of Figure~\ref{fig:motivating}, found by the \texttt{(SELECT e)} expression
+rewrite. The second is an assertion failure: \texttt{JSON\_TABLE} does not
+assign collations to its context item and \texttt{PASSING} arguments, and a
+row comparison over such a value fails an assertion in the executor
+(\pg~17, 18 and master). The four-minute smoke run of RQ3 found the second
+bug again without help.
+
+Triage of the smoke run also found two false-positive classes in our own
+oracles, which we fixed before the campaign. TLP on \texttt{HAVING} dropped the
+clause on the unpartitioned side, which turns a single-group aggregate into a
+plain query; and \texttt{DISTINCT} over \texttt{numeric} may keep
+\texttt{21.0000000000000000} or \texttt{21.00000000000000000000} depending on
+the plan, which are equal values. The smoke runs also exposed a harness
+error: when another session crashed the server, the crash was blamed on the
+test case that happened to be running. \tool now reads the backend process
+id from every \texttt{TRAP} and signal line of the log and ignores evidence
+from other backends. Over all 18 candidates triaged so far, 3 are real and
+13 are false positives or intended changes, all of them from 6 classes that
+we fixed; \num{final precision per oracle, before and after fixes}.
+
+\subsection{\rqref{3}: Re-injected Bugs}
+\label{sec:rq3}
+\num{Table from \texttt{pgfuzz bench attribute}: trials and median time per
+bug and arm.}
+
+In a 15-minute smoke run (one trial per arm), \arm{Grammar+Oracles} and
+\arm{+LLM} each found the internal error of fix \texttt{dfcf6fa7} (dummy
+\texttt{Append} paths for set operations) after about 160 seconds;
+\arm{Random} and \arm{Grammar} found no benchmark bug. The error message of
+this bug is shared by fix \texttt{8b29b8da}; replay on the two solo servers
+assigned it to the right one. \num{Full result.}
+
+\subsection{\rqref{4}: The LLM Extension}
+\label{sec:rq4}
+\num{Ledger summary: commits, acceptance after round 1/2/3, rejections by
+gate check, diff coverage gain, tokens, cost; and the ablation of the three
+LLM arms on \rqref{1}--\rqref{3}.}

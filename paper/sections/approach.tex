@@ -1,28 +1,161 @@
 \section{Approach}
 \label{sec:approach}
-%% Start with the figure and the main idea in 2-3 sentences.
-%% One \subsection per step, titled "Step N: ..." matching the figure numbers.
-%% Say what is NOT new: "We do not claim this step as new. Everything after it is."
-%% Lists of actions use (i)~...; (ii)~...; inline.
 
-\focus{\textbf{Workflow.} Show how your method works end to end. Start with
-  the overview figure (Figure~\ref{fig:overview}) and state the main idea in
-  2--3 sentences: what goes in, what comes out, what loops, what is
-  expensive. Then one \texttt{\textbackslash subsection} per numbered box in
-  the figure --- the step numbers in the text must match the figure. Say
-  plainly which steps are yours and which you reuse (``We do not claim this
-  step as new'').}
+Figure~\ref{fig:overview} shows the steps of \tool. The main idea is to keep
+every generated query as a typed derivation tree until it has been run, so
+that oracles can rewrite single nodes of known type and position instead of
+SQL text. The fuzzing loop (Steps 1--4) runs thousands of test cases per
+minute; its expensive part is running each query several times, once per
+oracle. The LLM loop (Step 5) runs a few times per commit, before the
+campaign, and changes only the grammar.
 
-Figure~\ref{fig:overview} shows the steps of \tool. The main idea is
-\todo{one sentence}.
-
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
   \input{figures/overview}
-  \caption{Overview of \tool. \todo{What loops, what is expensive.}}
+  \caption{Overview of \tool. The top row is the fuzzing loop: test cases are
+  derived from the typed grammar, oracles are attached as rewrites of the
+  derivation tree, and the server runs each query under several settings.
+  The bottom row runs before a campaign: an LLM turns a recent commit into
+  grammar alternatives, and the \gate accepts them only when the server runs
+  them and they reach the changed lines.}
   \label{fig:overview}
-\end{figure}
+\end{figure*}
 
-\subsection{Step 1: \todo{Name}}
-\label{sec:step1}
-\todo{Text.}
+\subsection{Step 1: Derive Test Cases from a Typed Grammar}
+\label{sec:grammar}
+
+We wrote a grammar for the SQL that \pg~18 and master accept, in a small
+format of our own (\pgg). It has 78 rules with 419 alternatives over 13 SQL
+types. A rule may be parameterised by a type, as in \texttt{expr<T>}, so a
+derivation only combines expressions that type-check. Weights on alternatives
+set how often each is chosen, and \emph{builtins} written in Python handle
+what a context-free grammar cannot: \texttt{@col(T)} picks a visible column of
+type $T$ in the current scope, \texttt{@table} binds a fresh alias, and
+\texttt{@group\_keys} turns the current query level into a grouped one, after
+which only grouped columns and aggregates are visible. The schema has 9
+relations with partitions, inheritance, a view, indexes of four access
+methods (B-tree, GIN, GiST, BRIN) and NULLs in most columns.
+
+A test case has up to two setup statements (DDL, DML, \texttt{ANALYZE},
+\texttt{SET LOCAL} of a planner setting) followed by one or two queries. While
+deriving, the engine wraps the tokens of every node in invisible markers, so
+after rendering it knows the exact token span of each node. Half of the test
+cases are new derivations; the other half replay a test case from the corpus
+and re-derive one subtree. A test case enters the corpus when it produces a new
+bug signature, covers a new SQL feature, a new pair of features, or a new plan shape, the digest of the
+node types in \texttt{EXPLAIN} output~\cite{ba2023qpg}.
+
+We do not claim grammar-based generation as new; the typing, the scoping
+builtins and the node spans are what the later steps need.
+
+\subsection{Step 2: Attach Oracles as Tree Rewrites}
+\label{sec:oracles}
+
+For each query, \tool picks up to one metamorphic check and stores it with
+the test case as a pair of queries that must return the same multiset. All
+checks are built on the derivation tree:
+\begin{description}
+  \item[TLP on WHERE.] The \texttt{WHERE p} of any \texttt{SELECT} whose result
+    is used as a multiset (the query itself, a derived table, a CTE body, a
+    set-operation arm, or an \texttt{IN}, \texttt{EXISTS} or \texttt{LATERAL}
+    subquery) is partitioned into $p$, \texttt{NOT p} and \texttt{p IS NULL},
+    and the three copies are combined with \texttt{UNION ALL}. Because the
+    rewrite edits one node, it also works inside a nested query, where
+    text-based TLP does not apply.
+  \item[TLP on HAVING.] The same on the \texttt{HAVING} clause. The
+    unpartitioned side keeps \texttt{HAVING TRUE}: without \texttt{GROUP BY},
+    a \texttt{HAVING} clause is what makes a level a single-group aggregate.
+  \item[NoREC.] \texttt{count(*)} with \texttt{WHERE p} against the sum of
+    \texttt{CASE WHEN p THEN 1 ELSE 0 END} over the same \texttt{FROM}.
+  \item[Expression rewrites.] One typed expression node $e$ becomes an
+    equivalent form: \texttt{COALESCE(e,e)}, \texttt{(SELECT e)},
+    \texttt{CASE WHEN TRUE THEN e END}, $e+0$ and $e \cdot 1$ for numbers,
+    \texttt{e || ''} for text, and \texttt{NOT NOT p}, \texttt{p AND TRUE},
+    \texttt{p OR FALSE} and \texttt{CASE WHEN p THEN TRUE ELSE FALSE END}
+    for predicates.
+  \item[CTE materialisation.] \texttt{MATERIALIZED} is toggled on one CTE.
+  \item[Table fence.] One table reference becomes
+    \texttt{(SELECT * FROM t OFFSET 0)}, which stops the planner from pushing
+    predicates into it, removing it, or pruning its partitions.
+\end{description}
+A check is attached only if its rewrite is sound for that query
+(Section~\ref{sec:problem}): no \texttt{LIMIT} without \texttt{ORDER BY}, no
+volatile function, no order-dependent aggregate, and, for partitioning under
+\texttt{DISTINCT} or grouping, only key types whose equal values print the same
+text.
+
+\subsection{Step 3: Run the Test Case Several Ways}
+\label{sec:run}
+
+The server runs each test case in a transaction with one savepoint per
+statement and rolls it back at the end, so test cases cannot affect each
+other. For each query that is deterministic, \tool also runs:
+(i)~both sides of the attached check;
+(ii)~the query under two of 18 \emph{plan variants} (for example hash join
+only, no hash aggregation, forced parallel plans, partitionwise join on, JIT
+on), chosen at random per query;
+and (iii)~the whole test case on a server of the last release, \pg~18.6, in a
+database of its own for each worker (the \emph{cross-version oracle}).
+Results are compared as order-insensitive digests of the result text. The
+digests drop choices that no plan controls: trailing zeros of equal
+\texttt{numeric} values (\texttt{2.0} and \texttt{2.00}), the sign of float
+zero, and, for aggregates over floats, the last digits of finite values.
+
+\subsection{Step 4: Classify, De-duplicate, Triage}
+\label{sec:triage}
+
+The oracle reads the statement results and the server log. A \texttt{TRAP}
+line is an assertion failure; a lost connection without one is a crash; an
+error of class \texttt{XX} is an internal error; a confirmed mismatch of any
+digest is a wrong result. A metamorphic mismatch counts only if it repeats when
+both sides run again. Each candidate gets a \emph{signature}: the assertion
+location, the normalised backtrace or error message, or, for wrong results,
+the oracle and the shape of the query. Only the first test case per signature
+is saved.
+
+Triage then reproduces the candidate three times on a fresh connection and
+reduces it. It removes whole statements with delta
+debugging~\cite{zeller2002dd}, then removes clauses, list items, and
+parenthesised groups of the failing statement level by level over its
+parenthesis tree~\cite{misherghi2006hdd}, and finally single tokens. A
+reduction step is kept only if the same failure occurs: the same assertion,
+the same normalised message, or the same oracle and plan variant. For a
+metamorphic candidate both queries of the check are reduced together, so they
+stay a valid pair. The output is a short reproducer, the rows each side
+returned, and a verdict template. We do not claim these reduction algorithms
+as new.
+
+\subsection{Step 5: Extend the Grammar from Recent Commits}
+\label{sec:llm}
+
+\paragraph{Step 5a: propose.} \tool lists the commits of \pg master that change
+the optimiser, the executor, the parser or the SQL-callable functions and that
+add regression tests. For each one it builds a digest: the message, the
+changed functions, the SQL that the commit added to the tests, and the
+\emph{diff-coverage targets}, the changed lines of each C file. An LLM gets
+the digest together with a fixed system prompt: the \pgg format, the
+builtins, the conventions of the grammar (every operator parenthesised,
+columns only through \texttt{@col}, no volatile functions), the schema and the
+whole current grammar. Because the system prompt is the same for every commit,
+it is cached. The model answers with structured output: a rationale, a grammar
+fragment of new alternatives, one to five seed test cases, and the feature
+names it targets.
+
+\paragraph{Step 5b: validate.} No model output reaches the campaign unless
+the server agrees with it. The \gate checks, in order:
+(i)~\emph{parse}: the fragment parses together with the grammar, adds no
+types, and uses only known builtins;
+(ii)~\emph{reachability}: when \tool samples 150 test cases with the new
+alternatives boosted, they are used at least five times;
+(iii)~\emph{validity}: at least 60\% of the statements that use them run
+without error on the server;
+(iv)~\emph{seeds}: each seed runs without error;
+and (v)~\emph{diff coverage}: with a gcov build of the server, the sample
+executes more of the commit's changed lines than the same sample without the
+fragment. If a check fails, its findings (the parse error, the most frequent
+error messages, the lines still uncovered) go back to the model, which repairs
+its answer, for up to three rounds. Every round is a line in a ledger with the
+tokens it used, its cost and the full report of the gate.
+
+The gate is also a small fuzzing campaign aimed at the commit: a crash or
+wrong result found while sampling is recorded like any other candidate.

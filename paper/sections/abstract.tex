@@ -1,11 +1,19 @@
-%% ABSTRACT (150-250 words, one paragraph, no citations, no \ref).
-%% Pattern (from earlier papers):
-%%  1. The problem in 2-3 short sentences. Plain words; what tools do today.
-%%  2. Why it matters: ONE concrete, real case with an exact number
-%%     (e.g. a CVE, a miscompilation, a measured share).
-%%  3. "We present \tool." What it does, in steps, in one or two sentences.
-%%  4. Results with numbers: "On X, \tool ... from A\% to B\%."
-%%  5. One honest lesson or surprise the work taught ("The run also shows ...").
-%% No "novel", no "we propose a framework", no promises without numbers.
-\todo{Problem in two sentences.} \todo{One real case with a number.}
-We present \tool. \todo{What it does.} \todo{Results with numbers.}
+%% One paragraph, no citations: problem -> real case with a number ->
+%% "We present \tool" + what it does -> results with numbers -> one lesson.
+A database system that returns a wrong result raises no error and leaves no
+trace in its logs. Fuzzers for \pg mostly find crashes, and the oracles that
+detect wrong results work on small query languages of their own. In \pg~17,
+18 and master, for example, the planner answers \texttt{true} for
+\texttt{'(,)'::int4range @> NULL}, where the strict operator must give NULL.
+Of 23 recent query-processing fixes in \pg master, 20 change what a query
+returns, but only 9 of them crash or raise an internal error. We present
+\tool, a fuzzer that keeps every generated query as a typed derivation tree,
+so that metamorphic oracles (TLP, NoREC, expression rewrites, CTE and table
+fences) can rewrite single nodes of known type at any query level. Plan
+variants and the last release serve as two more oracles. An LLM reads recent
+commits and proposes grammar alternatives, which a validation gate accepts
+only if the server runs them and they reach the changed lines. \tool found
+two previously unknown bugs, a wrong result and an assertion failure, and
+\num{RQ1--RQ4 results}. The main lesson is that oracle precision, not
+generator reach, limits a wrong-result fuzzer: a richer grammar also reaches
+the corners where two ``equivalent'' queries are not.

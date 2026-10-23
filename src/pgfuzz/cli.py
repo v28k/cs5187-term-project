@@ -365,7 +365,7 @@ def cmd_bench(a: argparse.Namespace) -> int:
                   f"copy the symptoms into {cfg.known_bugs}")
             return 0
         res = rb.attribute(bench, a.experiment_dir, fixed, solos, repeat=a.repeat)
-        arms = sorted({r["arm"] for r in res}) or [c.name for c in cfg.configs]
+        arms = [c.name for c in cfg.configs if c.enabled] + sorted({r["arm"] for r in res} - {c.name for c in cfg.configs})
         table = rb.detection_table(bench, res, arms, cfg.trials)
         (out / "attribution.json").write_text(json.dumps({"failures": res, "table": table}, indent=1, default=str),
                                               encoding="utf-8")

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import os
 import json
 import re
 from dataclasses import dataclass, field
@@ -104,9 +105,12 @@ class ExperimentConfig:
 
     def substitutions(self, config: str, worker: int, trial: int) -> dict[str, Any]:
         """Placeholders available in plug-in params. ``{port}`` is ``base_port + worker``,
-        so N parallel workers can use N servers on consecutive ports."""
+        so N parallel workers can use N servers on consecutive ports; ``{pgroot}`` is the
+        directory of the scripts' builds and clusters."""
         return {"config_dir": str(self.config_dir), "worker": worker, "trial": trial, "config": config,
-                "port": self.base_port + worker}
+                "port": self.base_port + worker,
+                # where the scripts/ keep builds and clusters ($PGFUZZ_ROOT, default ~/pgfuzz)
+                "pgroot": os.environ.get("PGFUZZ_ROOT") or str(Path.home() / "pgfuzz")}
 
     def trial_seed(self, trial: int) -> int:
         """Seed for trial ``trial``. Identical across configs, so trial k of every

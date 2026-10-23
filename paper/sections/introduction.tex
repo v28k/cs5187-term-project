@@ -1,44 +1,110 @@
 \section{Introduction}
 \label{sec:intro}
-%% Paragraph plan (each paragraph = one job; keep to this order):
-%%  P1  Concrete scenario the reader knows: "Suppose you want to ...".
-%%      State what existing tools need or do, with citations.
-%%  P2  The first/known problem and who already works on it (cite).
-%%      End with where they stop: "These tools stop when ...".
-%%  P3  OUR problem, in plain words: "We focus on a second problem that
-%%      starts where they stop: ...". Why it is silent/dangerous.
-%%  P4  A real example with exact numbers, pointing to a figure
-%%      (Figure~\ref{fig:motivating}). Then "This is not a single case." + count.
-%%  P5  Prior work on the closest idea and its precise gap
-%%      ("However, they need ...", "Their method depends on ...").
-%%  P6  "We bring/We present \tool ..." + numbered steps (enumerate), each
-%%      step one sentence, each pointing to its section. Then list outputs.
-%%  P7  First results with numbers, and one lesson learned.
-%%  Contributions (itemize), each item ending in (Section~\ref{...}).
 
-\todo{P1: scenario.}
+Suppose you run a reporting query on \pg and it returns a row that should not
+be there. The query does not crash and no error is raised. Nothing in the
+logs says that the answer is wrong. This kind of failure, a \emph{wrong
+result}, is the most harmful bug a database system can have, because the user
+has no way to notice it.
 
-\focus{\textbf{Motivating example.} Give one \emph{real} case (a bug report,
-  a CVE, a failing test, a slow build, a measured number) that shows the
-  problem is real and worth solving. Point to Figure~\ref{fig:motivating},
-  use exact numbers, then add one sentence proving it is not a one-off
-  (``This is not a single case.'' + a count). This is graded: no toy or
-  imaginary example.}
+Fuzzers for database systems mostly look for crashes. SQLsmith~\cite{sqlsmith}
+generates random queries from the system catalog, and
+SQUIRREL~\cite{zhong2020squirrel} mutates SQL with coverage feedback. Both
+detect a bug when the server crashes or an assertion fails. To find wrong
+results, a fuzzer needs a \emph{test oracle} that knows the right answer.
+Differential testing compares two systems~\cite{slutz1998rags}; metamorphic
+oracles such as Ternary Logic Partitioning (TLP)~\cite{rigger2020tlp},
+NoREC~\cite{rigger2020norec} and equivalent expression
+transformation~\cite{jiang2024eet} compare a query with a rewritten query that
+must return the same rows. These oracles rewrite the SQL text of a query,
+so each tool builds its own small query generator that the oracle understands.
+
+We focus on a gap between the two lines of work. Grammar-based generators
+reach deep into the planner but do not know which parts of a query can be
+rewritten safely. Oracle-based tools know how to rewrite, but their
+generators cover a small part of SQL. And neither knows what changed in the
+code yesterday: the planner of \pg master changes every week, and most new
+bugs live in the newest code.
+
+Figure~\ref{fig:motivating} shows a real wrong result that \tool found. Since
+\pg~17, the planner replaces \texttt{range @> elem} by the constant
+\texttt{true} when the range is unbounded on both sides, and by
+\texttt{false} when it is empty. The operator is strict, so for a NULL
+element the correct answer is NULL. The constant is wrong under \texttt{NOT},
+in \texttt{IS NULL} tests, in \texttt{CASE}, and in outer joins, where unmatched
+rows carry NULLs. We reproduced the bug on the release 18.6 and on master.
+\tool found it with a typed rewrite of the derivation tree (a scalar
+subquery around the range), in the first 150 test cases the rewrite ran.
+
+This is not a single case. Between 31~July and 16~October~2026, \pg master
+received 23 fixes in query processing that came with a regression test and
+still revert cleanly (Section~\ref{sec:rq3}). When we put each bug back, 20 of
+them change what a query returns: 8 return wrong rows, 5 raise internal
+errors, 4 fail an assertion, and 3 raise or drop an error message. Only 9 of
+these 20 can be seen by a crash-only fuzzer.
+
+\begin{figure}[t]
+\begin{lstlisting}[numbers=none,escapechar=@,language=SQL]
+SELECT c, '(,)'::int4range @> c AS contains,          -- expected NULL for c = NULL
+          NOT ('empty'::int4range @> c) AS not_empty    -- expected NULL
+FROM (VALUES (NULL::int), (1)) v(c);
+--   c   | contains | not_empty
+--  NULL | t        | t          @\textbf{$\leftarrow$ wrong: the planner folded the call to a constant}@
+--  1    | t        | t
+\end{lstlisting}
+\caption{A wrong result in \pg~17, 18.6 and master that \tool found: the
+planner support function for range containment returns \texttt{true} or
+\texttt{false} for a NULL element, where the strict operator gives NULL. No
+error or crash shows it; only an oracle that compares two equivalent queries
+does.}
+\label{fig:motivating}
+\end{figure}
+
+Closest to us is query plan guidance~\cite{ba2023qpg}, which steers a
+generator toward new plan shapes, and Fuzz4All~\cite{xia2024fuzz4all}, which
+uses a large language model (LLM) as the generator. However, plan guidance
+uses the oracles of SQLancer and their small query language, and an LLM that
+writes every test case is slow and produces many invalid queries. Neither
+connects the generator to the code that changed.
+
+We present \tool, a grammar-aware fuzzer for \pg built on three ideas:
+\begin{enumerate}
+  \item A \emph{typed grammar} generates SQL as derivation trees. Every node
+    knows its type and its place in the query (Section~\ref{sec:grammar}).
+  \item \emph{Tree-based oracles} rewrite the derivation tree, not the text:
+    TLP on \texttt{WHERE} and \texttt{HAVING} at any query level, NoREC, ten
+    typed expression rewrites, CTE materialisation and table fences. A
+    plan-variant oracle and a cross-version oracle compare the same query
+    under other planner settings and on the last release
+    (Section~\ref{sec:oracles}).
+  \item \emph{Commit-directed grammar extension}: an LLM reads a recent commit
+    and proposes grammar alternatives and seed queries; a \gate accepts them
+    only if the server runs them and they execute the lines the commit
+    changed (Section~\ref{sec:llm}).
+\end{enumerate}
+\tool then reduces every finding to a short reproducer and records a verdict
+for it (Section~\ref{sec:triage}).
+
+\num{First results.} In a four-minute smoke run on a server with the 23 bugs
+put back, \tool rediscovered an assertion failure in \texttt{JSON\_TABLE}
+that we had found earlier on master, and its triage exposed two false-positive
+classes in our own oracles, which we fixed (Section~\ref{sec:rq2}).
+\num{RQ1--RQ4 numbers follow from the full campaigns.} The lesson so far is
+that oracle precision, not generator power, limits a wrong-result fuzzer: a
+generator that reaches more of SQL also reaches more corner cases where two
+``equivalent'' queries are not equivalent.
 
 \paragraph{Contributions.}
 \begin{itemize}
-  \item We define \todo{concept} (Section~\ref{sec:problem}).
-  \item We present \tool, which \todo{what} (Section~\ref{sec:approach}).
-  \item We evaluate \tool on \todo{n} \todo{subjects} (Section~\ref{sec:eval}).
-  \item We release the tool and all data (Section~\ref{sec:data}).
+  \item A typed SQL grammar for \pg with node spans, so that oracles can
+    rewrite derivation trees (Section~\ref{sec:approach}).
+  \item Six metamorphic oracles on derivation trees, plus plan-variant and
+    cross-version oracles, with the precision of each (Section~\ref{sec:rq2}).
+  \item A commit-directed LLM extension with a \gate that checks validity,
+    reachability and diff coverage on the server (Section~\ref{sec:llm}).
+  \item A benchmark of 23 real \pg bugs put back into one server, with a
+    single-bug server per bug for attribution (Section~\ref{sec:rq3}).
+  \item Two previously unknown \pg bugs, one wrong result and one assertion
+    failure, with patches (\num{upstream status}; Section~\ref{sec:rq2}), and
+    the tool and all data (Section~\ref{sec:data}).
 \end{itemize}
-
-\begin{figure}[t]
-\begin{lstlisting}[numbers=none,escapechar=@]
-// the real code / input that shows the problem, trimmed with ...
-\end{lstlisting}
-\caption{\textcolor{red}{[Motivating example --- graded]} A real case of the
-  problem. \todo{The caption states the lesson, with the exact number, so a
-  reader who reads only captions gets it.}}
-\label{fig:motivating}
-\end{figure}

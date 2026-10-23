@@ -1,6 +1,8 @@
 # Triage verdicts for every bug candidate the campaigns reported (RQ2: oracle precision).
 #   python -m pgfuzz precision ../triage/verdicts.yaml [--latex]      (from src/)
 # verdict: real | duplicate | false_positive | not_a_bug | flaky | TODO
+# fixed: true  -> the oracle was changed so this class of false positive cannot recur
+#                (counted separately: precision after fixes)
 # Add the entries from results/triage/verdicts.template.yaml after each `pgfuzz triage` run.
 
 - signature: cde9712bc8db
@@ -20,54 +22,94 @@
   outcome: wrong_result
   verdict: false_positive
   note: "ARRAY(SELECT .. EXCEPT ALL ..) without ORDER BY: element order depends on the plan. Fixed in differential.eligible()"
+  fixed: true
 - signature: 67b3ae706302
   oracle: plan-variant
   outcome: wrong_result
   verdict: false_positive
   note: "ARRAY(SELECT .. GROUP BY ..) without ORDER BY (same root cause as 11abedc85d0c; produced by a run started before the fix)"
+  fixed: true
 - signature: b73533693016
   oracle: plan-variant
   outcome: wrong_result
   verdict: false_positive
   note: "ARRAY(SELECT .. GROUP BY CUBE ..) without ORDER BY (same root cause)"
+  fixed: true
 - signature: d437283ebe37
   oracle: plan-variant
   outcome: wrong_result
   verdict: false_positive
   note: "ARRAY(SELECT .. GROUP BY CUBE ..) inside jsonb_build_object, without ORDER BY (same root cause)"
+  fixed: true
 - signature: tc150-xversion-seed3
   oracle: cross-version
   outcome: wrong_result
   verdict: false_positive
   note: "t2.c2 DEFAULT now() differed between servers. Fixed: deterministic seed data, clock functions excluded"
 # ---- RQ3 smoke run (results/rq3_smoke, 4 min per arm, re-injected server), triaged on master + REL_18
+  fixed: true
 - signature: 0a5d35b1e10a
   oracle: metamorphic:tlp_having
   outcome: wrong_result
   verdict: false_positive
   note: "HAVING without GROUP BY makes a one-group aggregate; the unpartitioned side dropped HAVING (0 rows vs 1). Fixed: it now keeps HAVING TRUE (rewrite._tlp_having)"
+  fixed: true
 - signature: 8ab766603c73
   oracle: metamorphic:tlp_having
   outcome: wrong_result
   verdict: false_positive
   note: "same root cause as 0a5d35b1e10a (no GROUP BY at the level)"
+  fixed: true
 - signature: 14fb341a3726
   oracle: metamorphic:tlp_having
   outcome: wrong_result
   verdict: false_positive
   note: "same root cause as 0a5d35b1e10a (no GROUP BY at the level)"
+  fixed: true
 - signature: 63e19036ae9f
   oracle: metamorphic:tlp_having
   outcome: wrong_result
   verdict: false_positive
   note: "same root cause as 0a5d35b1e10a (no GROUP BY at the level)"
+  fixed: true
 - signature: aa8a139ce4a2
   oracle: plan-variant
   outcome: wrong_result
   verdict: false_positive
   note: "DISTINCT over numeric: 21.0000000000000000 and 21.00000000000000000000 are equal, hash and sort keep different representatives. Fixed: digests canonicalise numeric scale and float -0"
+  fixed: true
 - signature: 7ffcd2cb45a7
   oracle: cross-version
   outcome: wrong_result
   verdict: flaky
   note: "did not reproduce (0/3) on master vs 18.6; depends on state left by an earlier DML statement of the test case"
+# ---- RQ3 smoke run 2 (results/rq3_smoke2, 15 min per arm, re-injected server, oracle fixes applied)
+- signature: 4fedb431a765
+  oracle: internal_error
+  outcome: internal_error
+  verdict: real
+  note: "re-injected benchmark bug rb-dfcf6fa7 (could not find pathkey item to sort); found by Grammar+Oracles and +LLM at ~160 s; attributed by replay on the solo servers"
+  benchmark: true
+- signature: 6efd24cf879b
+  oracle: assertion
+  outcome: assertion
+  verdict: false_positive
+  note: "harness artifact: our own PoC replay crashed the same server; the TRAP had another backend's PID. Fixed: crash evidence from other PIDs is ignored (pg_executor._foreign_crash)"
+  fixed: true
+- signature: ca37f4a4a5e1
+  oracle: crash
+  outcome: crash
+  verdict: false_positive
+  note: "same harness artifact as 6efd24cf879b (connection lost because another backend crashed)"
+  fixed: true
+- signature: 256dc4599fec
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: not_a_bug
+  note: "CORR(1.0/3, 1.0/3) is NULL on master, 1 on 18.6: intended master change keeping Sxx exactly 0 for constant input. corr/regr_r2/regr_slope/regr_intercept now excluded from cross-version comparison"
+  fixed: true
+- signature: 5f795c1e0a66
+  oracle: internal_error
+  outcome: internal_error
+  verdict: flaky
+  note: "XX000 Append child's targetlist doesn't match Append, on the injected server; 0/3 on the injected server, master and every solo server. Keep for a later look"

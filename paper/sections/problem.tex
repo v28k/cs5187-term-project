@@ -1,11 +1,33 @@
 \section{Problem Statement}
 \label{sec:problem}
-%% "We now state the problem precisely." Define every set/symbol (macros in
-%% macros.tex). \paragraph{Goal.} with the formula. Say why it is hard
-%% (cite the known complexity result). End with a question-paragraph that
-%% answers the obvious objection: \paragraph{Why not ...?}
-\todo{Definitions.}
 
-\paragraph{Goal.} \todo{Formula and the one or two things we look for.}
+We now state the problem precisely. Let $G$ be a typed grammar for the SQL
+dialect of \pg and $S$ a database schema. A \emph{test case} is a sequence of
+statements derived from $G$ over $S$, run in one transaction that is rolled
+back at the end. An \emph{oracle} maps the server's response to a test case
+to \emph{pass} or \emph{bug candidate}.
 
-\paragraph{Why not \todo{the obvious alternative}?} \todo{Answer.}
+\paragraph{Sound rewrites.} A tree rewrite $r$ maps \Tree{\Q} to a second
+tree. It is \emph{sound} for \Q if $\Res{\Q} = \Res{r(\Q)}$ holds on every
+correct server. A rewrite that is sound only under conditions (for example,
+only if no \texttt{LIMIT} without \texttt{ORDER BY} appears below the rewritten
+node) must check them on the tree before it is applied. An unsound rewrite
+produces \emph{false positives}: candidates that are not bugs.
+
+\paragraph{Goal.} Given a fixed time budget $B$ and one server, find as many
+distinct bugs as possible, where a bug is a crash, a failed assertion, an
+internal error (SQLSTATE class \texttt{XX}), or a wrong result, while keeping
+the \emph{precision} of each oracle high:
+\begin{equation}
+  \mathit{precision}(o) = \frac{|\{c \in C_o : c \text{ is a real bug}\}|}{|C_o|}
+  \label{eq:precision}
+\end{equation}
+where $C_o$ is the set of distinct candidates oracle $o$ reported, after
+de-duplication by signature (Section~\ref{sec:triage}).
+
+\paragraph{Why not let an LLM write the test cases?} An LLM can write SQL that
+targets a feature, but at a few seconds per call it produces about a hundred
+test cases in four minutes, where the grammar arm of our smoke run produced
+5{,}516 (Section~\ref{sec:rq3}). LLM-written queries are also not
+derivation trees, so the tree-based oracles cannot rewrite them. We use the LLM to extend the grammar instead: a few calls per commit,
+after which the grammar generates thousands of variations.

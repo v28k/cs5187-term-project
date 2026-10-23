@@ -1,8 +1,36 @@
 \section{Background}
 \label{sec:background}
-%% Only what a reader needs for the rest of the paper. One \paragraph{} per
-%% concept. Define each term once with \emph{term} and use it the same way
-%% afterwards (no synonyms). Walk through the motivating example in detail
-%% here if the introduction was brief (label it sec:example).
 
-\paragraph{\todo{Concept}.} \todo{Plain definition, then a small example.}
+\paragraph{Derivation tree.} A grammar derives a query by choosing one
+alternative per rule. The \emph{derivation tree} \Tree{\Q} of a query \Q
+records these choices: each inner node is a rule with the alternative it took,
+and the leaves are SQL tokens. Reading the leaves from left to right gives the
+text of \Q.
+
+\paragraph{Wrong result.} A query has a wrong result when the server returns a
+multiset of rows \Res{\Q} that differs from what the SQL standard and the \pg
+documentation define, without an error. Typical causes are planner rules that
+are correct only under an assumption that does not hold, for example that a
+column cannot be NULL.
+
+\paragraph{Metamorphic oracle.} A metamorphic oracle builds a second query
+$\Q'$ with a known relation to \Q, usually $\Res{\Q} = \Res{\Q'}$, and reports a
+bug when the relation fails. TLP~\cite{rigger2020tlp} uses
+$\Res{\Q} = \Res{\Part{\Q}{p}} \uplus \Res{\Part{\Q}{\neg p}} \uplus
+\Res{\Part{\Q}{p \;\mathtt{IS\;NULL}}}$ for a predicate $p$ added to
+\texttt{WHERE}. NoREC~\cite{rigger2020norec} compares the row count of
+\texttt{SELECT * FROM t WHERE p} with the number of rows on which $p$ is true
+when $p$ is evaluated in the select list, where the planner cannot use it to
+choose a plan.
+
+\paragraph{Plan variant.} \pg lets a session switch planner methods off, for
+example \texttt{SET enable\_hashjoin = off}. A \emph{plan variant} is the
+same query under such a setting. All plan variants of a deterministic query
+must return the same multiset. This is differential testing inside one
+server.
+
+\paragraph{Assertion build.} \pg built with \texttt{--enable-cassert} checks
+internal invariants with \texttt{Assert}. A failed assertion aborts the backend
+and prints a \texttt{TRAP} line with the file and the expression to the
+server log. Release builds skip these checks, so an assertion failure often
+corresponds to silent corruption or a wrong result in production.
