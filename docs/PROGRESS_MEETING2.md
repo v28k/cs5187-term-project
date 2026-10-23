@@ -1,6 +1,6 @@
 ---
 title: "A3: LLM-Guided Grammar-Aware Fuzzing of PostgreSQL"
-subtitle: "Progress report for meeting 2 (status: 23 October 2026)"
+subtitle: "Progress report for meeting 2 (status: 24 October 2026)"
 geometry: margin=2.1cm
 fontsize: 11pt
 ---
@@ -21,7 +21,7 @@ the hour-long campaigns and writing their numbers into the paper.**
 | 4. Triage pipeline | **done**: reproduce, reduce (statements, clauses, tokens), report, bisect, precision ledger |
 | 5. Commit-directed LLM loop with diff coverage | **done**: miner, cached prompts, validation gate on the server, repair rounds, cost ledger |
 | 6. Re-injected bug benchmark + statistics | **done**: 23 real fixes reverted, 20 observable, verified on 28 servers |
-| 7. Stretch: plan-shape feedback | **done** (plan shapes guide the corpus and are a metric) |
+| 7. Stretch: plan-shape feedback, CERT performance oracle, RLS leak oracle | **all done** (plan shapes guide the corpus; CERT and RLS checks run live with 0 false positives) |
 
 Real bugs so far (both previously unknown, both with patches, filing in progress):
 
@@ -35,6 +35,12 @@ Real bugs so far (both previously unknown, both with patches, filing in progress
   The new RQ3 smoke run **found it again on its own** within four minutes.
 
 # 2. What we built (and why each piece matters)
+
+Every promise of the meeting-1 plan and slides, with its code and evidence, is
+listed in `docs/PLAN_COVERAGE.md`. In short, all three claims of the slides now
+hold in code: **one tree, four jobs** (generation, mutation, metamorphic
+rewriting *and* reduction), **soundness we measure**, and **the LLM proposes,
+the server decides**, now also for oracle rewrites.
 
 ## 2.1 Tree-based oracles (the main technical contribution)
 
@@ -119,6 +125,20 @@ server every PoC shows the same symptom as on its solo server (no masking).
 `pgfuzz bench attribute` assigns each campaign finding to a bug by replaying
 it on the fixed and the 23 solo servers.
 
+## 2.5 Added after the first draft of this report (all from the meeting-1 plan)
+
+| Addition | Plan | Measured on master (single runs) |
+|---|---|---|
+| **Grammar-tree reduction**: subtrees replaced by their smallest derivation, replayed so names and types stay bound; failures now store their trees | 0.3, 7.2 | BUG-01 case: **79 tokens** vs 116 with token reduction alone |
+| **Localization**: re-run the reduced case under every plan variant; names the planner setting and its source files, or says "no planner setting removes it" | 0.3, 3.5 | BUG-02: "not toggled by planner settings" = the support function, its true cause |
+| **New metamorphic rewrites**: TLP on aggregates, IN <-> OR (OR-to-ANY), `a<b` <-> `NOT(a>=b)`, BETWEEN expansion, NOT NULL conjunct, ORDER BY removal | 3.2, 3.4 | 798 live checks of the new kinds, **0 false positives** |
+| **LLM-proposed equivalence rewrites**, tested by a value probe (NULL, type edges, data) and 150 live test cases | 3.4 ("our contribution") | identities accepted (90/90, 88/88); `e+1` rejected (12 mismatches); `e IS TRUE` passed 109 sampled checks but the **value probe** rejected it at NULL |
+| **Feedback-weighted alternatives** (multiplicative-weights bandit), ablation arm in RQ1 | 5.3 | 533 vs 419 distinct plan shapes, same validity |
+| **Data profile**: boundary literals (interval analysis) and per-column quantile literals `@dlit` (constraint-based selectivity) | 6 | predicates selecting 5-95 % of rows: **29.3 % -> 58.6 %** |
+| **RLS leak oracle** (security / information flow) | 9 (stretch) | 532 live checks, 0 false positives; the restricted role really sees 131 of 203 rows |
+| **CERT oracle** (estimate monotonicity, performance outcome) | 0.1 item 7 | 58 live checks, 0 false positives |
+| Eager-aggregation plan variant, upstream bug-report drafts, 95 % bootstrap CIs | 5.5, 7.7, 8.3 | in every report |
+
 # 3. Results so far (smoke runs; full campaigns pending)
 
 * Smoke run 1 (4 min per arm, injected server): the grammar arm **rediscovered
@@ -180,8 +200,8 @@ Precision 0.19 before the fixes, 1.00 on the candidates whose class remains.
 
 # 5. Code and tests
 
-* ~9,200 lines of Python in `src/pgfuzz`, 122 unit tests (all pass), grammar of
-  78 rules / 419 alternatives / 13 types.
+* ~10,500 lines of Python in `src/pgfuzz`, 138 unit tests (all pass), grammar of
+  78 rules / 421 alternatives / 13 types.
 * New since meeting 1: `grammar/rewrite.py` (oracles), `reference/xversion_executor.py`,
   `triage/` (reduction, reports, precision), `llm/` (miner, prompts, client,
   gate, diff coverage, loop), `bench/` (benchmark), `configs/rq1.yaml`,
@@ -194,14 +214,16 @@ Precision 0.19 before the fixes, 1.00 on the candidates whose class remains.
 
 The FSE-format draft now has all text that does not depend on final numbers:
 title, abstract, introduction with the real motivating example (BUG-02),
-background, problem statement, approach with the workflow figure, evaluation
-design (RQs, benchmark, arms, measurements, statistics), discussion, threats
-to validity, related work (13 references, each checked against the publisher or
+background, problem statement, approach with the workflow figure (one tree,
+four jobs; all oracles; tree reduction and localization; LLM rewrites),
+implementation, evaluation design (RQs, benchmark, arms, measurements,
+statistics) with a table of component checks, discussion, threats to validity,
+related work (17 references, each checked against publisher, DBLP, USENIX or
 author pages), conclusion and data/AI statements. Numbers still to come are
-marked in blue (`\num{}`). It compiles with `make` in `paper/` (ACM `acmart`,
-review mode) to 12 pages with the references starting on page 11, so the result
-tables have room; `make check` reports no LaTeX errors, no undefined references
-and no banned words. The current PDF is `docs/PAPER_DRAFT.pdf`.
+marked in blue (`\num{}`). It compiles with `make` in `paper/`; `make check`
+reports no LaTeX errors, no undefined references and no banned words. The main
+text is currently about one page over the 12-page limit; we cut once the result
+tables show what matters most. The current PDF is `docs/PAPER_DRAFT.pdf`.
 
 # 7. Plan to meeting 3 and the deadline
 

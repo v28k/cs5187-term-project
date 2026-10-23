@@ -5,6 +5,14 @@ What remains is running the campaigns for their full budgets and collecting the
 numbers. Run the phases in order; each one says how long it takes, what to look
 at, and what to send back.
 
+What runs in every full-system arm: the typed grammar with feedback-weighted
+alternatives and data-profile literals (`corpus/profile.json`), the tree-based
+metamorphic oracles (TLP on WHERE/HAVING/aggregates, NoREC, expression and
+predicate rewrites, NOT NULL conjunct, ORDER BY removal, CTE toggle, table
+fence), the RLS leak oracle (`corpus/rls.sql`), the CERT estimate oracle, 18
+plan variants and (RQ3) the cross-version oracle. Nothing extra to run: the
+configs already enable them.
+
 Every server is built from the same commit of master, `26bd08fb` (the RQ3
 benchmark base, 16 Oct 2026), and commits are mined only up to it, so all four
 RQs measure the same code.
@@ -25,7 +33,7 @@ the scripts then start every server as `pg`, because `initdb` refuses root.
 | 0 | builds + reference server | ~60 min | 5 min |
 | 1 | LLM arm: mine commits, extend grammar (RQ4 ledger), on the coverage servers | 1–2 h | 10 min |
 | 2 | RQ3: re-injected bugs, verify + campaign + attribution | ~5.5 h | 15 min |
-| 3 | RQ1/RQ2/RQ4: coverage campaign, 6 arms | ~8 h | 10 min |
+| 3 | RQ1/RQ2/RQ4: coverage campaign, 7 arms | ~9 h | 10 min |
 | 4 | triage every candidate, precision table (RQ2) | 1 h | 30 min |
 | 5 | reports, figures, tables into the paper | 10 min | 20 min |
 
@@ -42,7 +50,7 @@ bash scripts/rq1_servers.sh build                  # gcov build of master at the
 bash scripts/build_reinjected.sh                   # base + 23 reverted fixes, ~10 min
 bash scripts/rq3_servers.sh build-solo             # base + one postgres binary per bug, ~25 min
 bash scripts/ref_server.sh init && bash scripts/ref_server.sh start      # REL_18 on 5435
-cd src && pip install -r requirements.txt && python3 -m pytest -q        # expect: 122 passed
+cd src && pip install -r requirements.txt && python3 -m pytest -q        # expect: 138 passed
 ```
 
 **Check:** `build_reinjected.sh` ends with `installed into .../install/reinjected
@@ -70,9 +78,12 @@ python3 -m pgfuzz llm report
 re-injects. `llm extend` gates every proposal on the clean master server of
 worker 0 (parse, reachability, validity, seeds, and a diff-coverage gain on the
 commit's changed lines). Expected cost: ~$0.10 per round, $5–10 for 30 commits
-(the 9k-token system prompt is cached). Accepted fragments and seeds land in
-`results/llm/fragments` and `results/llm/seeds`, where the LLM arms of RQ1 and
-RQ3 read them.
+(the 9k-token system prompt is cached). Accepted fragments, seeds and
+equivalence rewrites land in `results/llm/fragments`, `results/llm/seeds` and
+`results/llm/rewrites`, where the LLM arms of RQ1 and RQ3 read them. A proposed
+rewrite is first evaluated on NULL, type edges and data values, then applied
+alone to 150 test cases; any difference rejects it (and is worth a look: it can
+also be a bug).
 
 **Screenshot:** the `llm report` table (acceptance rate, repair rounds,
 rejections by stage, tokens, cost). **Send me:** `results/llm/ledger.jsonl`.
@@ -96,7 +107,7 @@ to `symptom` everywhere (this is the table in `bench/reinjected/verify.json`).
 `results/rq3/report/report.md`. **Send me:** the whole `results/rq3/report/`
 folder and `results/rq3/attribution.json`.
 
-## Phase 3: RQ1, RQ2, RQ4 (~8 h)
+## Phase 3: RQ1, RQ2, RQ4 (~9 h)
 
 ```bash
 bash scripts/rq3_servers.sh stop 4                        # free the cores
@@ -104,7 +115,7 @@ bash scripts/rq1_servers.sh start 4                       # if not still running
 bash scripts/rq1_servers.sh coverage 0                    # prints a JSON line with lines_total > 0
 cd src
 python3 -m pgfuzz selftest configs/rq1.yaml
-python3 -m pgfuzz run configs/rq1.yaml -j 4               # 6 arms x 5 trials x 1 h / 4 workers
+python3 -m pgfuzz run configs/rq1.yaml -j 4               # 7 arms x 5 trials x 1 h / 4 workers
 python3 -m pgfuzz report ../results/rq1
 ```
 
@@ -123,7 +134,10 @@ python3 -m pgfuzz triage configs/rq3.yaml ../results/rq3   # failures not attrib
 python3 -m pgfuzz precision ../triage/verdicts.yaml
 ```
 
-Triage reproduces, reduces and writes `report.md` + `reduced.sql` per
+Triage reproduces each candidate, reduces it on its derivation tree and then on
+its tokens, localizes wrong results (which planner setting, if any, removes the
+disagreement, and which source files that points to), and writes `report.md`,
+`reduced.sql` and a draft `upstream_report.txt` (pgsql-bugs shape) per
 candidate under `results/triage/`. **Send me** that folder; I will write the
 verdicts (real / false positive / duplicate) into `triage/verdicts.yaml` and
 draft upstream reports for anything real. Anything that still crashes on
