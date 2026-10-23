@@ -95,6 +95,7 @@ class PostgresExecutor(Executor):
         differential: bool | dict[str, Any] = False,
         metamorphic: bool | dict[str, Any] = False,
         plan_shapes: bool | dict[str, Any] = False,
+        digests: bool = False,
         text_results: bool = True,
     ) -> None:
         if isolation not in ("savepoint", "autocommit"):
@@ -115,6 +116,7 @@ class PostgresExecutor(Executor):
         self.text_results = bool(text_results)
         d = differential if isinstance(differential, dict) else ({} if differential else None)
         self.diff_enabled = d is not None
+        self.digests = bool(digests)   # digest eligible results even without plan variants (cross-version)
         self.diff_per_query = int((d or {}).get("per_query", 2))
         self.diff_max_rows = int((d or {}).get("max_rows", 10000))
         wanted = (d or {}).get("variants")
@@ -273,7 +275,8 @@ class PostgresExecutor(Executor):
                 results.append(StatementResult(StatementStatus.ERROR, "0A000", "pgfuzz: COPY FROM STDIN / TO STDOUT is not supported by the executor"))
                 continue
             s0 = time.perf_counter()
-            check = self.diff_enabled and bool(self.variants) and diff.eligible(sql)
+            run_variants = self.diff_enabled and bool(self.variants)
+            check = (run_variants or self.digests) and diff.eligible(sql)
             my_checks = checks_by_stmt.get(idx, [])
             n_before = len(results)
             try:
@@ -299,7 +302,7 @@ class PostgresExecutor(Executor):
                         self.conn.execute("BEGIN")
                     else:
                         self.conn.execute("RELEASE SAVEPOINT pgfuzz_sp")
-                if digest is not None and not idle:
+                if digest is not None and not idle and run_variants:
                     st.variants = self._run_variants(sql)
                     lost_v = next((n for n, v in st.variants.items() if v["status"] == "connection_lost"), None)
                     if lost_v is not None:
@@ -412,6 +415,19 @@ class PostgresExecutor(Executor):
                 if sp:
                     self._reopen_txn()
         return out
+
+    def run_outside(self, statements: list[str]) -> None:
+        """Run statements in autocommit, outside any test case (best effort)."""
+        import psycopg
+
+        if not self._alive():
+            self._connect(wait=True)
+        for sql in statements:
+            try:
+                self.conn.execute(sql)
+            except psycopg.Error:
+                if not self._alive():
+                    self._connect(wait=True)
 
     def _run_side(self, sql: str, mask: bool) -> dict[str, Any]:
         """Run one read-only query in a savepoint that is rolled back; digest the result."""

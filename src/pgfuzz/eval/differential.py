@@ -103,6 +103,19 @@ def eligible(sql: str) -> bool:
     return True
 
 
+# Stable within a transaction (fine for plan variants on one server) but different
+# on two servers: excluded from cross-version comparison.
+_TIME_DEPENDENT = frozenset(
+    "NOW CURRENT_TIMESTAMP CURRENT_DATE CURRENT_TIME LOCALTIME LOCALTIMESTAMP TRANSACTION_TIMESTAMP "
+    "VERSION PG_POSTMASTER_START_TIME PG_CONF_LOAD_TIME INET_SERVER_PORT CURRENT_SETTING PG_BACKEND_PID".split()
+)
+
+
+def xversion_eligible(sql: str) -> bool:
+    """``eligible`` and independent of the server instance and the wall clock."""
+    return eligible(sql) and not (StmtView.of(sql).wordset & _TIME_DEPENDENT)
+
+
 def masks_floats(sql: str) -> bool:
     """Aggregates and window frames over floats legitimately differ in the last
     digits between plans (summation order), so float columns are masked."""
