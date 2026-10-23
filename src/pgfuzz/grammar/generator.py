@@ -101,6 +101,7 @@ class GrammarGenerator(Generator):
         bandit: float = 0.0,
         profile: str | None = None,
         profile_prob: float = 0.25,
+        rls: str | None = None,
         extra_grammars: list[str] | str | None = None,
         seeds: list[str] | str | None = None,
         seed_prob: float = 0.05,
@@ -119,6 +120,7 @@ class GrammarGenerator(Generator):
         # of the per-alternative weight; 0 switches it off.
         self.bandit = float(bandit)
         self.profile_path, self.profile_prob = profile, float(profile_prob)
+        self.rls_path = rls          # RLS setup file whose policies the "rls" oracle mirrors
         self.reward_avg = 0.0
         self.extra_grammars = _paths(extra_grammars, "*.pgg")
         self.seed_paths = _paths(seeds, "*.sql")
@@ -169,7 +171,10 @@ class GrammarGenerator(Generator):
             self.engine.profile, self.engine.profile_prob = Profile.load(self.profile_path), self.profile_prob
         self.alt_where = {a.uid: f"{v.name}:{a.line}" for vs in self.grammar.rules.values()
                           for v in vs for a in v.alts}
-        self.rewriter = Rewriter(self.grammar, self.rng, self.mm_per_query, self.mm_weights)
+        from pgfuzz.grammar.rewrite import load_policies
+
+        self.rewriter = Rewriter(self.grammar, self.rng, self.mm_per_query, self.mm_weights,
+                                 policies=load_policies(self.rls_path))
 
     def _load_grammar(self) -> Grammar:
         """The base grammar plus every extra fragment (LLM arm) that still parses

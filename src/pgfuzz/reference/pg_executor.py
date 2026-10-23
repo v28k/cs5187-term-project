@@ -473,14 +473,23 @@ class PostgresExecutor(Executor):
                 if not self._alive():
                     self._connect(wait=True)
 
-    def _run_side(self, sql: str, mask: bool) -> dict[str, Any]:
-        """Run one read-only query in a savepoint that is rolled back; digest the result."""
+    def _run_side(self, sql: str, mask: bool, role: str | None = None, explain: bool = False) -> dict[str, Any]:
+        """Run one read-only query in a savepoint that is rolled back; digest the result.
+        ``role``: run it as that role (SET LOCAL ROLE, undone by the rollback).
+        ``explain``: only plan it and return the planner's row estimate."""
         import psycopg
 
         sp = self.isolation == "savepoint"
         rec: dict[str, Any] = {}
         try:
             self.conn.execute("SAVEPOINT pgfuzz_m" if sp else "BEGIN")
+            if role:
+                self.conn.execute(f'SET LOCAL ROLE "{role}"')
+            if explain:
+                plan = self.conn.execute(f"EXPLAIN (FORMAT JSON) {sql}").fetchone()[0]
+                plan = json.loads(plan) if isinstance(plan, str) else plan
+                rec.update(status="ok", hash=None, rows=None, estimate=float(plan[0]["Plan"]["Plan Rows"]))
+                raise _SideDone
             cur = self.conn.execute(sql)
             data = cur.fetchall() if cur.description is not None else []
             h, n = diff.result_digest(data, [c.type_code for c in cur.description or []], mask, self.diff_max_rows)
@@ -489,6 +498,8 @@ class PostgresExecutor(Executor):
             if not self._alive():
                 return {"status": "connection_lost", "sqlstate": getattr(e, "sqlstate", None), "message": _message(e)}
             rec.update(status="error", sqlstate=getattr(e, "sqlstate", None), message=_message(e))
+        except _SideDone:
+            pass
         except Exception as e:  # client-side decoding problems
             rec.update(status="client_error", message=f"{type(e).__name__}: {e}")
         try:
@@ -513,7 +524,13 @@ class PostgresExecutor(Executor):
             st["mm_checks"] = st.get("mm_checks", 0) + 1
             st[f"mm_run:{kind.split(':')[0]}"] = st.get(f"mm_run:{kind.split(':')[0]}", 0) + 1
             rec: dict[str, Any] = {"kind": kind}
-            if lhs is None:
+            if kind == "cert":
+                out.append(self._run_cert(lhs or sql, rhs, rec))
+                continue
+            role = c.get("lhs_role")
+            if role:
+                left = self._run_side(lhs or sql, mask, role=role)
+            elif lhs is None:
                 h, n = diff.result_digest(data, types, mask, self.diff_max_rows)
                 left: dict[str, Any] = {"status": "ok", "hash": h, "rows": n}
             else:
@@ -534,7 +551,7 @@ class PostgresExecutor(Executor):
             if left["hash"] is not None and right["hash"] is not None and left["hash"] != right["hash"]:
                 rec.update(lhs_sql=lhs, rhs_sql=rhs)
                 if self.mm_confirm:
-                    left2 = self._run_side(lhs if lhs is not None else sql, mask)
+                    left2 = self._run_side(lhs if lhs is not None else sql, mask, role=role)
                     right2 = self._run_side(rhs, mask)
                     if "connection_lost" in (left2["status"], right2["status"]):
                         rec.update(status="connection_lost", message="lost while confirming a check")
@@ -547,6 +564,24 @@ class PostgresExecutor(Executor):
                 st[key] = st.get(key, 0) + 1
             out.append(rec)
         return out
+
+    def _run_cert(self, wider: str, narrower: str, rec: dict[str, Any]) -> dict[str, Any]:
+        """CERT: the estimate of the restricted query must not exceed the unrestricted one."""
+        st = self.diff_stats
+        a = self._run_side(wider, False, explain=True)
+        b = self._run_side(narrower, False, explain=True) if a["status"] == "ok" else {"status": "skipped"}
+        if a["status"] != "ok" or b["status"] != "ok":
+            failed = a if a["status"] != "ok" else b
+            rec.update(status="error" if failed["status"] == "error" else failed["status"],
+                       side="lhs" if failed is a else "rhs", sqlstate=failed.get("sqlstate"),
+                       message=failed.get("message"))
+            return rec
+        st["cert_checks"] = st.get("cert_checks", 0) + 1
+        rec.update(status="ok", lhs_estimate=a["estimate"], rhs_estimate=b["estimate"])
+        if b["estimate"] > a["estimate"]:
+            rec.update(cert_violation=True, lhs_sql=wider, rhs_sql=narrower)
+            st["cert_violations"] = st.get("cert_violations", 0) + 1
+        return rec
 
     def _plan_shape(self, sql: str) -> str | None:
         """Digest of the plan's node structure for ``sql`` (costs and row counts ignored)."""
@@ -639,6 +674,10 @@ def plan_shape_string(plan: dict[str, Any]) -> str:
     return f"{label}(" + ",".join(plan_shape_string(k) for k in kids) + ")"
 
 
+class _SideDone(Exception):
+    """Internal: an EXPLAIN-only side finished early."""
+
+
 _EVIDENCE = ("TRAP:", "terminated by signal", "PANIC:")
 _PIDS = (re.compile(r"PID: (\d+)"), re.compile(r"\(PID (\d+)\)"), re.compile(r"\[(\d+)\]"))
 
@@ -689,11 +728,11 @@ def _message(e: Exception) -> str:
 
 
 def _load_sql(v: list[str] | str | None) -> list[str]:
-    """Inline statements, or a path to a .sql file."""
+    """Inline statements, a path to a .sql file, or a list of both (files are expanded)."""
     if v is None:
         return []
     if isinstance(v, list):
-        return v
+        return [s for item in v for s in _load_sql(item)]
     p = Path(v)
     if p.suffix == ".sql" and p.exists():
         from pgfuzz.core.sqlsplit import split_statements

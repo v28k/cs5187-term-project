@@ -92,7 +92,7 @@ def test_generator_attaches_eligible_checks_on_the_real_grammar():
         for c in tc.meta.get("checks", []):
             assert 0 <= c["stmt"] < len(tc.statements)
             assert eligible(tc.statements[c["stmt"]])
-            assert c["rhs"] and c["rhs"] != tc.statements[c["stmt"]]
+            assert c["rhs"] and (c["rhs"] != tc.statements[c["stmt"]] or c["kind"] == "cert")
             kinds[c["kind"].split(":")[0]] += 1
     assert {"tlp_where", "norec", "expr", "table_fence"} <= set(kinds)
     assert gen.stats()["metamorphic_checks_built"] == dict(kinds)
@@ -185,3 +185,33 @@ def test_new_rewrites_on_the_real_grammar():
     for c in checks:
         assert c["kind"] == "tlp_agg" and c["lhs"] is not None
         assert "AS tlp_agg" in c["rhs"] and c["rhs"].count("UNION ALL") >= 2
+
+
+def test_rls_and_cert_checks(tmp_path):
+    from pgfuzz.grammar.rewrite import RLS_ROLE, load_policies
+
+    pol = load_policies(str(SRC / "corpus" / "rls.sql"))
+    assert pol["t0"] == "(c0 % 3) <> 0" and set(pol) == {"t0", "t1", "t3", "tp", "ti"}
+    gen = GrammarGenerator(str(PGG), str(SCHEMA), mm_prob=1.0, mm_weights={"rls": 1.0, "cert": 1.0},
+                           rls=str(SRC / "corpus" / "rls.sql"))
+    gen.setup(GeneratorContext(4, random.Random(4), Path(tempfile.mkdtemp())))
+    seen = Counter()
+    for _ in range(400):
+        tc = gen.next_testcase()
+        for c in tc.meta.get("checks", []):
+            seen[c["kind"]] += 1
+            stmt = tc.statements[c["stmt"]]
+            if c["kind"] == "rls":
+                assert c["lhs"] == stmt and c["lhs_role"] == RLS_ROLE
+                assert "(SELECT * FROM " in c["rhs"] and any(f"WHERE ({p})" in c["rhs"] for p in pol.values())
+            else:
+                assert c["kind"] == "cert" and c["rhs"] == stmt and len(c["lhs"]) < len(stmt)
+    assert seen["rls"] and seen["cert"]
+
+
+def test_cert_violation_is_a_performance_candidate():
+    cls = oracle.classify(_result([{"kind": "cert", "status": "ok", "lhs_estimate": 10.0, "rhs_estimate": 25.0,
+                                    "cert_violation": True, "lhs_sql": "a", "rhs_sql": "b"}]))
+    assert cls.outcome is Outcome.PERFORMANCE and cls.details["oracle"] == "cert" and cls.is_bug_candidate
+    ok = oracle.classify(_result([{"kind": "cert", "status": "ok", "lhs_estimate": 10.0, "rhs_estimate": 4.0}]))
+    assert ok.outcome is Outcome.OK

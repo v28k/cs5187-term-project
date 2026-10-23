@@ -34,8 +34,8 @@ executor:
     dsn: "host=127.0.0.1 port={port} dbname=postgres user=postgres"
     isolation: savepoint
     statement_timeout_ms: 3000
-    setup_sql: "{config_dir}/../corpus/schema.sql"
-    reset_sql: "{config_dir}/../corpus/schema.sql"
+    setup_sql: ["{config_dir}/../corpus/schema.sql", "{config_dir}/../corpus/rls.sql"]
+    reset_sql: ["{config_dir}/../corpus/schema.sql", "{config_dir}/../corpus/rls.sql"]
     server_log: "{pgroot}/data/cov-{worker}/postgresql.log"
     coverage_command: "bash {config_dir}/../../scripts/rq1_servers.sh coverage {worker}"
     coverage_reset_command: "bash {config_dir}/../../scripts/rq1_servers.sh coverage {worker} reset"
@@ -76,6 +76,7 @@ configs:
         bandit: 0.1
         profile: "{config_dir}/../corpus/profile.json"
         profile_prob: 0.3
+        rls: "{config_dir}/../corpus/rls.sql"
 
   - name: grammar_mm_flat
     label: Grammar+Oracles, no bandit
@@ -89,6 +90,7 @@ configs:
         bandit: 0.0
         profile: "{config_dir}/../corpus/profile.json"
         profile_prob: 0.3
+        rls: "{config_dir}/../corpus/rls.sql"
 
   - name: llm_frag
     label: +LLM fragments
@@ -102,6 +104,7 @@ configs:
         bandit: 0.1
         profile: "{config_dir}/../corpus/profile.json"
         profile_prob: 0.3
+        rls: "{config_dir}/../corpus/rls.sql"
         extra_grammars: "{config_dir}/../../results/llm/fragments"
 
   - name: llm_seeds
@@ -116,6 +119,7 @@ configs:
         bandit: 0.1
         profile: "{config_dir}/../corpus/profile.json"
         profile_prob: 0.3
+        rls: "{config_dir}/../corpus/rls.sql"
         seeds: "{config_dir}/../../results/llm/seeds"
         seed_prob: 0.05
 
@@ -131,6 +135,7 @@ configs:
         bandit: 0.1
         profile: "{config_dir}/../corpus/profile.json"
         profile_prob: 0.3
+        rls: "{config_dir}/../corpus/rls.sql"
         extra_grammars: "{config_dir}/../../results/llm/fragments"
         seeds: "{config_dir}/../../results/llm/seeds"
         seed_prob: 0.05

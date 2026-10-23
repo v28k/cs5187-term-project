@@ -222,6 +222,14 @@ def classify_checks(st: StatementResult, benign_internal: tuple[re.Pattern[str],
             if oc.is_bug_candidate:
                 return oc, {"oracle": "metamorphic", "variant": f"mm:{kind}", "check": kind, "side": c.get("side"),
                             "check_sql": c.get("sql"), "sqlstate": c.get("sqlstate"), "message": c.get("message")}
+        elif c.get("status") == "ok" and c.get("cert_violation"):
+            return Outcome.PERFORMANCE, {
+                "oracle": "cert", "variant": "mm:cert", "check": kind, "sqlstate": None,
+                "message": f"row estimate rises when the WHERE clause is added: "
+                           f"{c.get('lhs_estimate')} -> {c.get('rhs_estimate')}",
+                "lhs_sql": c.get("lhs_sql"), "rhs_sql": c.get("rhs_sql"),
+                "estimate_lhs": c.get("lhs_estimate"), "estimate_rhs": c.get("rhs_estimate"),
+            }
         elif c.get("status") == "ok" and c.get("confirmed") and c.get("lhs_hash") != c.get("rhs_hash"):
             return Outcome.WRONG_RESULT, {
                 "oracle": "metamorphic", "variant": f"mm:{kind}", "check": kind, "sqlstate": None,

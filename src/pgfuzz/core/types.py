@@ -35,6 +35,7 @@ class Outcome(str, enum.Enum):
     TIMEOUT = "timeout"
     RESOURCE_LIMIT = "resource_limit"
     CONNECTION_TERMINATED = "connection_terminated"
+    PERFORMANCE = "performance"      # a cardinality-estimation inconsistency (CERT); not a wrong answer
     WRONG_RESULT = "wrong_result"
     INTERNAL_ERROR = "internal_error"
     DATA_CORRUPTION = "data_corruption"
@@ -61,6 +62,7 @@ _SEVERITY = {o: i for i, o in enumerate(Outcome)}
 
 BUG_CANDIDATES = frozenset(
     {
+        Outcome.PERFORMANCE,
         Outcome.WRONG_RESULT,
         Outcome.INTERNAL_ERROR,
         Outcome.DATA_CORRUPTION,

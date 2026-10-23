@@ -41,6 +41,13 @@ left side is the statement itself):
                    ``c`` that ``p`` uses (targets NOT NULL based simplification); not
                    under outer joins and not for generated columns.
 ``order_drop``     Drop the statement's own ORDER BY (the result is a multiset).
+``rls``            Row-level security leak oracle: the query run as ``pgfuzz_rls``
+                   (policies of corpus/rls.sql apply) equals the query run as
+                   superuser with each protected table ``t`` replaced by
+                   ``(SELECT * FROM t WHERE <policy>)``.
+``cert``           CERT (Ba and Rigger, ICSE 2024): the planner's row estimate of the
+                   query must not exceed that of the query without its WHERE; a
+                   violation is a performance issue, compared on EXPLAIN only.
 ``cte_materialize`` Toggle ``MATERIALIZED`` / ``NOT MATERIALIZED`` on a CTE.
 ``table_fence``    Replace one base-table reference ``t AS a`` with
                    ``(SELECT * FROM t OFFSET 0) AS a``: the planner can no longer
@@ -58,6 +65,7 @@ representatives); and the executor re-runs both sides before a mismatch counts.
 from __future__ import annotations
 
 import random
+import re
 from dataclasses import asdict, dataclass
 from typing import Any, Callable
 
@@ -71,10 +79,22 @@ from pgfuzz.grammar.schema import Schema
 UNIQUE_TEXT_TYPES = frozenset({"int", "bigint", "text", "bool", "date", "tstz", "int4range", "intarr", "textarr"})
 
 KINDS = ("tlp_where", "tlp_having", "tlp_agg", "norec", "expr", "pred", "notnull", "order_drop",
-         "cte_materialize", "table_fence")
+         "cte_materialize", "table_fence", "rls", "cert")
 # Partitioning checks apply to fewer queries, so they get the larger weights.
 DEFAULT_WEIGHTS = {"tlp_where": 6.0, "tlp_having": 5.0, "tlp_agg": 5.0, "norec": 3.0, "expr": 3.0,
-                   "pred": 3.0, "notnull": 1.5, "order_drop": 1.0, "cte_materialize": 1.5, "table_fence": 1.5}
+                   "pred": 3.0, "notnull": 1.5, "order_drop": 1.0, "cte_materialize": 1.5, "table_fence": 1.5,
+                   "rls": 2.0, "cert": 1.0}
+RLS_ROLE = "pgfuzz_rls"
+_POLICY = re.compile(r"^CREATE POLICY \w+ ON (\w+) USING \((.*)\);\s*$", re.M)
+
+
+def load_policies(path: str | None) -> dict[str, str]:
+    """``table -> USING predicate`` from the CREATE POLICY lines of an RLS setup file."""
+    if not path:
+        return {}
+    from pathlib import Path
+
+    return {t: pred for t, pred in _POLICY.findall(Path(path).read_text(encoding="utf-8"))}
 
 # Aggregates whose value over a multiset equals COMBINE over the values of its parts.
 _AGG_COMBINE = {"MIN": "MIN", "MAX": "MAX", "SUM": "SUM", "COUNT": "SUM", "BIT_OR": "BIT_OR",
@@ -118,6 +138,7 @@ class Check:
     lhs: str | None           # None: the statement itself
     rhs: str
     mask: bool = False        # mask float columns when digesting both sides
+    lhs_role: str | None = None   # run the left side as this role (RLS oracle)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -263,8 +284,10 @@ class Rewriter:
     """Builds metamorphic checks for query statements of grammar test cases."""
 
     def __init__(self, grammar: Grammar, rng: random.Random, per_query: int = 1,
-                 weights: dict[str, float] | None = None, query_rules: tuple[str, ...] = ("query",)) -> None:
+                 weights: dict[str, float] | None = None, query_rules: tuple[str, ...] = ("query",),
+                 policies: dict[str, str] | None = None) -> None:
         self.rng = rng
+        self.policies = dict(policies or {})
         self.per_query = per_query
         self.weights = {k: float(v) for k, v in (weights or DEFAULT_WEIGHTS).items() if k in KINDS and v > 0}
         self.query_rules = query_rules
@@ -281,7 +304,8 @@ class Rewriter:
         t = _Tree(tree, toks, self.alts)
         builders = {"tlp_where": self._tlp_where, "tlp_having": self._tlp_having, "tlp_agg": self._tlp_agg,
                     "norec": self._norec, "expr": self._expr, "pred": self._pred, "notnull": self._notnull,
-                    "order_drop": self._order_drop, "cte_materialize": self._cte, "table_fence": self._fence}
+                    "order_drop": self._order_drop, "cte_materialize": self._cte, "table_fence": self._fence,
+                    "rls": self._rls, "cert": self._cert}
         kinds = list(self.weights)
         out: list[Check] = []
         tried: set[str] = set()
@@ -295,10 +319,13 @@ class Rewriter:
             kind, lhs, rhs = built
             lhs_sql = render(lhs) if lhs is not None else None
             rhs_sql = render(rhs)
-            if rhs_sql == (lhs_sql or sql):
+            role = None
+            if kind == "rls":                 # same SQL on both sides is the point here
+                lhs_sql, role = sql, RLS_ROLE
+            elif rhs_sql == (lhs_sql or sql):
                 continue
             mask = masks_floats(lhs_sql or sql) or masks_floats(rhs_sql)
-            out.append(Check(index, kind, lhs_sql, rhs_sql, mask))
+            out.append(Check(index, kind, lhs_sql, rhs_sql, mask, role))
         return out
 
     # ---- helpers
@@ -505,6 +532,38 @@ class Rewriter:
         if ob is None or not t.region(ob):
             return None
         return "order_drop", None, t.replace(ob, [])
+
+    def _rls(self, t: _Tree, root: Node, schema: Schema):
+        """RLS leak oracle: the query as a restricted role (policies apply) must equal the
+        query as superuser with every protected table replaced by its filtered rows."""
+        if not self.policies:
+            return None
+        hits = []
+        for n in t.nodes:
+            toks = t.tokens(n) if n.sym == "@table" else None
+            if toks:
+                words = [w for w in toks if not is_marker(w)]
+                if len(words) == 3 and words[1] == "AS" and words[0] in self.policies:
+                    hits.append((t.region(n), words))
+        if not hits:
+            return None
+        out = list(t.toks)
+        for (start, end), (rel, _, alias) in sorted(hits, key=lambda h: -h[0][0]):   # right to left
+            out[start:end] = ["(", "SELECT", "*", "FROM", rel, "WHERE", "(", self.policies[rel], ")", ")", "AS", alias]
+        return "rls", None, out
+
+    def _cert(self, t: _Tree, root: Node, schema: Schema):
+        """CERT (Ba and Rigger, ICSE 2024): restricting a query must not raise the planner's
+        row estimate. lhs: the query without its WHERE, rhs: the query; compared on
+        EXPLAIN estimates, not on results."""
+        core = self._core(t, root)
+        if core is None or self._grouping(t, core) != "none" or t.child(core, "distinct") is not None \
+                or self._has_window(t, core):
+            return None
+        where = t.child(core, "where_clause")
+        if where is None or not t.region(where):
+            return None
+        return "cert", t.replace(where, []), list(t.toks)
 
     def _norec(self, t: _Tree, root: Node, schema: Schema):
         core = self._core(t, root)
