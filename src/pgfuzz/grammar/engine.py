@@ -99,6 +99,16 @@ class Node:
         return 1 + sum(k.size() for k in self.kids if k is not None)
 
 
+# A guide node whose val is MINIMAL makes the engine derive that subtree with its
+# smallest alternatives (least depth, fewest repetitions, no optional parts): the
+# grammar-tree reduction step of triage replaces subtrees by such markers.
+MINIMAL = "__minimal__"
+
+
+def minimal_marker(n: Node) -> Node:
+    return Node(n.sym, n.typ, n.alt, [], MINIMAL)
+
+
 def node_at(root: Node, path: tuple[int, ...]) -> Node:
     n = root
     for i in path:
@@ -265,6 +275,7 @@ class Engine:
         self.alt_hits: Counter[int] = Counter()
         self.alt_boost: dict[int, float] = {}
         self._nid = 0
+        self._minimal = 0          # > 0 while deriving a subtree marked MINIMAL
         missing = sorted({el.name for vs in grammar.rules.values() for v in vs for a in v.alts
                           for el in _walk(a.elems) if isinstance(el, Builtin) and el.name not in BUILTINS})
         if missing:
@@ -282,10 +293,12 @@ class Engine:
         self.alias_n = 0
         self.cte_n = 0
 
-    def statement(self, start: str | None = None, guide: Node | None = None) -> tuple[Node, list[str]]:
-        """Generate one statement (possibly several, separated by ';' tokens)."""
+    def statement(self, start: str | None = None, guide: Node | None = None,
+                  strict: bool = False) -> tuple[Node, list[str]]:
+        """Generate one statement (possibly several, separated by ';' tokens).
+        ``strict``: only follow ``guide``; never fall back to an unguided derivation."""
         start = start or self.g.start
-        for attempt in range(6):
+        for attempt in range(2 if strict else 6):
             self._new_statement()
             n_added = len(self.added)
             try:
@@ -371,6 +384,8 @@ class Engine:
 
     # ---- expansion
     def _order(self, cands: list[tuple[Variant, Alt, int]], depth: int, guide: Node | None) -> list[tuple[Variant, Alt, int]]:
+        if self._minimal and guide is None:
+            return sorted(cands, key=lambda c: (c[2], len(c[1].elems), -c[1].weight))
         first = [c for c in cands if guide is not None and c[1].uid == guide.alt]
         rest = [c for c in cands if not first or c is not first[0]]
         lo = min(c[2] for c in cands)
@@ -392,6 +407,12 @@ class Engine:
         self.steps += 1
         if self.steps > self.max_steps:
             raise Fail("step budget")
+        if guide is not None and guide.val == MINIMAL and guide.sym == name:
+            self._minimal += 1
+            try:
+                return self.expand(name, typ, ctx, None)
+            finally:
+                self._minimal -= 1
         if guide is not None and (guide.sym != name or guide.typ != typ):
             guide = None
         cands = []
@@ -496,6 +517,8 @@ class Engine:
     def _repeat(self, el: Repeat, ctx: Ctx, tv: dict, gtv: dict | None, guide: Node | None) -> tuple[Node, list[str]]:
         if guide is not None:
             n = max(el.lo, min(el.hi, len(guide.kids)))
+        elif self._minimal:
+            n = el.lo
         elif el.lo == 0 and el.hi == 1:
             n = int(self.rng.random() < (0.5 if el.p is None else el.p))
         else:

@@ -186,6 +186,8 @@ def run_trial(cfg: ExperimentConfig, fc: FuzzConfig, trial: int, worker: int = 0
             ok = sum(1 for o, st in zip(upd.statement_outcomes, res.statements) if o.value == "ok" and st.status is not StatementStatus.SKIPPED)
             runlog.exec_event(t, tc, res, cls, sig, upd.new_signature, upd.new_features, parsed, ok)
             if sig is not None:
+                if upd.new_signature and hasattr(generator, "failure_meta"):
+                    tc.meta.update(generator.failure_meta(tc) or {})   # derivation trees for triage
                 runlog.failure(t, tc, res, cls, sig, upd.new_signature, known)
                 if upd.new_signature:
                     log.info("[%s/%d] new %s %s at %.1fs: %s", fc.name, trial, cls.outcome.value, sig.id, t, (cls.message or "")[:120])

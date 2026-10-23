@@ -159,7 +159,10 @@ class Runner:
 
 
 def triage(cand: Candidate, executor: Any, out_dir: Path, *, repeat: int = 3, reduce: bool = True,
-           reference: Any = None, budget: int = 400, log: Callable[[str], None] = print) -> dict[str, Any]:
+           reference: Any = None, budget: int = 400, log: Callable[[str], None] = print,
+           tree_gen: Any = None) -> dict[str, Any]:
+    """``tree_gen``: a set-up GrammarGenerator for the candidate's grammar; when the
+    candidate carries derivation trees, they are reduced on the tree first."""
     run = Runner(executor, cand)
     t0 = time.monotonic()
     stmts, culprit, check = list(cand.statements), cand.culprit, cand.check
@@ -179,6 +182,20 @@ def triage(cand: Candidate, executor: Any, out_dir: Path, *, repeat: int = 3, re
         log("  does not reproduce: marked flaky")
         _write(out_dir, cand, result, stmts, culprit, check, None, None)
         return result
+
+    if reduce and tree_gen is not None and check is None:
+        from pgfuzz.triage.tree_reduce import TreeReducer, load_trees
+
+        trees = load_trees(cand.meta or {}, tree_gen)
+        if trees:
+            tr = TreeReducer(tree_gen, lambda sql: run.reproduces(sql, 0, None), budget=budget // 2, log=log)
+            got = tr.reduce(trees)
+            if got is not None:
+                stmts = list(got[1])
+                c = run.classify(stmts, 0).culprit
+                culprit = c if c is not None else len(stmts) - 1
+                result["tree_reduction"] = {"tokens_after": sum(len(lex(x)) for x in stmts), "runs": tr.runs,
+                                            "replays": tr.derived}
 
     if reduce:
         stmts, culprit = reduce_statements(stmts, culprit, lambda s, k: run.reproduces(s, k, check), log=log)

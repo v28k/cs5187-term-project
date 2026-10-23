@@ -7,6 +7,7 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 
 def _setup_logging(verbose: int) -> None:
@@ -175,6 +176,8 @@ def cmd_sample(a: argparse.Namespace) -> int:
             tc.id = i
             res = ex.execute(tc)
             cls = oracle.classify(res)
+            if cls.is_bug_candidate and hasattr(gen, "failure_meta"):
+                tc.meta.update(gen.failure_meta(tc) or {})
             gen.feedback(Feedback(tc, res, cls.outcome, cls.statement_outcomes, frozenset(), False))
             if cls.is_bug_candidate:
                 bugs += 1
@@ -219,13 +222,14 @@ def cmd_triage(a: argparse.Namespace) -> int:
         ref.start()
     try:
         seen: set[str] = set()
+        gens: dict[str, Any] = {}
         for p in paths:
             cand = load_candidate(p)
             if cand.signature in seen:
                 continue
             seen.add(cand.signature)
             results.append(triage(cand, ex, out, repeat=a.repeat, reduce=not a.no_reduce, reference=ref,
-                                  budget=a.budget))
+                                  budget=a.budget, tree_gen=None if a.no_tree else _tree_gen(cand.meta, gens)))
     finally:
         ex.stop()
         if ref is not None:
@@ -235,6 +239,25 @@ def cmd_triage(a: argparse.Namespace) -> int:
     tmpl.write_text(verdict_template(results), encoding="utf-8")
     print(f"{len(results)} candidate(s) triaged into {out}; verdict template: {tmpl}")
     return 0
+
+
+def _tree_gen(meta: dict | None, cache: dict):
+    """A replay-only GrammarGenerator for the grammar a failure was generated with."""
+    import random
+
+    from pgfuzz.core.interfaces import GeneratorContext
+    from pgfuzz.grammar.generator import GrammarGenerator
+
+    g = (meta or {}).get("generator")
+    if not g or not (meta or {}).get("trees") or not Path(g["grammar"]).exists():
+        return None
+    key = json.dumps(g, sort_keys=True)
+    if key not in cache:
+        gen = GrammarGenerator(g["grammar"], g["schema"], extra_grammars=g.get("extra_grammars") or None,
+                               mutate_prob=0.0, mm_prob=0.0)
+        gen.setup(GeneratorContext(0, random.Random(0), Path(".")))
+        cache[key] = gen
+    return cache[key]
 
 
 def cmd_precision(a: argparse.Namespace) -> int:
@@ -427,6 +450,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--repeat", type=int, default=3, help="reproduction attempts before reducing")
     p.add_argument("--budget", type=int, default=400, help="max executions per token reduction")
     p.add_argument("--no-reduce", action="store_true")
+    p.add_argument("--no-tree", action="store_true", help="skip grammar-tree reduction (token reduction only)")
     p.add_argument("--reference", help="config whose executor is a release server (shows its rows in the report)")
     p.set_defaults(fn=cmd_triage)
 

@@ -177,14 +177,17 @@ class GrammarGenerator(Generator):
         return parse_grammar(text, self.grammar_path)
 
     # ------------------------------------------------------------ generation
-    def _derive(self, stmts: list[_Stmt]) -> _Built:
-        """(Re)derive a test case from guide trees, in order, with schema state."""
+    def _derive(self, stmts: list[_Stmt], strict: bool = False) -> _Built:
+        """(Re)derive a test case from guide trees, in order, with schema state.
+        ``strict``: a statement that cannot follow its guide raises ``Fail``."""
         self.engine.new_testcase()
         out, sql, owners, parts = [], [], [], []
         for s in stmts:
             try:
-                tree, toks = self.engine.statement(s.rule, s.tree)
+                tree, toks = self.engine.statement(s.rule, s.tree, strict=strict and s.tree is not None)
             except Fail:
+                if strict:
+                    raise
                 self.gen_failures += 1
                 continue
             out.append(_Stmt(s.rule, tree))
@@ -278,6 +281,26 @@ class GrammarGenerator(Generator):
         if len(self.pending) > 64:
             self.pending.pop(next(iter(self.pending)))
         return tc
+
+    def failure_meta(self, tc: TestCase) -> dict[str, Any]:
+        """Derivation trees of a failing test case (for grammar-tree reduction in triage)."""
+        from pgfuzz.grammar.treeio import to_json
+
+        built = self.pending.get(id(tc))
+        if built is None:
+            return {}
+        m = self.alt_map()
+        return {"trees": [{"rule": s.rule, "tree": to_json(s.tree, m)} for s in built.stmts],
+                "owners": list(built.owners),
+                "generator": {"grammar": self.grammar_path, "schema": self.schema_path,
+                              "extra_grammars": list(self.extra_grammars), "fingerprint": m.fingerprint}}
+
+    def alt_map(self):
+        from pgfuzz.grammar.treeio import AltMap
+
+        if getattr(self, "_alt_map", None) is None:
+            self._alt_map = AltMap(self.grammar)
+        return self._alt_map
 
     def _checks(self, built: _Built) -> list[dict[str, Any]]:
         """Metamorphic follow-ups (see pgfuzz.grammar.rewrite) for some query statements."""
