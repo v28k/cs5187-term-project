@@ -340,6 +340,8 @@ class GrammarGenerator(Generator):
 
     # ------------------------------------------------------------ reporting
     def stats(self) -> dict[str, Any]:
+        if not hasattr(self, "engine"):          # setup() failed; the trial reports that error
+            return {"setup": "failed"}
         total = sum(self.outcomes.values())
         worst = []
         for uid, n in self.alt_use.items():

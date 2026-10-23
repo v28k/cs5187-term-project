@@ -4,7 +4,7 @@
 #   bash scripts/setup_env.sh        # ~25 min on 4 cores
 set -euo pipefail
 ROOT=${ROOT:-$HOME/pgfuzz}
-sudo apt-get install -y build-essential bison flex libreadline-dev zlib1g-dev libssl-dev libicu-dev libxml2-dev gdb git python3-pip pdftotext 2>/dev/null || true
+sudo apt-get install -y build-essential bison flex libreadline-dev zlib1g-dev libssl-dev libicu-dev libxml2-dev gdb lcov git python3-pip poppler-utils 2>/dev/null || true
 mkdir -p "$ROOT/src" && cd "$ROOT/src"
 [ -d postgres-master ] || git clone --depth 3000 --branch master https://github.com/postgres/postgres.git postgres-master
 [ -d postgres-REL_18_STABLE ] || git clone --depth 1 --branch REL_18_STABLE https://github.com/postgres/postgres.git postgres-REL_18_STABLE

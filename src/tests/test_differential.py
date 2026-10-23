@@ -19,3 +19,17 @@ from pgfuzz.eval.differential import eligible
 )
 def test_eligible(sql, expected):
     assert eligible(sql) is expected
+
+
+def test_digest_ignores_representation_choices():
+    from pgfuzz.eval.differential import result_digest
+
+    num, f8, txt = 1700, 701, 25
+    # DISTINCT may keep 21.0000 or 21.00 (equal numerics), -0 or 0 (equal floats)
+    assert result_digest([["21.0000", "-0"]], [num, f8])[0] == result_digest([["21.00", "0"]], [num, f8])[0]
+    assert result_digest([["0.00"]], [num])[0] == result_digest([["0"]], [num])[0]
+    assert result_digest([["21.5"]], [num])[0] != result_digest([["21.05"]], [num])[0]
+    assert result_digest([["2.0"]], [txt])[0] != result_digest([["2.00"]], [txt])[0]   # text stays exact
+    # masked float aggregates still distinguish NaN / Infinity from finite values
+    assert result_digest([["NaN"]], [f8], True)[0] != result_digest([["0"]], [f8], True)[0]
+    assert result_digest([["0.30000000000000004"]], [f8], True)[0] == result_digest([["0.3"]], [f8], True)[0]

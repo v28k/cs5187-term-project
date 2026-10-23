@@ -1,0 +1,2 @@
+CREATE FUNCTION rb_joi_test(text) RETURNS text LANGUAGE sql IMMUTABLE AS $$ SELECT $1 || '!' $$;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT rb_joi_test(JSON_OBJECT('a': 'b' RETURNING text));

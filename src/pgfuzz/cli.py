@@ -267,6 +267,9 @@ def cmd_llm(a: argparse.Namespace) -> int:
 
     if a.llm_cmd == "mine":
         ds = cm.mine(a.repo, a.since, a.until, limit=a.limit, require_test=not a.any)
+        if a.exclude:
+            ex = [ln.split()[0] for ln in Path(a.exclude).read_text().splitlines() if ln.strip() and not ln.startswith("#")]
+            ds = [d for d in ds if not any(d.sha.startswith(x) for x in ex)]
         cm.save(ds, a.out)
         print(f"{len(ds)} commit(s) -> {a.out}")
         for d in ds:
@@ -308,6 +311,71 @@ def cmd_llm(a: argparse.Namespace) -> int:
               f"{Path(a.out) / 'responses' / (Path(res.stopped_for).stem + '.json')}, and re-run")
     print(render_markdown(summarize(a.out)))
     return 0
+
+
+def _executor_at(config: str, worker: int, plain: bool = False):
+    """The config's executor pointed at worker ``worker`` (port base_port + worker).
+
+    ``plain``: only the server under test (a cross-version executor's ``test``
+    side), oracles off, exact result digests -- for comparing PoC outputs."""
+    from pgfuzz.core.interfaces import Executor
+    from pgfuzz.core.plugins import instantiate
+    from pgfuzz.reference.pg_executor import PostgresExecutor
+    from pgfuzz.runner import load_config
+
+    cfg = load_config(config)
+    params = cfg.executor.render(**cfg.substitutions("bench", worker, 0))
+    if not plain:
+        return instantiate(cfg.executor.plugin, Executor, params)
+    params = dict(params.get("test", params))
+    params.update(digests=True, mask_floats=False, differential=False, metamorphic=False, plan_shapes=False)
+    return PostgresExecutor(**params)
+
+
+def cmd_bench(a: argparse.Namespace) -> int:
+    from pgfuzz.bench import reinjected as rb
+    from pgfuzz.runner import load_config
+
+    cfg = load_config(a.config)
+    bench = rb.load(cfg.known_bugs)
+    plain = a.bench_cmd == "verify"
+    fixed = _executor_at(a.config, rb.FIXED_WORKER, plain)
+    solos = [_executor_at(a.config, bench.solo_worker(i), plain) for i in range(len(bench.bugs))]
+    exs = [fixed, *solos]
+    injected = None
+    if plain:
+        injected = _executor_at(a.config, 0, plain)
+        exs.append(injected)
+    for ex in exs:
+        ex.start()
+    try:
+        out = Path(a.out or cfg.experiment_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        if a.bench_cmd == "verify":
+            rows = rb.verify(bench, fixed, solos, injected)
+            (out / "bench_verify.json").write_text(json.dumps(rows, indent=1), encoding="utf-8")
+            print("| bug | commit | symptom | all injected | evidence |\n|---|---|---|---|---|")
+            for r in rows:
+                print(f"| {r['id']} | {r['commit'][:8]} | {r['symptom']} | {r.get('injected_symptom')} | "
+                      f"{r['evidence'][:90]} |")
+            for r in rows:
+                if r["fixed_errors"]:
+                    print(f"note: {r['id']} raises errors on the fixed server: {'; '.join(r['fixed_errors'])[:200]}")
+            print(f"\n{sum(r['symptom'] != 'none' for r in rows)}/{len(rows)} bugs observable; "
+                  f"copy the symptoms into {cfg.known_bugs}")
+            return 0
+        res = rb.attribute(bench, a.experiment_dir, fixed, solos, repeat=a.repeat)
+        arms = sorted({r["arm"] for r in res}) or [c.name for c in cfg.configs]
+        table = rb.detection_table(bench, res, arms, cfg.trials)
+        (out / "attribution.json").write_text(json.dumps({"failures": res, "table": table}, indent=1, default=str),
+                                              encoding="utf-8")
+        print(rb.render_markdown(table, arms))
+        print(f"\nnative failures (reproduce on the fixed server): {table['native_failures']}; "
+              f"unattributed: {table['unattributed_failures']}")
+        return 0
+    finally:
+        for ex in exs:
+            ex.stop()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -390,6 +458,8 @@ def main(argv: list[str] | None = None) -> int:
     q.add_argument("--until", default="HEAD")
     q.add_argument("--limit", type=int, default=200)
     q.add_argument("--any", action="store_true", help="also commits that add no regression-test SQL")
+    q.add_argument("--exclude", help="file of commit shas to leave out (RQ3: bench/reinjected/commits.txt, "
+                                     "so the model never sees the fixes of the re-injected bugs)")
     q.add_argument("--out", default="../results/llm/commits.json")
     q = lsub.add_parser("extend", help="ask for fragments, gate them on the server, repair, keep the accepted")
     q.add_argument("config", help="experiment config (executor + grammar arm)")
@@ -410,6 +480,18 @@ def main(argv: list[str] | None = None) -> int:
     q.add_argument("--out", default="../results/llm")
     q.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_llm)
+
+    p = sub.add_parser("bench", help="RQ3 re-injected bug benchmark (configs/rq3.yaml)")
+    bsub = p.add_subparsers(dest="bench_cmd", required=True)
+    q = bsub.add_parser("verify", help="run every PoC on the fixed, solo and all-injected servers")
+    q.add_argument("config")
+    q.add_argument("--out")
+    q = bsub.add_parser("attribute", help="attribute a campaign's failures to injected bugs; per-arm table")
+    q.add_argument("config")
+    q.add_argument("experiment_dir")
+    q.add_argument("--repeat", type=int, default=2)
+    q.add_argument("--out")
+    p.set_defaults(fn=cmd_bench)
 
     a = ap.parse_args(argv)
     _setup_logging(0 if a.quiet else a.verbose)

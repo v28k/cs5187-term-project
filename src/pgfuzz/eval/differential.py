@@ -73,6 +73,7 @@ _AGG_OR_WINDOW = frozenset(
 )
 # PostgreSQL type OIDs of float4, float8 and their arrays.
 FLOAT_OIDS = frozenset({700, 701, 1021, 1022})
+NUMERIC_OID = 1700
 
 
 def eligible(sql: str) -> bool:
@@ -136,19 +137,41 @@ def _has_order_by_inside(words: Sequence[str], open_idx: int) -> bool:
     return False
 
 
+def _canon(v: Any, oid: int | None) -> str:
+    """Text of a value with representation choices that no plan controls removed:
+    equal numerics with different display scales (2.0 / 2.00) and float -0 / 0
+    compare equal, so DISTINCT, GROUP BY and UNION may keep either one."""
+    t = str(v)
+    if oid == NUMERIC_OID and "." in t and "e" not in t.lower():
+        t = t.rstrip("0").rstrip(".")
+        return "0" if t in ("-0", "") else t
+    if oid in (700, 701) and t in ("-0", "0"):
+        return "0"
+    return t
+
+
+def _float_class(v: Any) -> str:
+    """A masked float keeps what summation order cannot change: NaN, +-Infinity, finite."""
+    t = str(v)
+    return t if t in ("NaN", "Infinity", "-Infinity") else "F"
+
+
 def result_digest(rows: Iterable[Sequence[Any]], type_oids: Sequence[int] | None = None, mask_floats: bool = False,
                   max_rows: int = 10000) -> tuple[str | None, int]:
     """Order-insensitive digest of a result set. Values are expected as text (the
     executor loads every type as text, i.e. PostgreSQL's own output format).
     Returns ``(None, n)`` if there are more than ``max_rows`` rows."""
     masked = {i for i, oid in enumerate(type_oids or []) if oid in FLOAT_OIDS} if mask_floats else set()
+    kinds = [oid if oid in (NUMERIC_OID, *FLOAT_OIDS) else None for oid in (type_oids or [])]
     canon = []
     n = 0
     for row in rows:
         n += 1
         if n > max_rows:
             return None, n
-        canon.append("\x1f".join("\x00" if v is None else ("F" if i in masked else str(v)) for i, v in enumerate(row)))
+        canon.append("\x1f".join("\x00" if v is None else _float_class(v) if i in masked
+                                  else _canon(v, kinds[i] if i < len(kinds) else None)
+                                  for i, v in enumerate(row)))
     canon.sort()
     h = hashlib.blake2b(digest_size=12)
     for r in canon:

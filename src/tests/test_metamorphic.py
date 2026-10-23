@@ -136,3 +136,14 @@ def test_plan_shape_ignores_costs_and_relation_names():
     assert plan_shape_string(a) == plan_shape_string(b) == "Hash Join|Inner(Seq Scan|Outer,Hash|Inner(Seq Scan|Outer))"
     c = dict(a, **{"Join Type": "Left"})
     assert plan_shape_string(c) != plan_shape_string(a)
+
+
+def test_tlp_having_keeps_the_level_grouped():
+    # Without GROUP BY, HAVING makes a level a one-group aggregate (one row even if WHERE
+    # removes every row), so the unpartitioned side must say HAVING TRUE, not drop HAVING.
+    checks = _mini_checks("tlp_having")
+    assert checks
+    for sql, c in checks:
+        head, _, pred = sql.partition(" HAVING ")
+        assert c.lhs == head + " HAVING TRUE"
+        assert f"HAVING NOT ({pred})" in c.rhs

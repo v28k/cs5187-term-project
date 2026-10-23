@@ -19,6 +19,7 @@ YAML format::
           message_regex: "..."
           assert_regex: "..."          # matched against 'file: expr'
           frame_regex: "..."           # matched against any normalized frame
+          offline: true                # never matched online; attributed afterwards (wrong results)
         poc: pocs/pg-bug-18xxx.sql     # optional, replayed by 'pgfuzz replay'
 """
 
@@ -49,6 +50,8 @@ class KnownBug:
     raw: dict[str, Any] = field(default_factory=dict)
 
     def matches(self, cls: Classification) -> bool:
+        if self.raw.get("match", {}).get("offline"):   # attributed after the campaign (pgfuzz.bench)
+            return False
         if self.outcome and cls.outcome.value != self.outcome:
             return False
         if self.sqlstate and (cls.sqlstate or "").upper() != self.sqlstate.upper():

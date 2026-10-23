@@ -40,3 +40,34 @@
   outcome: wrong_result
   verdict: false_positive
   note: "t2.c2 DEFAULT now() differed between servers. Fixed: deterministic seed data, clock functions excluded"
+# ---- RQ3 smoke run (results/rq3_smoke, 4 min per arm, re-injected server), triaged on master + REL_18
+- signature: 0a5d35b1e10a
+  oracle: metamorphic:tlp_having
+  outcome: wrong_result
+  verdict: false_positive
+  note: "HAVING without GROUP BY makes a one-group aggregate; the unpartitioned side dropped HAVING (0 rows vs 1). Fixed: it now keeps HAVING TRUE (rewrite._tlp_having)"
+- signature: 8ab766603c73
+  oracle: metamorphic:tlp_having
+  outcome: wrong_result
+  verdict: false_positive
+  note: "same root cause as 0a5d35b1e10a (no GROUP BY at the level)"
+- signature: 14fb341a3726
+  oracle: metamorphic:tlp_having
+  outcome: wrong_result
+  verdict: false_positive
+  note: "same root cause as 0a5d35b1e10a (no GROUP BY at the level)"
+- signature: 63e19036ae9f
+  oracle: metamorphic:tlp_having
+  outcome: wrong_result
+  verdict: false_positive
+  note: "same root cause as 0a5d35b1e10a (no GROUP BY at the level)"
+- signature: aa8a139ce4a2
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "DISTINCT over numeric: 21.0000000000000000 and 21.00000000000000000000 are equal, hash and sort keep different representatives. Fixed: digests canonicalise numeric scale and float -0"
+- signature: 7ffcd2cb45a7
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) on master vs 18.6; depends on state left by an earlier DML statement of the test case"

@@ -1,0 +1,110 @@
+# RQ1 (validity, coverage, feature and plan-shape diversity), RQ2 (bugs found)
+# and RQ4 (what the LLM adds) in one campaign on a gcov build of master.
+#
+#   COVERAGE=1 PG_REF=master bash harness/local/build_pg.sh
+#   bash scripts/rq1_servers.sh init 4 && bash scripts/rq1_servers.sh start 4
+#   python -m pgfuzz selftest configs/rq1.yaml
+#   python -m pgfuzz run configs/rq1.yaml -j 4
+#   python -m pgfuzz report ../results/rq1
+#
+# Arms: the random/mutation baseline; the plain grammar; grammar with the
+# tree-based oracles and plan guidance; and the LLM arm in three forms for the
+# RQ4 ablation (fragments only, seeds only, both). Every arm gets the same
+# executor, oracles, schema, budget and per-trial seeds (paired design).
+# The LLM arms read ../results/llm (pgfuzz llm extend), built before this run.
+experiment: rq1
+output_dir: ../results
+trials: 5                      # >= 10 if time allows (Klees et al., CCS'18)
+seed: 5187
+budget:
+  seconds: 3600
+coverage_interval_s: 300       # one lcov capture takes ~10-30 s; keep it rare
+snapshot_interval_s: 30
+log_sql: failures
+max_repros: 3
+max_harness_errors: 50
+known_bugs: ../known_bugs/known_bugs.yaml
+baseline: random
+base_port: 5450
+
+executor:
+  plugin: pgfuzz.reference.pg_executor:PostgresExecutor
+  params:
+    dsn: "host=127.0.0.1 port={port} dbname=postgres user=postgres"
+    isolation: savepoint
+    statement_timeout_ms: 3000
+    setup_sql: "{config_dir}/../corpus/schema.sql"
+    reset_sql: "{config_dir}/../corpus/schema.sql"
+    server_log: "/root/pgfuzz/data/cov-{worker}/postgresql.log"
+    coverage_command: "bash {config_dir}/../../scripts/rq1_servers.sh coverage {worker}"
+    coverage_reset_command: "bash {config_dir}/../../scripts/rq1_servers.sh coverage {worker} reset"
+    differential: {per_query: 2}
+    metamorphic: true
+    plan_shapes: {every: 1}
+
+configs:
+  - name: random
+    label: Random/Mutation
+    generator:
+      plugin: generator.random_generator.generator:RandomGenerator
+      params:
+        schema: "{config_dir}/../corpus/schema.yaml"
+        min_mutations: 1
+        max_mutations: 4
+        pure_random_fraction: 0.05
+
+  - name: grammar
+    label: Grammar
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        schema: "{config_dir}/../corpus/schema.yaml"
+        mm_prob: 0.0
+        plan_guidance: false
+
+  - name: grammar_mm
+    label: Grammar+Oracles
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        schema: "{config_dir}/../corpus/schema.yaml"
+        mm_prob: 0.5
+        plan_guidance: true
+
+  - name: llm_frag
+    label: +LLM fragments
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        schema: "{config_dir}/../corpus/schema.yaml"
+        mm_prob: 0.5
+        plan_guidance: true
+        extra_grammars: "{config_dir}/../../results/llm/fragments"
+
+  - name: llm_seeds
+    label: +LLM seeds
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        schema: "{config_dir}/../corpus/schema.yaml"
+        mm_prob: 0.5
+        plan_guidance: true
+        seeds: "{config_dir}/../../results/llm/seeds"
+        seed_prob: 0.05
+
+  - name: grammar_llm
+    label: Grammar+Oracles+LLM
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        schema: "{config_dir}/../corpus/schema.yaml"
+        mm_prob: 0.5
+        plan_guidance: true
+        extra_grammars: "{config_dir}/../../results/llm/fragments"
+        seeds: "{config_dir}/../../results/llm/seeds"
+        seed_prob: 0.05

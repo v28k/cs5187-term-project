@@ -96,6 +96,8 @@ class PostgresExecutor(Executor):
         metamorphic: bool | dict[str, Any] = False,
         plan_shapes: bool | dict[str, Any] = False,
         digests: bool = False,
+        mask_floats: bool = True,
+        create_database: bool = False,
         text_results: bool = True,
     ) -> None:
         if isolation not in ("savepoint", "autocommit"):
@@ -107,6 +109,9 @@ class PostgresExecutor(Executor):
         self.reset_sql = _load_sql(reset_sql)
         self.session_sql = list(session_sql or [])
         self.server_log = Path(server_log) if server_log else None
+        self.mask_floats = bool(mask_floats)   # off for exact comparisons (bench verify)
+        # create the DSN's database if missing (one database per worker on a shared reference server)
+        self.create_database = bool(create_database)
         self.coverage_command = coverage_command
         self.coverage_reset_command = coverage_reset_command
         self.coverage_reconnect = bool(coverage_reconnect)
@@ -202,9 +207,28 @@ class PostgresExecutor(Executor):
                 return
             except psycopg.OperationalError as e:  # server restarting / in recovery (57P03)
                 last = e
+                if self.create_database and "does not exist" in str(e) and self._create_database():
+                    continue
                 if time.monotonic() >= deadline:
                     raise RuntimeError(f"cannot connect to PostgreSQL ({self.dsn}): {e}") from last
                 time.sleep(0.5)
+
+    def _create_database(self) -> bool:
+        import psycopg
+        from psycopg import conninfo, sql
+
+        params = conninfo.conninfo_to_dict(self.dsn)
+        name = params.get("dbname")
+        if not name or name == "postgres":
+            return False
+        try:
+            with psycopg.connect(conninfo.make_conninfo(self.dsn, dbname="postgres"), autocommit=True) as c:
+                c.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
+        except psycopg.errors.DuplicateDatabase:
+            pass
+        except psycopg.Error:
+            return False
+        return True
 
     def _query_info(self) -> dict[str, Any]:
         info: dict[str, Any] = {}
@@ -292,7 +316,8 @@ class PostgresExecutor(Executor):
                     types = [c.type_code for c in cur.description]
                     rows = len(data)
                     if check:
-                        digest, _ = diff.result_digest(data, types, diff.masks_floats(sql), self.diff_max_rows)
+                        digest, _ = diff.result_digest(data, types, self.mask_floats and diff.masks_floats(sql),
+                                                       self.diff_max_rows)
                 st = StatementResult(StatementStatus.OK, duration_ms=_ms(s0), rows=rows, result_hash=digest)
                 results.append(st)
                 idle = False

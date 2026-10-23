@@ -1,0 +1,217 @@
+# RQ3 benchmark: real bugs of PostgreSQL master, re-injected by reverting their fixes
+# (scripts/build_reinjected.sh). Also the known-bug catalog of configs/rq3.yaml.
+#
+# symptom/evidence come from 'pgfuzz bench verify' (PoC on the fixed base vs. base
+# with only that revert). 'match' is used online for crash/assertion/internal-error
+# bugs; 'offline: true' bugs (wrong results, wrong errors) are attributed afterwards
+# with 'pgfuzz bench attribute'. Bugs with symptom 'none' changed only plans or
+# their effect needs a user-defined operator; they are outside the denominator.
+base: 26bd08fb5c069fbdf55867adc398cfca0f55d5c8
+bugs:
+  - id: rb-11b56ee2
+    commit: 11b56ee27315276bd09eff17fa503ba39f4231ce
+    title: "Fix bogus Assert in find_var_for_subquery_tle"
+    fixed_in: "11b56ee27315 (2026-10-16)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=11b56ee27315"
+    symptom: assertion
+    evidence: "pathkeys.c: var->varno == rel->relid"
+    poc: pocs/11b56ee2.sql
+    match: {outcome: "assertion", assert_regex: "pathkeys\\.c: var\\->varno\\ ==\\ rel\\->relid"}
+  - id: rb-94e1385e
+    commit: 94e1385ed28509bee486aa0be40dea78b9e083c3
+    title: "Fix two edge cases in numeric log(base, val)."
+    fixed_in: "94e1385ed285 (2026-10-15)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=94e1385ed285"
+    symptom: wrong_result
+    evidence: "1 rows on fixed, 1 on buggy"
+    poc: pocs/94e1385e.sql
+    match: {offline: true}
+  - id: rb-41180127
+    commit: 4118012791355f59b0d7774b681dc46683b50cb2
+    title: "Fix jsonb_object_agg() and related aggs used as window functions."
+    fixed_in: "411801279135 (2026-10-14)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=411801279135"
+    symptom: missing_error
+    evidence: "fixed raises 22030 duplicate JSON object key value"
+    poc: pocs/41180127.sql
+    match: {offline: true}
+  - id: rb-b28a2b2b
+    commit: b28a2b2bfa50cb7aa3fcea069f0afad0ebcb6491
+    title: "Fix two errors in extraction of GIN indexquals from jsonpath queries."
+    fixed_in: "b28a2b2bfa50 (2026-10-13)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=b28a2b2bfa50"
+    symptom: wrong_result
+    evidence: "1 rows on fixed, 1 on buggy"
+    poc: pocs/b28a2b2b.sql
+    match: {offline: true}
+  - id: rb-f5635c27
+    commit: f5635c2786af2322e1e21006a13a2c19f68fa591
+    title: "Fix expr_is_nonnullable() for IS DISTINCT FROM"
+    fixed_in: "f5635c2786af (2026-10-10)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=f5635c2786af"
+    symptom: none
+    evidence: "needs an equality operator that returns NULL for non-NULL inputs (no built-in type)"
+    poc: pocs/f5635c27.sql
+    match: {offline: true}
+  - id: rb-d8444163
+    commit: d8444163d22e576c9f284a55eab7999ba67c4ceb
+    title: "Don't trust NOT NULL on virtual generated columns of partitioned tables"
+    fixed_in: "d8444163d22e (2026-10-10)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=d8444163d22e"
+    symptom: wrong_result
+    evidence: "0 rows on fixed, 1 on buggy"
+    poc: pocs/d8444163.sql
+    match: {offline: true}
+  - id: rb-62e46c00
+    commit: 62e46c00c657fc2e092ceec0cd79d16035798afe
+    title: "Fix ON CONFLICT inference for index expressions simplified to a Var"
+    fixed_in: "62e46c00c657 (2026-10-10)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=62e46c00c657"
+    symptom: error
+    evidence: "42P10 there is no unique or exclusion constraint matching the ON CONFLICT specification"
+    poc: pocs/62e46c00.sql
+    match: {offline: true}
+  - id: rb-738d19d4
+    commit: 738d19d4ea14d1173b0bac764014fcb36f8f5c79
+    title: "Fix PlaceHolderVar placement for join alias expressions"
+    fixed_in: "738d19d4ea14 (2026-10-07)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=738d19d4ea14"
+    symptom: internal_error
+    evidence: "XX000 unsupported join alias expression"
+    poc: pocs/738d19d4.sql
+    match: {outcome: "internal_error", message_regex: "unsupported\\ join\\ alias\\ expression"}
+  - id: rb-6b858a36
+    commit: 6b858a36ddb80bfa4f478afebe3e84de72600e02
+    title: "Don't reprocess PHV copies within outer aggregates' arguments"
+    fixed_in: "6b858a36ddb8 (2026-10-06)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=6b858a36ddb8"
+    symptom: assertion
+    evidence: "subselect.c: !IsA(node, SubPlan)"
+    poc: pocs/6b858a36.sql
+    match: {outcome: "assertion", assert_regex: "subselect\\.c: !IsA\\(node,\\ SubPlan\\)"}
+  - id: rb-8b29b8da
+    commit: 8b29b8da78ea77c74ce2e6b140dcdde45ccb0268
+    title: "Fix sorting on extra grouping keys of child relations"
+    fixed_in: "8b29b8da78ea (2026-10-06)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=8b29b8da78ea"
+    symptom: internal_error
+    evidence: "XX000 could not find pathkey item to sort"
+    poc: pocs/8b29b8da.sql
+    match: {outcome: "internal_error", message_regex: "could\\ not\\ find\\ pathkey\\ item\\ to\\ sort"}
+  - id: rb-d764d61a
+    commit: d764d61af3160f725ac087ccc05d9ccf03af8312
+    title: "Fix eager aggregation grouping on cross-type join keys"
+    fixed_in: "d764d61af316 (2026-10-06)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=d764d61af316"
+    symptom: wrong_result
+    evidence: "1 rows on fixed, 1 on buggy"
+    poc: pocs/d764d61a.sql
+    match: {offline: true}
+  - id: rb-dfcf6fa7
+    commit: dfcf6fa7749d1fc4660d03590f14dca7c855048c
+    title: "Don't absorb child pathkeys into dummy AppendPaths for set-ops."
+    fixed_in: "dfcf6fa7749d (2026-10-05)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=dfcf6fa7749d"
+    symptom: internal_error
+    evidence: "XX000 could not find pathkey item to sort"
+    poc: pocs/dfcf6fa7.sql
+    match: {outcome: "internal_error", message_regex: "could\\ not\\ find\\ pathkey\\ item\\ to\\ sort"}
+  - id: rb-a464d31f
+    commit: a464d31ff6213fe47505c750972b404e4517ebd9
+    title: "Fix relids of EC-derived join clauses for lateral UNION ALL members"
+    fixed_in: "a464d31ff621 (2026-10-05)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=a464d31ff621"
+    symptom: assertion
+    evidence: "relnode.c: join_clause_is_movable_into(rinfo, baserel->relids, joinrelids)"
+    poc: pocs/a464d31f.sql
+    match: {outcome: "assertion", assert_regex: "relnode\\.c: join_clause_is_movable_into\\(rinfo,\\ baserel\\->relids,\\ joinrelids\\)"}
+  - id: rb-852fd5b8
+    commit: 852fd5b86e1a2ac1139c716eb4c96c09c03a632e
+    title: "Fix join alias expansion in lateral TABLESAMPLE clauses"
+    fixed_in: "852fd5b86e1a (2026-10-04)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=852fd5b86e1a"
+    symptom: internal_error
+    evidence: "XX000 no relation entry for relid 3"
+    poc: pocs/852fd5b8.sql
+    match: {outcome: "internal_error", message_regex: "no\\ relation\\ entry\\ for\\ relid\\ 3"}
+  - id: rb-a8bb1a77
+    commit: a8bb1a77795bab6e1304efa5c5dabee797b6887e
+    title: "Fix join removal when Vars reference the removed join via its alias"
+    fixed_in: "a8bb1a77795b (2026-09-19)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=a8bb1a77795b"
+    symptom: assertion
+    evidence: "rewriteManip.c: context->new_index != INVALID_VAR"
+    poc: pocs/a8bb1a77.sql
+    match: {outcome: "assertion", assert_regex: "rewriteManip\\.c: context\\->new_index\\ !=\\ INVALID_VAR"}
+  - id: rb-9d0adee8
+    commit: 9d0adee8768852fc0e5713ec27cf52d46d97279d
+    title: "Don't let JSON constructor coercions block SQL function inlining"
+    fixed_in: "9d0adee87688 (2026-09-14)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=9d0adee87688"
+    symptom: none
+    evidence: "plan-quality fix: same results with and without it"
+    poc: pocs/9d0adee8.sql
+    match: {offline: true}
+  - id: rb-895c1b5f
+    commit: 895c1b5fe1ecaf3d0c5cb1ce5a85ab95e4c27dfb
+    title: "Fix duplicate enforcement of EC-derived conditions"
+    fixed_in: "895c1b5fe1ec (2026-09-10)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=895c1b5fe1ec"
+    symptom: none
+    evidence: "plan-quality fix: same results with and without it"
+    poc: pocs/895c1b5f.sql
+    match: {offline: true}
+  - id: rb-35d3f206
+    commit: 35d3f2069a3c842665bbc020295fb165dcb2b6ec
+    title: "Fix nestloop parameter handling for PlaceHolderVars in child joins"
+    fixed_in: "35d3f2069a3c (2026-09-08)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=35d3f2069a3c"
+    symptom: internal_error
+    evidence: "XX000 variable not found in subplan target list"
+    poc: pocs/35d3f206.sql
+    match: {outcome: "internal_error", message_regex: "variable\\ not\\ found\\ in\\ subplan\\ target\\ list"}
+  - id: rb-1bf74c80
+    commit: 1bf74c806c41fcd382d5a0fab226e027f454a576
+    title: "Don't assume DISTINCT ON implies uniqueness when the tlist has SRFs"
+    fixed_in: "1bf74c806c41 (2026-08-25)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=1bf74c806c41"
+    symptom: wrong_result
+    evidence: "4 rows on fixed, 3 on buggy"
+    poc: pocs/1bf74c80.sql
+    match: {offline: true}
+  - id: rb-7774249d
+    commit: 7774249d0b66fff0b60823783db24090981020ac
+    title: "Fix float8_regr_accum() for Inf/NaN with constant other input."
+    fixed_in: "7774249d0b66 (2026-08-12)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=7774249d0b66"
+    symptom: wrong_result
+    evidence: "1 rows on fixed, 1 on buggy"
+    poc: pocs/7774249d.sql
+    match: {offline: true}
+  - id: rb-0d995793
+    commit: 0d99579320d075eba5733517463d81a2231e373b
+    title: "Fix nullability check for a sub-select's upper-level Vars"
+    fixed_in: "0d99579320d0 (2026-08-03)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=0d99579320d0"
+    symptom: wrong_result
+    evidence: "0 rows on fixed, 1 on buggy"
+    poc: pocs/0d995793.sql
+    match: {offline: true}
+  - id: rb-d6eac691
+    commit: d6eac691747499645f21398c9e305d7a671e0229
+    title: "Fix incorrect Result node flattening logic"
+    fixed_in: "d6eac6917474 (2026-07-31)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=d6eac6917474"
+    symptom: wrong_result
+    evidence: "0 rows on fixed, 2 on buggy"
+    poc: pocs/d6eac691.sql
+    match: {offline: true}
+  - id: rb-3b120b1e
+    commit: 3b120b1e94dd0387ca40e1e356f6b7eb8793d297
+    title: "Fix integer to_char() overflow with V format"
+    fixed_in: "3b120b1e94dd (2026-09-01)"
+    source: "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=3b120b1e94dd"
+    symptom: missing_error
+    evidence: "fixed raises 22003 integer out of range"
+    poc: pocs/3b120b1e.sql
+    match: {offline: true}

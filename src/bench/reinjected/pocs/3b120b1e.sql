@@ -1,0 +1,3 @@
+SELECT to_char(3, '9V999999999');
+SELECT to_char(2147483647, '9V9');
+SELECT to_char((-2147483648)::int4, '9V9');

@@ -1,0 +1,96 @@
+# RQ3: how many re-injected real bugs does each arm find, and how fast?
+#
+# Servers (scripts/rq3_servers.sh): workers 0..3 run master at the base commit
+# with the 23 fixes of bench/reinjected/commits.txt reverted; worker 20 is the
+# fixed base; worker 21+i runs base with only bug i re-injected.
+#
+#   bash scripts/build_reinjected.sh && bash scripts/rq3_servers.sh build-solo
+#   bash scripts/rq3_servers.sh init 4 && bash scripts/rq3_servers.sh start 4
+#   python -m pgfuzz bench verify configs/rq3.yaml          # PoC of every bug: fixed vs solo vs injected
+#   python -m pgfuzz run configs/rq3.yaml -j 4
+#   (grammar_llm: fragments from "llm mine --exclude bench/reinjected/commits.txt", so no fix leaks)
+#   python -m pgfuzz bench attribute configs/rq3.yaml ../results/rq3
+#
+# Every arm uses the same executor and oracles; the arms differ only in the
+# generator (and in what the generator can attach, e.g. metamorphic checks
+# need derivation trees). Same seeds per trial across arms (paired design).
+experiment: rq3
+output_dir: ../results
+trials: 5
+seed: 5187
+budget:
+  seconds: 3600
+coverage_interval_s: 600
+snapshot_interval_s: 30
+log_sql: failures
+max_repros: 3
+max_harness_errors: 50
+known_bugs: ../bench/reinjected/bugs.yaml
+baseline: random
+base_port: 5440
+
+# Cross-version executor: every arm also compares results with the REL_18
+# server (port 5435, setup_env.sh). Most re-injected bugs are master-only
+# regressions that no planner setting turns off; the release disagrees with them.
+executor:
+  plugin: pgfuzz.reference.xversion_executor:CrossVersionExecutor
+  params:
+    test:
+      dsn: "host=127.0.0.1 port={port} dbname=postgres user=postgres"
+      isolation: savepoint
+      statement_timeout_ms: 3000
+      setup_sql: "{config_dir}/../corpus/schema.sql"
+      reset_sql: "{config_dir}/../corpus/schema.sql"
+      server_log: "/root/pgfuzz/data/rq3-{worker}/postgresql.log"
+      differential: {per_query: 2}
+      metamorphic: true
+      plan_shapes: {every: 1}
+    reference:            # one database per worker: parallel trials must not share tables
+      dsn: "host=127.0.0.1 port=5435 dbname=ref_{worker} user=postgres"
+      create_database: true
+      statement_timeout_ms: 3000
+    prelude_sql: ["ALTER TABLE t2 ALTER COLUMN c0 RESTART WITH 31"]
+
+configs:
+  - name: random
+    label: Random/Mutation
+    generator:
+      plugin: generator.random_generator.generator:RandomGenerator
+      params:
+        schema: "{config_dir}/../corpus/schema.yaml"
+        min_mutations: 1
+        max_mutations: 4
+        pure_random_fraction: 0.05
+
+  - name: grammar
+    label: Grammar
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        schema: "{config_dir}/../corpus/schema.yaml"
+        mm_prob: 0.0
+        plan_guidance: false
+
+  - name: grammar_mm
+    label: Grammar+Oracles
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        schema: "{config_dir}/../corpus/schema.yaml"
+        mm_prob: 0.5
+        plan_guidance: true
+
+  - name: grammar_llm
+    label: Grammar+Oracles+LLM
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        schema: "{config_dir}/../corpus/schema.yaml"
+        mm_prob: 0.5
+        plan_guidance: true
+        extra_grammars: "{config_dir}/../../results/llm/fragments"
+        seeds: "{config_dir}/../../results/llm/seeds"
+        seed_prob: 0.05

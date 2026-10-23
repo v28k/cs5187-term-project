@@ -301,7 +301,10 @@ class Rewriter:
             return None
         core = self.rng.choice(ok)
         having = t.child(core, "having_clause")
-        lhs = t.replace(having, [])  # type: ignore[arg-type]
+        # HAVING TRUE, not no HAVING: without GROUP BY, a HAVING clause is what makes the level a
+        # single-group aggregate (one row even when WHERE removes every row); dropping it would
+        # change the query, not just the predicate.
+        lhs = t.replace(having, ["HAVING", "TRUE"])  # type: ignore[arg-type]
         rhs = self._partition(t, core, having, "HAVING", "UNION ALL",  # type: ignore[arg-type]
                               nested=core is not self._core(t, root))
         return "tlp_having", lhs, rhs

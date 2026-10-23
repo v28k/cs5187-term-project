@@ -1,0 +1,11 @@
+SET enable_partitionwise_join = on;
+SET enable_eager_aggregate = on;
+SET enable_partitionwise_aggregate = on;
+SET enable_hashagg = off;
+CREATE TABLE rb_ea1 (x int, y int) PARTITION BY RANGE (x);
+CREATE TABLE rb_ea1_p1 PARTITION OF rb_ea1 FOR VALUES FROM (0) TO (5);
+CREATE TABLE rb_ea1_p2 PARTITION OF rb_ea1 FOR VALUES FROM (5) TO (10);
+CREATE TABLE rb_ea1_p3 PARTITION OF rb_ea1 FOR VALUES FROM (10) TO (15);
+INSERT INTO rb_ea1 SELECT i % 15, i % 10 FROM generate_series(1, 1000) i;
+ANALYZE rb_ea1;
+SELECT t1.x, sum(t1.y) FROM rb_ea1 t1 JOIN rb_ea1 t2 ON t1.x = t2.x AND t1.y < t2.y GROUP BY t1.x ORDER BY t1.x;
