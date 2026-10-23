@@ -53,3 +53,12 @@ Newest master built with assertions: commit 126976a8 (23 Oct 2026), server on po
   "could not determine which collation to use for string comparison", so t3 has one
   row fewer there. This is extra evidence for BUG-01, not a new bug.
   (The 5434 master build includes our BUG-01 patch, so it succeeds there.)
+
+### Third round (23:00 UTC): BUG-01 pattern in other FROM-clause constructs
+Row and text comparisons on newest master 126976a8 and 18.6 inside TABLESAMPLE arguments,
+REPEATABLE, ROWS FROM function arguments, JSON_TABLE column DEFAULT ... ON EMPTY,
+JSON_QUERY/JSON_EXISTS/JSON_VALUE PASSING, and window RANGE offsets: all correct.
+JSON_TABLE PASSING with a row comparison still hits BUG-01's assertion on newest
+master (execExpr.c:2078); this is BUG-01's documented PASSING case, not new.
+XMLTABLE is untested: the newest master build has no libxml. SQL/PGQ (GRAPH_TABLE) is
+not in master yet.
