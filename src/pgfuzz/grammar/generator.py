@@ -57,6 +57,7 @@ class _Built:
     stmts: list[_Stmt]
     sql: list[str]
     owners: list[int] = field(default_factory=list)   # statement index -> tree index
+    toks: list[list[str]] = field(default_factory=list)  # statement index -> tokens with span markers
     op: str = "fresh"
     parent: _Entry | None = None
 
@@ -134,7 +135,7 @@ class GrammarGenerator(Generator):
     def _derive(self, stmts: list[_Stmt]) -> _Built:
         """(Re)derive a test case from guide trees, in order, with schema state."""
         self.engine.new_testcase()
-        out, sql, owners = [], [], []
+        out, sql, owners, parts = [], [], [], []
         for s in stmts:
             try:
                 tree, toks = self.engine.statement(s.rule, s.tree)
@@ -145,7 +146,8 @@ class GrammarGenerator(Generator):
             for part in _split(toks):
                 sql.append(render(part))
                 owners.append(len(out) - 1)
-        return _Built(out, sql, owners)
+                parts.append(part)
+        return _Built(out, sql, owners, parts)
 
     def _fresh_plan(self) -> list[_Stmt]:
         plan = []

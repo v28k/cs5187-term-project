@@ -87,6 +87,7 @@ class Node:
     kids: list["Node | None"] = field(default_factory=list)
     val: Any = None                # builtin choice / repetition count / shape
     tv: dict[str, str] | None = None
+    nid: int = field(default=-1, compare=False, repr=False)   # id of its span markers in the tokens
 
     def walk(self, path: tuple[int, ...] = ()):
         yield path, self
@@ -114,9 +115,68 @@ def replace_at(root: Node, path: tuple[int, ...], new: Node | None) -> Node | No
     return replace(root, kids=kids)
 
 
+# ------------------------------------------------------------------ spans
+#
+# The engine brackets the tokens of every rule node and every builtin node with
+# invisible markers ("\x01<nid>" ... "\x02<nid>"). They let tree-level
+# operations (metamorphic rewrites, reduction) find exactly the tokens a typed
+# node produced, and replace them, without re-parsing SQL. ``render`` drops them.
+
+_OPEN, _CLOSE = "\x01", "\x02"
+
+
+def is_marker(t: str) -> bool:
+    return bool(t) and t[0] in (_OPEN, _CLOSE)
+
+
+def strip_markers(tokens: list[str]) -> list[str]:
+    return [t for t in tokens if not is_marker(t)]
+
+
+def node_regions(tokens: list[str]) -> dict[int, list[tuple[int, int]]]:
+    """``nid -> [(start, end), ...]``: token index ranges (exclusive end, markers
+    excluded) of every complete marked region. A node can occur more than once
+    (``@sorted_agg`` repeats its argument). Regions cut by a statement split
+    (``;`` inside a multi-statement rule) are ignored."""
+    out: dict[int, list[tuple[int, int]]] = {}
+    stack: list[tuple[int, int]] = []
+    for i, t in enumerate(tokens):
+        if not t or t[0] not in (_OPEN, _CLOSE):
+            continue
+        nid = int(t[1:])
+        if t[0] == _OPEN:
+            stack.append((nid, i))
+        else:
+            while stack and stack[-1][0] != nid:
+                stack.pop()
+            if stack:
+                _, start = stack.pop()
+                out.setdefault(nid, []).append((start + 1, i))
+    return out
+
+
+def splice(tokens: list[str], nid: int, new: Callable[[list[str]], list[str]]) -> list[str]:
+    """Replace every occurrence of node ``nid`` by ``new(inner tokens)``.
+    Markers inside replaced regions are kept only if ``new`` keeps them."""
+    regions = sorted(node_regions(tokens).get(nid, []))
+    if not regions:
+        raise KeyError(nid)
+    out: list[str] = []
+    pos = 0
+    for start, end in regions:
+        if start - 1 < pos:      # nested in an earlier occurrence (cannot happen for one nid)
+            continue
+        out += tokens[pos:start - 1]
+        out += [tokens[start - 1]] + new(tokens[start:end]) + [tokens[end]]
+        pos = end + 1
+    return out + tokens[pos:]
+
+
 def render(tokens: list[str]) -> str:
     out: list[str] = []
     for t in tokens:
+        if is_marker(t):
+            continue
         if out and not (t in (",", ")", ".", "::", "]", "[") or out[-1] in ("(", ".", "::", "[")):
             out.append(" ")
         out.append(t)
@@ -204,6 +264,7 @@ class Engine:
         self.null_prob = null_prob
         self.alt_hits: Counter[int] = Counter()
         self.alt_boost: dict[int, float] = {}
+        self._nid = 0
         missing = sorted({el.name for vs in grammar.rules.values() for v in vs for a in v.alts
                           for el in _walk(a.elems) if isinstance(el, Builtin) and el.name not in BUILTINS})
         if missing:
@@ -238,6 +299,11 @@ class Engine:
                 self.alt_hits[uid] += 1
             return node, toks
         raise Fail(f"could not derive {start!r}")
+
+    def _mark(self, node: Node, toks: list[str]) -> list[str]:
+        self._nid += 1
+        node.nid = self._nid
+        return [f"{_OPEN}{self._nid}"] + toks + [f"{_CLOSE}{self._nid}"]
 
     # ---- types
     def members(self, cls: str) -> list[str]:
@@ -339,7 +405,8 @@ class Engine:
             snap = ctx.scope.snapshot()
             n_added, counters = len(self.added), (self.alias_n, self.cte_n, self.new_n)
             try:
-                return self._alt(name, v, a, typ, ctx, guide if guide is not None and guide.alt == a.uid else None)
+                node, toks = self._alt(name, v, a, typ, ctx, guide if guide is not None and guide.alt == a.uid else None)
+                return node, self._mark(node, toks)
             except Fail:
                 ctx.scope.restore(snap)
                 self.alias_n, self.cte_n, self.new_n = counters
@@ -398,7 +465,8 @@ class Engine:
         if isinstance(el, Builtin):
             if guide is not None and guide.sym != "@" + el.name:
                 guide = None
-            return BUILTINS[el.name](self, ctx, tv, el.args, guide)
+            node, toks = BUILTINS[el.name](self, ctx, tv, el.args, guide)
+            return node, (self._mark(node, toks) if node is not None and toks else toks)
         if isinstance(el, TypeName):
             if el.var not in tv:
                 tv[el.var] = (gtv or {}).get(el.var) or self.pick_type()

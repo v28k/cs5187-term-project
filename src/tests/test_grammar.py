@@ -114,3 +114,32 @@ def test_postgres_grammar_generates_without_failures():
     assert st["generation_failures"] < 15
     assert st["corpus"] > 0 and st["ops"].get("fresh")
     assert st["alternatives_used"] > st["alternatives"] * 0.5
+
+
+def test_node_spans_cover_exactly_the_node_tokens():
+    """Every rule/builtin node is bracketed by span markers; rendering ignores
+    them, regions nest properly, and splicing a node with its own tokens is the
+    identity. Tree-level rewrites rely on this."""
+    from pgfuzz.grammar.engine import node_regions, splice, strip_markers
+
+    eng = Engine(load_grammar(PGG), load_schema(SCHEMA), random.Random(11))
+    seen_expr = 0
+    for _ in range(150):
+        eng.new_testcase()
+        try:
+            tree, toks = eng.statement()
+        except Fail:
+            continue
+        sql = render(toks)
+        assert render(strip_markers(toks)) == sql
+        regions = node_regions(toks)
+        nodes = {n.nid: n for _, n in tree.walk() if n.nid > 0}
+        assert set(regions) <= set(nodes)
+        for nid, occ in regions.items():
+            for start, end in occ:
+                inner = render(toks[start:end])
+                assert inner and inner in sql
+            assert render(splice(toks, nid, lambda t: t)) == sql
+            if nodes[nid].sym == "expr" and nodes[nid].typ == "bool":
+                seen_expr += 1
+    assert seen_expr > 50
