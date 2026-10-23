@@ -7,8 +7,9 @@ queries, all derived from the ``.pgg`` grammar against the schema in
 visible to later ones.
 
 With ``mutate_prob`` > 0 the generator keeps a corpus of interesting test cases
-(new SQL features, new feature pairs, new bug signatures) and derives new test
-cases from them by
+(new SQL features, new feature pairs, new bug signatures, and, when the
+executor samples plans, new plan shapes: Query Plan Guidance) and derives new
+test cases from them by
 
 * ``regen``   regenerating one subtree of one statement,
 * ``splice``  replacing a subtree by a subtree of the same rule and type taken
@@ -95,6 +96,7 @@ class GrammarGenerator(Generator):
         mm_prob: float = 0.0,
         mm_per_query: int = 1,
         mm_weights: dict[str, float] | None = None,
+        plan_guidance: bool = True,
     ) -> None:
         self.grammar_path, self.schema_path = grammar, schema
         self.start, self.setup_rule = start, setup_rule
@@ -105,6 +107,8 @@ class GrammarGenerator(Generator):
         self.track_alternatives = track_alternatives
         self.mm_prob, self.mm_per_query, self.mm_weights = float(mm_prob), int(mm_per_query), mm_weights
         self.mm_built: Counter[str] = Counter()
+        self.plan_guidance = bool(plan_guidance)
+        self.seen_plans: set[str] = set()
         self.corpus: list[_Entry] = []
         self.pending: dict[int, _Built] = {}
         self.seen_pairs: set[tuple[str, str]] = set()
@@ -279,8 +283,11 @@ class GrammarGenerator(Generator):
         new_pairs = feature_pairs(feats) - self.seen_pairs
         self.seen_pairs |= new_pairs
         any_ok = any(oc is Outcome.OK for oc in fb.statement_outcomes)
+        plans = {st.plan_shape for st in stmt_results if st.plan_shape} - self.seen_plans
+        self.seen_plans |= plans
         why = ("signature" if fb.new_signature else "features" if fb.new_features
-               else "pairs" if new_pairs and any_ok else "")
+               else "pairs" if new_pairs and any_ok
+               else "plan" if plans and self.plan_guidance else "")
         if not why:
             return
         if built.parent is not None:
@@ -313,6 +320,8 @@ class GrammarGenerator(Generator):
             "corpus": len(self.corpus),
             "generation_failures": self.gen_failures,
             "metamorphic_checks_built": dict(self.mm_built),
+            "plan_shapes_seen": len(self.seen_plans),
+            "corpus_reasons": dict(Counter(e.why for e in self.corpus)),
             **self.engine.stats(),
         }
 

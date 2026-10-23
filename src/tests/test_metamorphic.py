@@ -123,3 +123,16 @@ def test_internal_error_in_a_followup_is_a_candidate():
           "message": "variable not found in subplan target list", "side": "rhs", "sql": "WITH ..."}
     cls = oracle.classify(_result([xx]))
     assert cls.outcome is Outcome.INTERNAL_ERROR and cls.details["check"] == "cte_materialize"
+
+
+def test_plan_shape_ignores_costs_and_relation_names():
+    from pgfuzz.reference.pg_executor import plan_shape_string
+
+    a = {"Node Type": "Hash Join", "Join Type": "Inner", "Parallel Aware": False, "Relation Name": "t0",
+         "Plans": [{"Node Type": "Seq Scan", "Relation Name": "t0", "Parent Relationship": "Outer"},
+                   {"Node Type": "Hash", "Parent Relationship": "Inner",
+                    "Plans": [{"Node Type": "Seq Scan", "Relation Name": "t1", "Parent Relationship": "Outer"}]}]}
+    b = {**a, "Relation Name": "t9", "Plans": [dict(a["Plans"][0], **{"Relation Name": "t3"}), a["Plans"][1]]}
+    assert plan_shape_string(a) == plan_shape_string(b) == "Hash Join|Inner(Seq Scan|Outer,Hash|Inner(Seq Scan|Outer))"
+    c = dict(a, **{"Join Type": "Left"})
+    assert plan_shape_string(c) != plan_shape_string(a)

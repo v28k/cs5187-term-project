@@ -10,6 +10,9 @@ Definitions (these are the definitions to quote in the paper):
                          among parse-valid statements.
 * **unique bug candidates** distinct failure signatures with a bug-candidate outcome.
 * **throughput**         executed statements (and test cases) per wall-clock second.
+* **plan shapes**        distinct digests of plan-node trees among sampled queries
+                         (only when the executor samples ``EXPLAIN`` plans).
+* **time to detect**     per known bug, the first time a signature matched it.
 
 Statements reported ``SKIPPED`` (after a connection loss) are not "executed".
 """
@@ -59,6 +62,8 @@ class TrialMetrics:
         self.features: set[str] = set()
         self.pairs: set[tuple[str, str]] = set()
         self.shapes: set[str] = set()
+        self.plan_shapes: set[str] = set()
+        self.known_first_t: dict[str, float] = {}
         self.signatures: dict[str, SignatureRecord] = {}
         self.time_to_first_bug: float | None = None
         self.exec_ms = 0.0
@@ -95,6 +100,8 @@ class TrialMetrics:
                 self.features |= feats
                 self.pairs |= feature_pairs(feats)
                 self.shapes.add(hashlib.blake2b(statement_shape(sql).encode(), digest_size=8).hexdigest())
+            if st.plan_shape:
+                self.plan_shapes.add(st.plan_shape)
 
         new_sig = False
         if sig is not None and cls.is_bug_candidate:
@@ -116,6 +123,8 @@ class TrialMetrics:
                     self.time_to_first_bug = round(t, 3)
             else:
                 rec.count += 1
+            for k in known or []:
+                self.known_first_t.setdefault(k, round(t, 3))
         return UpdateResult(cls.statement_outcomes, frozenset(new_features), new_sig)
 
     def snapshot(self, t: float) -> dict[str, Any]:
@@ -128,6 +137,7 @@ class TrialMetrics:
             "features": len(self.features),
             "feature_pairs": len(self.pairs),
             "shapes": len(self.shapes),
+            "plan_shapes": len(self.plan_shapes),
             "bug_candidates": len(self.signatures),
         }
         if self.coverage is not None:
@@ -157,6 +167,8 @@ class TrialMetrics:
             "time_to_first_bug_s": self.time_to_first_bug,
             "server_restarts": self.server_restarts,
             "known_bugs_reproduced": known,
+            "known_bugs_first_t": dict(sorted(self.known_first_t.items())),
+            "plan_shapes": len(self.plan_shapes),
             "statement_outcomes": dict(sorted(self.stmt_outcomes.items())),
             "testcase_outcomes": dict(sorted(self.tc_outcomes.items())),
             "features_seen": sorted(self.features),

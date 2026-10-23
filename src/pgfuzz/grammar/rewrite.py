@@ -12,11 +12,16 @@ by the parser or analyser.
 Checks produced for one query statement (``Check.lhs`` is ``None`` when the
 left side is the statement itself):
 
-``tlp_where``      Ternary Logic Partitioning (Rigger and Su, OOPSLA 2020) on the
-                   top-level ``WHERE p``: the query without the WHERE clause equals
-                   the multiset union of the query under ``p``, ``NOT p`` and
+``tlp_where``      Ternary Logic Partitioning (Rigger and Su, OOPSLA 2020) on a
+                   ``WHERE p``: a SELECT without its WHERE clause equals the
+                   multiset union of the SELECT under ``p``, ``NOT p`` and
                    ``p IS NULL``. With DISTINCT the arms are combined with UNION.
-``tlp_having``     The same partitioning on the ``HAVING`` clause of a grouped query.
+                   The SELECT can be the query itself or any SELECT whose result is
+                   consumed as a multiset (derived table, CTE body, set-operation
+                   arm, IN / EXISTS / LATERAL subquery); then both sides are the
+                   whole statement, one with the WHERE dropped and one with that
+                   SELECT replaced by its partitioned form.
+``tlp_having``     The same partitioning on the ``HAVING`` clause of a grouped SELECT.
 ``norec``          Non-optimizing reference engine construction (Rigger and Su,
                    ESEC/FSE 2020): ``SELECT count(*) FROM .. WHERE p`` equals
                    ``SELECT sum(CASE WHEN p THEN 1 ELSE 0 END) FROM ..``, where the
@@ -212,10 +217,32 @@ class Rewriter:
         return out
 
     # ---- helpers
+    # Rules whose select_core result is used as a multiset by the enclosing query,
+    # so replacing it by an equal multiset cannot change the statement's result.
+    MULTISET_CONTEXTS = frozenset({"query", "subquery", "set_arm", "in_sub", "exists_sub", "lateral_subquery"})
+
     def _core(self, t: _Tree, root: Node) -> Node | None:
         """The select_core of the query itself (not of a CTE, subquery or set arm)."""
         core = t.child(root, "select_core")
         return core if core is not None and t.region(core) else None
+
+    def _cores(self, t: _Tree, root: Node, grouped: bool, clause: str) -> list[Node]:
+        """select_cores in a multiset context that have ``clause`` (and are grouped or not)."""
+        out = []
+        for n in t.nodes:
+            if n.sym != "select_core" or not t.region(n):
+                continue
+            parent = t.parent.get(id(n))
+            while parent is not None and parent.sym in ("#rep", "#grp"):
+                parent = t.parent.get(id(parent))
+            if parent is None or parent.sym not in self.MULTISET_CONTEXTS:
+                continue
+            if (self._grouping(t, n) != "none") != grouped or self._has_window(t, n):
+                continue
+            c = t.child(n, clause)
+            if c is not None and t.region(c) and t.child(c, "expr") is not None:
+                out.append(n)
+        return out
 
     def _grouping(self, t: _Tree, core: Node) -> str:
         b = t.alt_builtins(core)
@@ -229,7 +256,7 @@ class Rewriter:
         items = t.child(core, "@items")
         return items is not None and t.contains(items, {"win"})
 
-    def _partition(self, t: _Tree, core: Node, clause: Node, keyword: str, union: str) -> list[str]:
+    def _partition(self, t: _Tree, core: Node, clause: Node, keyword: str, union: str, nested: bool) -> list[str]:
         pred = t.child(clause, "expr")
         assert pred is not None
         p = t.tokens(pred) or []
@@ -240,38 +267,43 @@ class Rewriter:
             arm = t.toks[start:cs] + [keyword] + cond + t.toks[ce:end]
             arms.append(_paren(arm))
         joined = arms[0] + [union] + arms[1] + [union] + arms[2]
+        if nested:   # keep INTERSECT (binds tighter than UNION) from regrouping the arms
+            joined = _paren(joined)
         return t.toks[:start] + joined + t.toks[end:]
 
     # ---- builders: return (kind, lhs tokens or None, rhs tokens) or None
     def _tlp_where(self, t: _Tree, root: Node, schema: Schema):
-        core = self._core(t, root)
-        if core is None or self._grouping(t, core) != "none" or self._has_window(t, core):
+        cores = self._cores(t, root, grouped=False, clause="where_clause")
+        distinct_ok = [c for c in cores if t.child(c, "distinct") is None
+                       or set(self._items_types(t, c) or ("?",)) <= UNIQUE_TEXT_TYPES]
+        if not distinct_ok:
             return None
+        core = self.rng.choice(distinct_ok)
         where = t.child(core, "where_clause")
-        if where is None or not t.region(where) or t.child(where, "expr") is None:
-            return None
         distinct = t.child(core, "distinct") is not None
-        if distinct and not set(self._items_types(t, core) or ("?",)) <= UNIQUE_TEXT_TYPES:
-            return None
-        lhs = t.replace(where, [])
-        rhs = self._partition(t, core, where, "WHERE", "UNION" if distinct else "UNION ALL")
+        lhs = t.replace(where, [])  # type: ignore[arg-type]
+        rhs = self._partition(t, core, where, "WHERE", "UNION" if distinct else "UNION ALL",  # type: ignore[arg-type]
+                              nested=core is not self._core(t, root))
         return "tlp_where", lhs, rhs
 
     def _tlp_having(self, t: _Tree, root: Node, schema: Schema):
-        core = self._core(t, root)
-        if core is None or self._grouping(t, core) == "none" or self._has_window(t, core):
+        ok = []
+        for core in self._cores(t, root, grouped=True, clause="having_clause"):
+            keys = t.child(core, "@group_keys")
+            types = []
+            for alias, rel, col in (keys.val if keys is not None else []):
+                r = schema.relations.get(rel)
+                c = r.col(col) if r is not None else None
+                types.append(c.type if c is not None else "?")
+            if set(types) <= UNIQUE_TEXT_TYPES:
+                ok.append(core)
+        if not ok:
             return None
+        core = self.rng.choice(ok)
         having = t.child(core, "having_clause")
-        if having is None or not t.region(having) or t.child(having, "expr") is None:
-            return None
-        keys = t.child(core, "@group_keys")
-        for alias, rel, col in (keys.val if keys is not None else []):
-            r = schema.relations.get(rel)
-            c = r.col(col) if r is not None else None
-            if c is None or c.type not in UNIQUE_TEXT_TYPES:
-                return None
-        lhs = t.replace(having, [])
-        rhs = self._partition(t, core, having, "HAVING", "UNION ALL")
+        lhs = t.replace(having, [])  # type: ignore[arg-type]
+        rhs = self._partition(t, core, having, "HAVING", "UNION ALL",  # type: ignore[arg-type]
+                              nested=core is not self._core(t, root))
         return "tlp_having", lhs, rhs
 
     def _norec(self, t: _Tree, root: Node, schema: Schema):
