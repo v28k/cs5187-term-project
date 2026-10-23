@@ -111,6 +111,7 @@ Reproduced again from a fresh session on:
 | REL_18_STABLE 9412c35 (newest 18.x branch head; cassert) | bug present |
 | 18.6 release | bug present |
 
-Newest master's git log has no commit touching this code since the bug was found,
-and a web search of pgsql-bugs on 23 Oct found no existing report, so it is not a
-duplicate and not fixed upstream yet.
+Newest master's parse_jsontable.c still has no assign_expr_collations() after the
+context item is transformed (line 157), so it is not fixed upstream yet. Before filing,
+search https://www.postgresql.org/list/pgsql-bugs/ for "JSON_TABLE collation" and
+"inputcollids" to rule out a duplicate (not done yet for this bug).
