@@ -21,6 +21,7 @@ recorded too: the gate is also a small fuzzing campaign aimed at the commit.
 
 from __future__ import annotations
 
+import json
 import random
 import re
 import tempfile
@@ -53,6 +54,8 @@ class GateConfig:
     coverage_build: str | None = None     # PostgreSQL build dir with gcov data (server runs from it)
     pg_repo: str | None = None            # git checkout used to map changed lines to the build's revision
     pg_head: str = "HEAD"
+    rewrite_sample: int = 150              # test cases per proposed equivalence rewrite
+    max_rewrite_errors: float = 0.2        # share of checks whose rewritten side may fail
 
 
 @dataclass
@@ -60,11 +63,13 @@ class GateReport:
     accepted: bool = False
     accepted_fragment: bool = False
     accepted_seeds: list[str] = field(default_factory=list)
+    accepted_rewrites: list[dict[str, Any]] = field(default_factory=list)
     details: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {"accepted": self.accepted, "accepted_fragment": self.accepted_fragment,
-                "accepted_seeds": len(self.accepted_seeds), **self.details}
+                "accepted_seeds": len(self.accepted_seeds), "accepted_rewrites": len(self.accepted_rewrites),
+                **self.details}
 
 
 class Gate:
@@ -153,7 +158,108 @@ class Gate:
             self.ex.reconnect()
         return diffcov.diff_coverage(build, commit.targets, self.cfg.pg_repo, commit.sha, self.cfg.pg_head)  # type: ignore[arg-type]
 
-    def check(self, fragment: str, seeds: list[str], commit: CommitDigest) -> GateReport:
+    # ---- equivalence rewrites (the LLM extends the oracle, not only the grammar)
+    _VOLATILE = re.compile(r"\b(random|now|clock_timestamp|nextval|setseed|txid_current|pg_sleep)\b", re.I)
+
+    def check_rewrites(self, rewrites: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Soundness test of each proposed rewrite on the server: apply only it, with
+        confirmation re-runs, to the expressions of ``rewrite_sample`` test cases. Accepted
+        only with >= ``min_uses`` checks, few errors and *no* confirmed mismatch."""
+        accepted, info = [], []
+        types = set(load_grammar_types(self.grammar_path))
+        base = getattr(self.ex, "test", self.ex)
+        saved = (getattr(base, "mm_enabled", False), getattr(base, "mm_confirm", False))
+        base.mm_enabled, base.mm_confirm = True, True
+        try:
+            for r in rewrites[:3]:
+                name = re.sub(r"\W+", "_", str(r.get("name") or "rw")).strip("_")[:40] or "rw"
+                typ, tpl = str(r.get("type", "")), str(r.get("template", ""))
+                rec: dict[str, Any] = {"name": name, "type": typ, "template": tpl}
+                problem = (f"unknown type {typ!r} (use a %type name: {', '.join(sorted(types))})" if typ not in types
+                           else "the template must contain {e}" if "{e}" not in tpl
+                           else "unbalanced parentheses" if tpl.count("(") != tpl.count(")")
+                           else "volatile function" if self._VOLATILE.search(tpl) else None)
+                if problem:
+                    info.append({**rec, "accepted": False, "reason": problem})
+                    continue
+                counter = self._probe(typ, tpl)
+                if counter is not None:
+                    info.append({**rec, "accepted": False, "reason": counter})
+                    continue
+                f = Path(tempfile.mkdtemp(prefix="pgfuzz-rw-")) / "rw.json"
+                f.write_text(json.dumps({"rewrites": [{"name": name, "type": typ, "template": tpl}]}), encoding="utf-8")
+                gen = GrammarGenerator(self.grammar_path, self.schema_path, mutate_prob=0.0, mm_prob=1.0,
+                                       mm_weights={"expr": 1.0}, extra_rewrites=[str(f)], only_rewrite=f"llm_{name}")
+                gen.setup(GeneratorContext(self.cfg.seed, random.Random(self.cfg.seed), f.parent))
+                kind = f"expr:llm_{name}"
+                ran = ok = err = mism = 0
+                errors: Counter[str] = Counter()
+                example = None
+                for i in range(self.cfg.rewrite_sample):
+                    tc = gen.next_testcase()
+                    if not tc.meta.get("checks"):
+                        continue
+                    tc.id = i
+                    res = self.ex.execute(tc)
+                    for sql, st in zip(tc.statements, res.statements):
+                        for c in st.checks or []:
+                            if c.get("kind") != kind:
+                                continue
+                            ran += 1
+                            if c.get("status") == "ok" and c.get("confirmed") and c.get("lhs_hash") != c.get("rhs_hash"):
+                                mism += 1
+                                example = example or {"query": sql, "rewritten": c.get("rhs_sql")}
+                            elif c.get("status") == "ok":
+                                ok += 1
+                            else:
+                                err += 1
+                                errors[normalize_message(c.get("message") or "")] += 1
+                good = ran >= self.cfg.min_uses and mism == 0 and err <= self.cfg.max_rewrite_errors * ran
+                rec.update(checks=ran, equal=ok, errors=err, mismatches=mism, top_errors=dict(errors.most_common(3)),
+                           accepted=good)
+                if example:
+                    rec["mismatch_example"] = example
+                    rec["note"] = ("not an identity on this server, or a bug in it: triage the example before "
+                                   "discarding it")
+                if not good and not mism:
+                    rec["reason"] = ("too few uses" if ran < self.cfg.min_uses else "too many errors")
+                info.append(rec)
+                if good:
+                    accepted.append({"name": name, "type": typ, "template": tpl, "why": r.get("why", "")})
+        finally:
+            base.mm_enabled, base.mm_confirm = saved
+        return accepted, info
+
+    def _probe(self, typ: str, tpl: str) -> str | None:
+        """Evaluate the rewrite on concrete values (NULL, the type's edges, data quantiles);
+        sampling queries alone misses NULL handling, because most predicates sit where
+        NULL and false filter the same rows. Returns a counterexample, or None."""
+        import psycopg
+
+        from pgfuzz.grammar.profile import TYPE_EDGES, Profile
+
+        sqlt = {t: d.sql for t, d in load_grammar_obj(self.grammar_path).types.items()}[typ]
+        vals = [f"NULL::{sqlt}"] + list(TYPE_EDGES.get(typ, []))
+        prof = Path(self.schema_path).with_name("profile.json")
+        if prof.exists():
+            vals += Profile.load(prof).quantile.get(typ, [])[:6]
+        base = getattr(self.ex, "test", self.ex)
+        if not base._alive():
+            base._connect(wait=True)
+        for v in vals:
+            q = f"SELECT ({tpl.replace('{e}', f'({v})')}) IS NOT DISTINCT FROM ({v})"
+            try:
+                same = base.conn.execute(q).fetchone()[0]       # autocommit, read-only
+            except psycopg.Error as e:
+                if not base._alive():
+                    base._connect(wait=True)
+                return f"for e = {v} the rewrite fails: {str(e).splitlines()[0][:160]}"
+            if str(same).lower() not in ("t", "true"):
+                return f"not an identity: for e = {v} the rewrite gives a different value"
+        return None
+
+    def check(self, fragment: str, seeds: list[str], commit: CommitDigest,
+              rewrites: list[dict[str, Any]] | None = None) -> GateReport:
         rep = GateReport()
         d = rep.details
         work = Path(tempfile.mkdtemp(prefix="pgfuzz-gate-"))
@@ -177,6 +283,8 @@ class Gate:
             d["parse"] = "empty fragment (seeds only)"
         good_seeds, seed_info = self._seeds(seeds)
         d["seeds"] = seed_info
+        if rewrites:
+            rep.accepted_rewrites, d["rewrites"] = self.check_rewrites(rewrites)
 
         if self.cfg.coverage_build and (frag_ok or good_seeds):
             def run_llm():
@@ -200,5 +308,17 @@ class Gate:
             rep.accepted_seeds = good_seeds
         # a proposal with a fragment stands or falls with it (a rejected fragment gets a repair round;
         # its valid seeds are kept regardless); a seeds-only proposal is accepted on its seeds
-        rep.accepted = rep.accepted_fragment if fragment else bool(rep.accepted_seeds)
+        rep.accepted = rep.accepted_fragment if fragment else bool(rep.accepted_seeds or rep.accepted_rewrites)
         return rep
+
+
+def load_grammar_types(path: str) -> list[str]:
+    from pgfuzz.grammar.dsl import load_grammar
+
+    return list(load_grammar(path).types)
+
+
+def load_grammar_obj(path: str):
+    from pgfuzz.grammar.dsl import load_grammar
+
+    return load_grammar(path)

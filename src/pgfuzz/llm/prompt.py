@@ -28,14 +28,21 @@ RESPONSE_SCHEMA = {
                   "description": "1-5 test cases; each is one or more SQL statements separated by ';' and newlines."},
         "features": {"type": "array", "items": {"type": "string"},
                      "description": "Short names of the SQL features the fragment targets."},
+        "rewrites": {"type": "array", "description": "0-3 equivalence rewrites for the metamorphic oracle (see "
+                                                       "'Equivalence rewrites'); empty if none fits the commit.",
+                     "items": {"type": "object",
+                               "properties": {"name": {"type": "string"}, "type": {"type": "string"},
+                                              "template": {"type": "string"}, "why": {"type": "string"}},
+                               "required": ["name", "type", "template", "why"], "additionalProperties": False}},
     },
-    "required": ["rationale", "grammar_fragment", "seeds", "features"],
+    "required": ["rationale", "grammar_fragment", "seeds", "features", "rewrites"],
     "additionalProperties": False,
 }
 
 BUILTINS = """\
 @col(T)            a visible column of type T, rendered qualified (a1.c0)
 @lit(T)            a literal of type T
+@dlit(T)           a literal from the data of the column the previous @col chose (its quantiles)
 @table / @table(plain) / @table(t1)   a relation from the schema (or one named), bound to a fresh alias "AS aN"
 @items / @items(rule, nowin)           the select list: one select_item<T> per type of the current shape, "AS c0, c1, .."
 @ordinal(T)        an ORDER BY ordinal of the select list
@@ -82,6 +89,12 @@ def system_prompt(grammar_path: str | Path, schema_path: str | Path) -> str:
         "## Conventions the fragment must follow\n" + CONVENTIONS,
         "## Database schema (schema.yaml; the same tables exist on the server)\n```yaml\n" + schema.strip() + "\n```",
         "## The current grammar\n```\n" + grammar.strip() + "\n```",
+        "## Equivalence rewrites\nBesides grammar, you may propose rewrites for the metamorphic oracle: a "
+        "template over one expression {e} of a grammar type (a %type name) that is equal to {e} for EVERY "
+        "value, NULL included, and raises an error exactly when {e} does; e.g. type int, template "
+        "'CASE WHEN {e} IS NULL THEN NULL ELSE {e} END'. Target code the commit changed (constant folding, "
+        "a support function, a new simplification). The fuzzer applies it to thousands of expressions; it is "
+        "accepted only if it never changes a query's result on the server, so propose only exact identities.",
         "Seeds are plain SQL against the schema above. They may create their own tables (they run inside a "
         "transaction that is rolled back). Answer only with the JSON object described by the output schema.",
     ])
@@ -110,7 +123,7 @@ def commit_message(c: CommitDigest) -> str:
 def feedback_message(report: dict) -> str:
     """The validation gate's findings, sent back for a repair round."""
     lines = ["Your proposal did not pass the validation gate. Findings:"]
-    for k in ("parse", "reachability", "validity", "seeds", "coverage"):
+    for k in ("parse", "reachability", "validity", "seeds", "coverage", "rewrites"):
         if k in report:
             lines.append(f"- {k}: {json.dumps(report[k])[:1500]}")
     lines.append("Fix the fragment (and seeds) and answer again with the complete JSON object.")

@@ -70,7 +70,7 @@ def extend(commits: list[CommitDigest], client: LLMClient, gate: Gate, system: s
                                        {"role": "user", "content": feedback_message(gated[c.sha, r]["gate"])}]
                 continue
             t0 = time.time()
-            rep = gate.check(reply.data["grammar_fragment"], reply.data["seeds"], c)
+            rep = gate.check(reply.data["grammar_fragment"], reply.data["seeds"], c, reply.data.get("rewrites") or [])
             final = rep.accepted or r == max_rounds - 1
             row = {"commit": c.sha, "subject": c.subject, "round": r, "final": final,
                    "accepted": rep.accepted, "model": reply.model, "usage": reply.usage,
@@ -80,6 +80,10 @@ def extend(commits: list[CommitDigest], client: LLMClient, gate: Gate, system: s
             with ledger.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(row) + "\n")
             log.info("%s round %d: %s", c.short, r, "accepted" if rep.accepted else "rejected")
+            if rep.accepted_rewrites:                      # sound rewrites are kept even if the fragment is not
+                (out / "rewrites").mkdir(exist_ok=True)
+                (out / "rewrites" / f"{c.short}-r{r}.json").write_text(
+                    json.dumps({"commit": c.sha, "rewrites": rep.accepted_rewrites}, indent=1), encoding="utf-8")
             for i, s in enumerate(rep.accepted_seeds):     # valid seeds are kept even if the fragment is not
                 (out / "seeds" / f"{c.short}-{i}.sql").write_text(s.strip() + "\n", encoding="utf-8")
             if rep.accepted:
@@ -123,6 +127,7 @@ def summarize(out: str | Path) -> dict[str, Any]:
         else:
             fails["coverage/seeds"] += 1
     bugs = [b for r in rows for b in r["gate"].get("bug_candidates", [])]
+    rw = [x for r in rows for x in (r["gate"].get("rewrites") or [])]
     return {
         "commits": len(commits), "finished": len(finals), "accepted": len(accepted),
         "acceptance_rate": round(len(accepted) / len(finals), 3) if finals else None,
@@ -133,6 +138,8 @@ def summarize(out: str | Path) -> dict[str, Any]:
         "mean_validity": round(sum(validity) / len(validity), 3) if validity else None,
         "coverage_gain_lines": sum(gains) if gains else None,
         "gate_bug_candidates": len(bugs),
+        "rewrites_proposed": len(rw), "rewrites_accepted": sum(bool(x.get("accepted")) for x in rw),
+        "rewrites_with_mismatch": sum(bool(x.get("mismatches")) for x in rw),
     }
 
 

@@ -156,3 +156,29 @@ def test_prompts_and_commit_mining(tmp_path):
     assert cm.load(tmp_path / "c.json")[0].targets == d.targets
     # the next commit inserted one line above: the targets move down by one
     assert map_lines(repo, d.sha, "HEAD", "src/backend/utils/adt/f.c", [4, 5]) == [5, 6]
+
+
+def test_llm_rewrites_reach_the_metamorphic_oracle(tmp_path):
+    import random
+
+    from pgfuzz.core.interfaces import GeneratorContext
+    from pgfuzz.grammar.generator import GrammarGenerator
+    from pgfuzz.grammar.rewrite import template_rewrite
+
+    assert template_rewrite("COALESCE({e}, {e})")(["x"]) == ["(", "COALESCE(", "(", "x", ")", ",", "(", "x", ")", ")", ")"]
+    (tmp_path / "rw.json").write_text(json.dumps({"rewrites": [
+        {"name": "null_case", "type": "int", "template": "CASE WHEN {e} IS NULL THEN NULL ELSE {e} END"},
+        {"name": "bad", "type": "nope", "template": "{e}"}]}))
+    gen = GrammarGenerator(str(GRAMMAR), str(SCHEMA), mm_prob=1.0, mm_weights={"expr": 1.0},
+                           extra_rewrites=str(tmp_path), only_rewrite="llm_null_case")
+    gen.setup(GeneratorContext(2, random.Random(2), tmp_path))
+    checks = [c for _ in range(200) for c in gen.next_testcase().meta.get("checks", [])]
+    assert checks and all(c["kind"] == "expr:llm_null_case" and "CASE WHEN" in c["rhs"] for c in checks)
+    assert gen.stats()["llm_rewrites"] == 1          # the unknown type was dropped
+
+
+def test_client_keeps_rewrites(tmp_path):
+    c = LLMClient(tmp_path, mode="manual")
+    (tmp_path / "responses" / "k.json").write_text(json.dumps({"rationale": "", "grammar_fragment": "", "seeds": [],
+        "features": [], "rewrites": [{"name": "n", "type": "int", "template": "{e}", "why": ""}, {"name": "x"}]}))
+    assert len(c.ask("k", "S", []).data["rewrites"]) == 1

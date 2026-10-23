@@ -122,5 +122,6 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("response is not a JSON object")
     out = {"rationale": str(data.get("rationale", "")), "grammar_fragment": str(data.get("grammar_fragment", "")),
            "seeds": [str(s) for s in data.get("seeds", []) if str(s).strip()],
-           "features": [str(f) for f in data.get("features", [])]}
+           "features": [str(f) for f in data.get("features", [])],
+           "rewrites": [r for r in data.get("rewrites", []) if isinstance(r, dict) and r.get("template")]}
     return out

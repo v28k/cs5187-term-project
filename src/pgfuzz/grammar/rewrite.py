@@ -278,6 +278,22 @@ def expr_rewrites(typ: str | None) -> dict[str, ExprRewrite]:
     return {**_ANY, **_BY_TYPE.get(typ or "", {})}
 
 
+def template_rewrite(template: str) -> ExprRewrite:
+    """A rewrite from a text template with ``{e}`` for the expression (LLM-proposed
+    rewrites): ``"COALESCE({e}, {e})"``. ``{e}`` is parenthesised on substitution."""
+    parts = template.split("{e}")
+
+    def rw(e: list[str]) -> list[str]:
+        out: list[str] = []
+        for i, part in enumerate(parts):
+            if part.strip():
+                out.append(part.strip())
+            if i < len(parts) - 1:
+                out += _paren(e)
+        return ["("] + out + [")"]
+    return rw
+
+
 # ------------------------------------------------------------------ the rewriter
 
 class Rewriter:
@@ -285,9 +301,14 @@ class Rewriter:
 
     def __init__(self, grammar: Grammar, rng: random.Random, per_query: int = 1,
                  weights: dict[str, float] | None = None, query_rules: tuple[str, ...] = ("query",),
-                 policies: dict[str, str] | None = None) -> None:
+                 policies: dict[str, str] | None = None,
+                 extra_rewrites: dict[str, dict[str, str]] | None = None, only: str | None = None) -> None:
         self.rng = rng
         self.policies = dict(policies or {})
+        # type -> name -> template (LLM-proposed, accepted by the validation gate)
+        self.extra = {t: {f"llm_{n}": template_rewrite(tpl) for n, tpl in d.items()}
+                      for t, d in (extra_rewrites or {}).items()}
+        self.only = only            # restrict expression rewrites to this name (gate soundness check)
         self.per_query = per_query
         self.weights = {k: float(v) for k, v in (weights or DEFAULT_WEIGHTS).items() if k in KINDS and v > 0}
         self.query_rules = query_rules
@@ -588,8 +609,14 @@ class Rewriter:
                  and not t.contains(n, {"agg", "win", "@sorted_agg"})]
         if not cands:
             return None
+        if self.only is not None:
+            cands = [n for n in cands if self.only in {**expr_rewrites(n.typ), **self.extra.get(n.typ or "", {})}]
+            if not cands:
+                return None
         n = self.rng.choice(cands)
-        rw = expr_rewrites(n.typ)
+        rw = {**expr_rewrites(n.typ), **self.extra.get(n.typ or "", {})}
+        if self.only is not None:
+            rw = {self.only: rw[self.only]}
         if any(a.sym in ("agg", "win") for a in t.ancestors(n)):
             rw.pop("scalar_sub", None)   # keep sub-selects out of aggregate/window arguments
         name = self.rng.choice(sorted(rw))

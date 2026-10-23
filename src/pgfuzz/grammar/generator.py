@@ -24,6 +24,7 @@ and the result is as valid as freshly generated SQL.
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import re
 from collections import Counter
@@ -102,6 +103,8 @@ class GrammarGenerator(Generator):
         profile: str | None = None,
         profile_prob: float = 0.25,
         rls: str | None = None,
+        extra_rewrites: list[str] | str | None = None,
+        only_rewrite: str | None = None,
         extra_grammars: list[str] | str | None = None,
         seeds: list[str] | str | None = None,
         seed_prob: float = 0.05,
@@ -121,6 +124,8 @@ class GrammarGenerator(Generator):
         self.bandit = float(bandit)
         self.profile_path, self.profile_prob = profile, float(profile_prob)
         self.rls_path = rls          # RLS setup file whose policies the "rls" oracle mirrors
+        self.rewrite_paths = _paths(extra_rewrites, "*.json")   # LLM-proposed rewrites that passed the gate
+        self.only_rewrite = only_rewrite
         self.reward_avg = 0.0
         self.extra_grammars = _paths(extra_grammars, "*.pgg")
         self.seed_paths = _paths(seeds, "*.sql")
@@ -173,8 +178,14 @@ class GrammarGenerator(Generator):
                           for v in vs for a in v.alts}
         from pgfuzz.grammar.rewrite import load_policies
 
+        self.extra_rewrites: dict[str, dict[str, str]] = {}
+        for f in self.rewrite_paths:
+            for r in json.loads(Path(f).read_text(encoding="utf-8")).get("rewrites", []):
+                if r.get("type") in self.grammar.types and "{e}" in str(r.get("template", "")):
+                    self.extra_rewrites.setdefault(r["type"], {})[str(r["name"])] = str(r["template"])
         self.rewriter = Rewriter(self.grammar, self.rng, self.mm_per_query, self.mm_weights,
-                                 policies=load_policies(self.rls_path))
+                                 policies=load_policies(self.rls_path), extra_rewrites=self.extra_rewrites,
+                                 only=self.only_rewrite)
 
     def _load_grammar(self) -> Grammar:
         """The base grammar plus every extra fragment (LLM arm) that still parses
@@ -427,6 +438,7 @@ class GrammarGenerator(Generator):
             "metamorphic_checks_built": dict(self.mm_built),
             "plan_shapes_seen": len(self.seen_plans),
             "bandit": self._bandit_stats() if self.bandit > 0 else None,
+            "llm_rewrites": sum(len(v) for v in self.extra_rewrites.values()),
             "fragments_loaded": len(self.fragments_loaded),
             "fragments_rejected": self.fragments_rejected,
             "seed_cases": len(self.seed_cases),
