@@ -1,0 +1,52 @@
+# Overnight bug hunt (not an experiment): full system on master, cross-version vs 18.6.
+experiment: hunt2a
+output_dir: ../results
+trials: 1
+seed: 777001
+budget:
+  seconds: 28800
+coverage_interval_s: 36000
+snapshot_interval_s: 60
+log_sql: failures
+max_repros: 3
+max_harness_errors: 200
+known_bugs: ../bench/reinjected/bugs.yaml
+base_port: 5434
+
+executor: every arm also compares results with the REL_18
+# server (port 5435, setup_env.sh). Most re-injected bugs are master-only
+# regressions that no planner setting turns off; the release disagrees with them.
+executor:
+  plugin: pgfuzz.reference.xversion_executor:CrossVersionExecutor
+  params:
+    test:
+      dsn: "host=127.0.0.1 port={port} dbname=postgres user=postgres"
+      isolation: savepoint
+      statement_timeout_ms: 3000
+      setup_sql: ["{config_dir}/../corpus/schema.sql", "{config_dir}/../corpus/rls.sql"]
+      reset_sql: ["{config_dir}/../corpus/schema.sql", "{config_dir}/../corpus/rls.sql"]
+      server_log: "/home/pg/pgfuzz/data/pg-2/postgresql.log"
+      differential: {per_query: 2}
+      metamorphic: true
+      plan_shapes: {every: 1}
+    reference:            # one database per worker: parallel trials must not share tables
+      dsn: "host=127.0.0.1 port=5435 dbname=ref_ha_{worker} user=postgres"
+      create_database: true
+      statement_timeout_ms: 3000
+    prelude_sql: ["ALTER TABLE t2 ALTER COLUMN c0 RESTART WITH 31"]
+
+configs:
+  - name: grammar_mm
+    label: Grammar+Oracles
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        schema: "{config_dir}/../corpus/schema.yaml"
+        mm_prob: 0.5
+        plan_guidance: true
+        bandit: 0.1
+        profile: "{config_dir}/../corpus/profile.json"
+        profile_prob: 0.3
+        rls: "{config_dir}/../corpus/rls.sql"
+
