@@ -168,3 +168,20 @@ def test_bandit_moves_weights_toward_novel_and_away_from_failing_alternatives():
     assert b and min(b.values()) >= g.BOOST_MIN and max(b.values()) <= g.BOOST_MAX
     assert any(v < 1.0 for v in b.values())          # failing trees pull their alternatives down
     assert g.stats()["bandit"]["damped"] > 0
+
+
+def test_profile_literals_come_from_the_data_of_the_compared_column():
+    import random as _r
+
+    from pgfuzz.grammar.profile import Profile
+
+    p = Profile({"columns": {
+        "t1.c0": {"type": "int", "sql_type": "int", "min": "1", "max": "50", "quantiles": ["5", "25", "45"]},
+        "t0.c1": {"type": "text", "sql_type": "text", "min": "", "max": "x", "quantiles": ["a'b"]},
+        "v0.n": {"type": "bigint", "error": "cannot order"}}})
+    assert p.by_col[("t1", "c0")] == ["'25'::int", "'45'::int", "'5'::int"]
+    assert "'0'::int" in p.boundary["int"] and "'51'::int" in p.boundary["int"] and "2147483647" in p.boundary["int"]
+    assert p.by_col[("t0", "c1")] == ["'a''b'::text"]                     # quoted safely
+    rng = _r.Random(0)
+    assert p.for_column("t1", "c0", rng) in p.by_col[("t1", "c0")]
+    assert p.for_column("nope", "c0", rng) is None

@@ -401,6 +401,30 @@ def cmd_bench(a: argparse.Namespace) -> int:
             ex.stop()
 
 
+def cmd_profile(a: argparse.Namespace) -> int:
+    from pgfuzz.grammar.dsl import load_grammar
+    from pgfuzz.grammar.profile import collect
+    from pgfuzz.grammar.schema import load_schema
+    from pgfuzz.runner import load_config
+
+    cfg = load_config(a.config)
+    gens = [c for c in cfg.configs if "GrammarGenerator" in c.generator.plugin]
+    if not gens:
+        raise SystemExit("the config has no grammar arm (needed for the schema and types)")
+    gp = gens[0].generator.render(**cfg.substitutions(gens[0].name, 0, 0))
+    g = load_grammar(gp["grammar"])
+    ex = _executor_from(a.config, a.name)
+    ex.start()
+    try:
+        data = collect(ex, load_schema(gp["schema"]), {t: d.sql for t, d in g.types.items()})
+    finally:
+        ex.stop()
+    Path(a.out).write_text(json.dumps(data, indent=1), encoding="utf-8")
+    ok = sum("error" not in c for c in data["columns"].values())
+    print(f"profiled {ok}/{len(data['columns'])} columns -> {a.out}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="pgfuzz", description="Evaluation harness for grammar-aware PostgreSQL fuzzing")
     ap.add_argument("-v", "--verbose", action="count", default=1, help="-v info (default), -vv debug")
@@ -504,6 +528,12 @@ def main(argv: list[str] | None = None) -> int:
     q.add_argument("--out", default="../results/llm")
     q.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_llm)
+
+    p = sub.add_parser("profile", help="data profile of the schema (quantile and boundary literals)")
+    p.add_argument("config")
+    p.add_argument("--name")
+    p.add_argument("--out", default="corpus/profile.json")
+    p.set_defaults(fn=cmd_profile)
 
     p = sub.add_parser("bench", help="RQ3 re-injected bug benchmark (configs/rq3.yaml)")
     bsub = p.add_subparsers(dest="bench_cmd", required=True)

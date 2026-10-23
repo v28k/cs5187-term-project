@@ -276,6 +276,8 @@ class Engine:
         self.alt_boost: dict[int, float] = {}
         self._nid = 0
         self._minimal = 0          # > 0 while deriving a subtree marked MINIMAL
+        self.profile: Any = None   # pgfuzz.grammar.profile.Profile: literals from the data
+        self.profile_prob = 0.0
         missing = sorted({el.name for vs in grammar.rules.values() for v in vs for a in v.alts
                           for el in _walk(a.elems) if isinstance(el, Builtin) and el.name not in BUILTINS})
         if missing:
@@ -578,6 +580,10 @@ class Engine:
     def literal(self, t: str, allow_null: bool = False) -> str:
         if allow_null and self.rng.random() < self.null_prob:
             return f"NULL::{self.sql_type(t)}"
+        if self.profile is not None and self.rng.random() < self.profile_prob:
+            v = self.profile.pick(t, self.rng)     # data quantiles and interval boundaries
+            if v is not None:
+                return v
         vals = _LITERALS.get(t)
         if not vals:
             return f"NULL::{self.sql_type(t)}"
@@ -652,7 +658,23 @@ def _b_col(eng: Engine, ctx: Ctx, tv: dict, args: list[str], guide: Node | None)
     _, it, c = pick
     if var:
         tv[var] = c.type
+    eng.last_col = (it.rel, c.name, c.type)      # for @dlit: a constant from this column's data
     return Node("@col", c.type, val=(it.alias, it.rel, c.name)), [it.alias, ".", c.name]
+
+
+@builtin("dlit")
+def _b_dlit(eng: Engine, ctx: Ctx, tv: dict, args: list[str], guide: Node | None):
+    """A literal from the data of the column the last @col chose (its 10..90 % quantiles),
+    so ``col < @dlit`` selects a real share of the rows. Without a profile: @lit."""
+    t = eng.bind_type(args[0] if args else "*", tv, guide.typ if guide is not None else None)
+    if guide is not None and guide.typ == t and isinstance(guide.val, str):
+        return Node("@dlit", t, val=guide.val), [guide.val]
+    v = None
+    lc = getattr(eng, "last_col", None)
+    if eng.profile is not None and lc is not None and lc[2] == t:
+        v = eng.profile.for_column(lc[0], lc[1], eng.rng)
+    v = v or eng.literal(t)
+    return Node("@dlit", t, val=v), [v]
 
 
 def _pick_rel(eng: Engine, ctx: Ctx, fl: set[str], guide: Node | None, names: list[str] | None = None) -> Relation:

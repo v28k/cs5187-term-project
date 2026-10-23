@@ -99,6 +99,8 @@ class GrammarGenerator(Generator):
         mm_weights: dict[str, float] | None = None,
         plan_guidance: bool = True,
         bandit: float = 0.0,
+        profile: str | None = None,
+        profile_prob: float = 0.25,
         extra_grammars: list[str] | str | None = None,
         seeds: list[str] | str | None = None,
         seed_prob: float = 0.05,
@@ -116,6 +118,7 @@ class GrammarGenerator(Generator):
         # Feedback-weighted alternatives (multiplicative weights, plan 5.3): learning rate
         # of the per-alternative weight; 0 switches it off.
         self.bandit = float(bandit)
+        self.profile_path, self.profile_prob = profile, float(profile_prob)
         self.reward_avg = 0.0
         self.extra_grammars = _paths(extra_grammars, "*.pgg")
         self.seed_paths = _paths(seeds, "*.sql")
@@ -160,6 +163,10 @@ class GrammarGenerator(Generator):
         self.start = self.start or self.grammar.start
         self.engine = Engine(self.grammar, self.schema, self.rng, self.max_depth, self.soft_depth,
                              null_prob=self.null_prob)
+        if self.profile_path:
+            from pgfuzz.grammar.profile import Profile
+
+            self.engine.profile, self.engine.profile_prob = Profile.load(self.profile_path), self.profile_prob
         self.alt_where = {a.uid: f"{v.name}:{a.line}" for vs in self.grammar.rules.values()
                           for v in vs for a in v.alts}
         self.rewriter = Rewriter(self.grammar, self.rng, self.mm_per_query, self.mm_weights)
@@ -442,6 +449,8 @@ class GrammarGenerator(Generator):
             d["fragments"] = [Path(f).name for f in self.extra_grammars]
             d["seed_files"] = len(self.seed_paths)
             d["seed_prob"] = self.seed_prob
+        if self.profile_path:
+            d["profile"], d["profile_prob"] = Path(self.profile_path).name, self.profile_prob
         if hasattr(self, "grammar"):
             d["grammar_stats"] = self.grammar.stats()
         return d
