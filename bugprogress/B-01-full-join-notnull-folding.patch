@@ -1,0 +1,136 @@
+diff --git a/src/backend/optimizer/plan/planner.c b/src/backend/optimizer/plan/planner.c
+index edaa42d7..5081316b 100644
+--- a/src/backend/optimizer/plan/planner.c
++++ b/src/backend/optimizer/plan/planner.c
+@@ -1534,7 +1534,17 @@ preprocess_qual_conditions(PlannerInfo *root, Node *jtnode)
+ 		preprocess_qual_conditions(root, j->larg);
+ 		preprocess_qual_conditions(root, j->rarg);
+ 
++		/*
++		 * Don't let NOT NULL constraints drive simplification of a FULL
++		 * JOIN's quals.  Reducing, say, "a.x IS NULL" to FALSE can remove all
++		 * references to one input from a clause that was hash- or
++		 * merge-joinable, and then the join cannot be planned at all.  See
++		 * var_is_nonnullable().
++		 */
++		if (j->jointype == JOIN_FULL)
++			root->inFullJoinQuals = true;
+ 		j->quals = preprocess_expression(root, j->quals, EXPRKIND_QUAL);
++		root->inFullJoinQuals = false;
+ 	}
+ 	else
+ 		elog(ERROR, "unrecognized node type: %d",
+diff --git a/src/backend/optimizer/util/clauses.c b/src/backend/optimizer/util/clauses.c
+index 95134bfe..e21e55e2 100644
+--- a/src/backend/optimizer/util/clauses.c
++++ b/src/backend/optimizer/util/clauses.c
+@@ -4860,6 +4860,13 @@ var_is_nonnullable(PlannerInfo *root, Var *var, NotNullSource source)
+ 	if (!bms_is_empty(var->varnullingrels))
+ 		return false;
+ 
++	/*
++	 * Don't use NOT NULL proofs while simplifying a FULL JOIN's quals; see
++	 * preprocess_qual_conditions().
++	 */
++	if (root->inFullJoinQuals)
++		return false;
++
+ 	/*
+ 	 * If the Var has a non-default returning type, it could be NULL
+ 	 * regardless of any NOT NULL constraint.  For example, OLD.col is NULL
+diff --git a/src/include/nodes/pathnodes.h b/src/include/nodes/pathnodes.h
+index 8615db98..60287d4f 100644
+--- a/src/include/nodes/pathnodes.h
++++ b/src/include/nodes/pathnodes.h
+@@ -641,6 +641,8 @@ struct PlannerInfo
+ 	bool		hasRecursion;
+ 	/* true if a planner extension may replan this subquery */
+ 	bool		assumeReplanning;
++	/* true while preprocessing a FULL JOIN's ON clause */
++	bool		inFullJoinQuals;
+ 
+ 	/*
+ 	 * The rangetable index for the RTE_GROUP RTE, or 0 if there is no
+diff --git a/src/test/regress/expected/join.out b/src/test/regress/expected/join.out
+index ca4058c8..2b822484 100644
+--- a/src/test/regress/expected/join.out
++++ b/src/test/regress/expected/join.out
+@@ -5061,6 +5061,53 @@ select * from int4_tbl a full join int4_tbl b on false;
+  -2147483647 |            
+ (10 rows)
+ 
++--
++-- NOT NULL constraints must not be used to simplify FULL JOIN quals, since
++-- that could leave the join without any hash- or merge-joinable clause
++--
++create temp table fj_nn (x int not null);
++insert into fj_nn values (0), (1);
++explain (costs off)
++select * from fj_nn a full join int4_tbl b on (a.x is null) = (b.f1 is null);
++                  QUERY PLAN                   
++-----------------------------------------------
++ Hash Full Join
++   Hash Cond: ((a.x IS NULL) = (b.f1 IS NULL))
++   ->  Seq Scan on fj_nn a
++   ->  Hash
++         ->  Seq Scan on int4_tbl b
++(5 rows)
++
++select * from fj_nn a full join int4_tbl b on (a.x is null) = (b.f1 is null)
++order by a.x, b.f1;
++ x |     f1      
++---+-------------
++ 0 | -2147483647
++ 0 |     -123456
++ 0 |           0
++ 0 |      123456
++ 0 |  2147483647
++ 1 | -2147483647
++ 1 |     -123456
++ 1 |           0
++ 1 |      123456
++ 1 |  2147483647
++(10 rows)
++
++select * from fj_nn a full join int4_tbl b on b.f1 = (a.x is not null)::int
++order by a.x, b.f1;
++ x |     f1      
++---+-------------
++ 0 |            
++ 1 |            
++   | -2147483647
++   |     -123456
++   |           0
++   |      123456
++   |  2147483647
++(7 rows)
++
++drop table fj_nn;
+ --
+ -- test for ability to use a cartesian join when necessary
+ --
+diff --git a/src/test/regress/sql/join.sql b/src/test/regress/sql/join.sql
+index 037fb7fe..a9c5102c 100644
+--- a/src/test/regress/sql/join.sql
++++ b/src/test/regress/sql/join.sql
+@@ -1687,6 +1687,20 @@ where i41.f1 > 0;
+ select * from int4_tbl a full join int4_tbl b on true;
+ select * from int4_tbl a full join int4_tbl b on false;
+ 
++--
++-- NOT NULL constraints must not be used to simplify FULL JOIN quals, since
++-- that could leave the join without any hash- or merge-joinable clause
++--
++create temp table fj_nn (x int not null);
++insert into fj_nn values (0), (1);
++explain (costs off)
++select * from fj_nn a full join int4_tbl b on (a.x is null) = (b.f1 is null);
++select * from fj_nn a full join int4_tbl b on (a.x is null) = (b.f1 is null)
++order by a.x, b.f1;
++select * from fj_nn a full join int4_tbl b on b.f1 = (a.x is not null)::int
++order by a.x, b.f1;
++drop table fj_nn;
++
+ --
+ -- test for ability to use a cartesian join when necessary
+ --
