@@ -1,6 +1,6 @@
-From 1f9ebb29bcd4079b86a003d5255e3d7cf7e818dd Mon Sep 17 00:00:00 2001
-From: v28k <samruddhi.sonawane6116@gmail.com>
-Date: Fri, 23 Oct 2026 18:20:52 +0000
+From d360c08862891e6fbcb1634be911366ea21590df Mon Sep 17 00:00:00 2001
+From: Venu Kummari <venu2805k@gmail.com>
+Date: Fri, 23 Oct 2026 18:39:45 +0000
 Subject: [PATCH] Don't reduce range containment with a nullable element to a
  constant
 
@@ -17,20 +17,22 @@ under NOT, or in IS NULL tests:
 returned true and true for the NULL row instead of NULL and NULL.
 
 Only reduce to a constant when the element is known not to be NULL.
+expr_is_nonnullable() is not available to callers outside the planner
+on this branch, so only a non-null Const element is treated as known
+non-null here.
 
-Found by metamorphic testing (an equivalent-expression rewrite changed
-the result of a query).
+Bug introduced by 075df6b20.  Back-patch to v17.
 ---
- src/backend/utils/adt/rangetypes.c       | 19 ++++++-----
- src/test/regress/expected/rangetypes.out | 42 ++++++++++++++++++++----
- src/test/regress/sql/rangetypes.sql      | 13 ++++++++
- 3 files changed, 60 insertions(+), 14 deletions(-)
+ src/backend/utils/adt/rangetypes.c       | 19 ++++++++------
+ src/test/regress/expected/rangetypes.out | 33 +++++++++++++++++++-----
+ src/test/regress/sql/rangetypes.sql      | 10 +++++++
+ 3 files changed, 48 insertions(+), 14 deletions(-)
 
 diff --git a/src/backend/utils/adt/rangetypes.c b/src/backend/utils/adt/rangetypes.c
-index 84d71761..557972a7 100644
+index 66cc0ac..cd73f3b 100644
 --- a/src/backend/utils/adt/rangetypes.c
 +++ b/src/backend/utils/adt/rangetypes.c
-@@ -3037,15 +3037,18 @@ find_simplified_clause(PlannerInfo *root, Expr *rangeExpr, Expr *elemExpr)
+@@ -2867,15 +2867,18 @@ find_simplified_clause(PlannerInfo *root, Expr *rangeExpr, Expr *elemExpr)
  
  	range_deserialize(rangetypcache, range, &lower, &upper, &empty);
  
@@ -51,17 +53,17 @@ index 84d71761..557972a7 100644
 +		 * result is therefore only correct if the element can't be NULL;
 +		 * otherwise leave the expression alone.
 +		 */
-+		if (!expr_is_nonnullable(root, elemExpr, NOTNULL_SOURCE_HASHTABLE))
++		if (!IsA(elemExpr, Const) || ((Const *) elemExpr)->constisnull)
 +			return NULL;
 +		return makeBoolConst(!empty, false);
  	}
  	else
  	{
 diff --git a/src/test/regress/expected/rangetypes.out b/src/test/regress/expected/rangetypes.out
-index fb1bb30b..7927f2bd 100644
+index 435c730..f13faf6 100644
 --- a/src/test/regress/expected/rangetypes.out
 +++ b/src/test/regress/expected/rangetypes.out
-@@ -1912,19 +1912,19 @@ DETAIL:  A result of type anyrange requires at least one input of type anyrange
+@@ -1855,19 +1855,19 @@ DETAIL:  A result of type anyrange requires at least one input of type anyrange
  -- empty range
  explain (verbose, costs off)
  select current_date <@ daterange 'empty';
@@ -87,7 +89,7 @@ index fb1bb30b..7927f2bd 100644
  (2 rows)
  
  -- only lower bound present
-@@ -1998,6 +1998,36 @@ select daterange('2002-09-25'::date, 'Infinity', '[]') @> current_date;
+@@ -1941,6 +1941,27 @@ select daterange('2002-09-25'::date, 'Infinity', '[]') @> current_date;
     Output: ((CURRENT_DATE >= '09-25-2002'::date) AND (CURRENT_DATE <= 'infinity'::date))
  (2 rows)
  
@@ -112,23 +114,14 @@ index fb1bb30b..7927f2bd 100644
 + t        | t        | f        | t
 +(2 rows)
 +
-+explain (verbose, costs off)
-+select coalesce(c, 0) <@ int4range(NULL, NULL), 'empty'::int4range @> coalesce(c, 0)
-+from (values (NULL::int), (1)) v(c);
-+        QUERY PLAN         
-+---------------------------
-+ Values Scan on "*VALUES*"
-+   Output: true, false
-+(2 rows)
-+
  -- Check that volatile cases are not optimized
  explain (verbose, costs off)
  select now() <@ tstzrange('2024-01-20 00:00', '2024-01-21 00:00');
 diff --git a/src/test/regress/sql/rangetypes.sql b/src/test/regress/sql/rangetypes.sql
-index e4062c3e..cd1081ca 100644
+index bad1b5a..7aba924 100644
 --- a/src/test/regress/sql/rangetypes.sql
 +++ b/src/test/regress/sql/rangetypes.sql
-@@ -697,6 +697,19 @@ select daterange('-Infinity', '1997-04-10'::date, '()') @> current_date;
+@@ -687,6 +687,16 @@ select daterange('-Infinity', '1997-04-10'::date, '()') @> current_date;
  explain (verbose, costs off)
  select daterange('2002-09-25'::date, 'Infinity', '[]') @> current_date;
  
@@ -140,9 +133,6 @@ index e4062c3e..cd1081ca 100644
 +from (values (NULL::int), (1)) v(c);
 +select c <@ int4range(NULL, NULL), int4range(NULL, NULL) @> c,
 +       c <@ 'empty'::int4range, not ('empty'::int4range @> c)
-+from (values (NULL::int), (1)) v(c);
-+explain (verbose, costs off)
-+select coalesce(c, 0) <@ int4range(NULL, NULL), 'empty'::int4range @> coalesce(c, 0)
 +from (values (NULL::int), (1)) v(c);
 +
  -- Check that volatile cases are not optimized
