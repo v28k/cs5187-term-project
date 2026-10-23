@@ -1,0 +1,168 @@
+\section{Step 5: the LLM arm -- the LLM proposes, the server decides}
+\label{sec:llm}
+
+\subsection{Why an LLM at all, and why this way}
+
+The grammar knows the SQL we wrote rules for. \pg master gets new planner
+features every few weeks (self-join elimination, eager aggregation, skip scan,
+OR-to-\texttt{ANY}, NOT NULL simplification, \dots). Writing grammar for each by
+hand is slow, and the newest code is where regressions are. An LLM can read a
+commit (message, diff, the regression test it adds) and write grammar for it.
+
+Two designs we rejected:
+\begin{itemize}
+  \item \textbf{LLM as the generator} (Fuzz4All style): one model call per
+    test case is 1{,}000$\times$ slower than our 17--23 test cases per second,
+    and the output is unchecked text with no derivation tree (so no oracles, no
+    tree reduction).
+  \item \textbf{LLM as the oracle} (``is this result correct?''): LLMs cannot
+    evaluate SQL on our data reliably; every hallucinated ``bug'' costs triage
+    time.
+\end{itemize}
+Our design keeps the model \emph{off the hot path}: a few calls per commit
+produce a grammar fragment; the grammar then generates thousands of
+variations, each a typed tree the oracles can use. And nothing the model writes
+is trusted: a gate on the real server decides.
+
+\subsection{The pipeline}
+
+\begin{enumerate}
+  \item \textbf{Mine} (\file{src/pgfuzz/llm/commits.py}):
+    \texttt{pgfuzz llm mine <pg clone> --since 2026-06-29 --until 26bd08fb
+    --exclude bench/reinjected/commits.txt}. Keeps commits that touch
+    query-processing code (optimizer, executor, parser, \file{utils/adt},
+    rewrite, nodes, \dots) and skips typo/comment/pgindent/revert/warning
+    commits. For each it stores a \texttt{CommitDigest}: sha, date, subject,
+    body, files, changed function names, the SQL lines it added to the
+    regression tests, and the \textbf{diff-coverage targets} (changed line
+    numbers of every \texttt{.c} file).
+  \item \textbf{Prompt} (\file{prompt.py}). A system prompt that is the same for
+    every commit and therefore \textbf{cached} ($\approx$9{,}000 tokens): the
+    \texttt{.pgg} format, every builtin with one line of documentation, the
+    conventions (parenthesise operators, qualify columns, order-sensitive
+    aggregates via \texttt{@sorted\_agg}), the schema, the type list, and the
+    whole current grammar. The user message is only the commit digest.
+  \item \textbf{Answer} in a strict JSON schema (structured output):
+    \texttt{rationale} (which code paths changed and which SQL reaches them),
+    \texttt{grammar\_fragment} (new alternatives as variants of existing rules,
+    plus new rules), 1--5 \texttt{seeds}, \texttt{features}, and 0--3
+    \texttt{rewrites} (equivalence templates for the metamorphic oracle).
+  \item \textbf{Gate} (\file{gate.py}, below).
+  \item \textbf{Repair}: a rejected proposal goes back to the model with the
+    gate's findings -- the parse error, the top server error messages with
+    counts, which alternatives were never derived, which changed lines were not
+    covered -- up to 3 rounds.
+  \item \textbf{Ledger}: each round is one line of \file{ledger.jsonl} (commit,
+    round, tokens in/out/cached, cost, full gate report). Resumable; the
+    source of RQ4 (\texttt{pgfuzz llm report}).
+  \item \textbf{Use}: accepted fragments go to
+    \file{results/llm/fragments/}, seeds to \file{results/llm/seeds/}, rewrites
+    into the rewriter. The LLM arms of RQ1 are the grammar arm plus these files.
+\end{enumerate}
+
+\paragraph{The client} (\file{client.py}) has two modes. \texttt{api} calls
+Claude through the Anthropic SDK. \texttt{manual} writes the prompt to
+\file{prompts/<key>.md} and stops; a team member pastes it into Claude, saves
+the JSON answer to \file{responses/<key>.json} and runs again -- no API key
+needed. In both modes an existing response file is \emph{replayed}: reruns are
+free and bit-for-bit reproducible, so the paper's numbers can be regenerated.
+Token usage is stored with every response.
+
+\subsection{The validation gate}
+\label{sec:gate}
+
+A fragment for one commit is accepted only if:
+\begin{enumerate}
+  \item \textbf{parse}: it parses together with the grammar, declares no new
+    types and uses only known builtins;
+  \item \textbf{reachability}: when we sample 150 test cases with the
+    fragment's alternatives boosted (weight $\times 25$), they are derived in at
+    least 5 statements (an alternative the engine can never complete is
+    useless);
+  \item \textbf{validity}: at least 60\% of the statements that use them run
+    without error \emph{on the server} -- \pg decides, not the model;
+  \item \textbf{seeds}: seed test cases run; failing seeds are dropped;
+  \item \textbf{diff coverage} (on a gcov build): the fragment executes more of
+    the commit's changed lines than the grammar without it, on the same sample
+    size. Without a coverage build this is ``not measured'' and does not block.
+\end{enumerate}
+The gate is also a small fuzzing campaign aimed at the commit: bug candidates
+hit while gating are recorded.
+
+\paragraph{Diff coverage} (\file{diffcov.py}) $=$ changed lines executed /
+changed lines that are executable, from gcov counters. Each backend writes
+\file{.gcda} files when it exits, so the client reconnects before measuring.
+If the coverage build is at a later revision than the commit, the changed line
+numbers are mapped forward through \texttt{git diff}. All our builds are at the
+same commit (\texttt{26bd08fb}), so the mapping is the identity.
+
+\subsection{The rewrite gate (LLM-proposed metamorphic rewrites)}
+\label{sec:rwgate}
+
+A rewrite is a template with \texttt{\{e\}} and a type, for example
+\texttt{CASE WHEN \{e\} IS NULL THEN NULL ELSE \{e\} END} for \texttt{int}.
+A wrong rewrite would make the metamorphic oracle report false positives
+forever, so the bar is higher:
+\begin{enumerate}
+  \item \textbf{static}: known type, contains \texttt{\{e\}}, balanced
+    parentheses, no volatile function;
+  \item \textbf{value probe}: evaluate
+    \texttt{SELECT (template(v)) IS NOT DISTINCT FROM (v)} on the server for
+    \texttt{v} = NULL, the type's edge values (min/max int, $\pm$Infinity,
+    NaN, $-0$, empty string/array, \dots) and up to 6 data quantiles. One
+    difference or error rejects it with the counterexample;
+  \item \textbf{live checks}: apply \emph{only} this rewrite, with
+    confirmation, to the expressions of 150 grammar test cases; accept only if
+    it was applied at least 5 times, at most 20\% of the rewritten queries
+    errored, and \textbf{no} confirmed mismatch.
+\end{enumerate}
+
+\begin{keybox}[Measured (rewrite gate on master)]
+\begin{tabular}{lp{0.37\linewidth}l}
+\toprule
+Rewrite & Template & Result \\
+\midrule
+\texttt{null\_case} & \texttt{CASE WHEN \{e\} IS NULL THEN NULL ELSE \{e\} END} & accepted, 90/90 equal \\
+\texttt{substr\_one} & \texttt{substr(\{e\}, 1)} (text) & accepted, 88/88 equal \\
+\texttt{plus\_one} & \texttt{\{e\} + 1} (deliberately false) & rejected: 12 mismatches \\
+\texttt{is\_true} & \texttt{\{e\} IS TRUE} (bool) & rejected by the \textbf{value probe} at NULL \\
+\bottomrule
+\end{tabular}
+
+\texttt{e IS TRUE} is false, not NULL, when \texttt{e} is NULL. It passed 109
+sampled live checks, because most predicates sit in \texttt{WHERE}, where NULL
+and false filter the same rows. Sampling is not proof; the probe was added
+because of this.
+\end{keybox}
+
+A confirmed mismatch is not thrown away: the gate stores the example with the
+note ``not an identity, or a bug in \pg: triage the example''. (BUG-02 is
+exactly a case where an identity, \texttt{e} $\equiv$ \texttt{(SELECT e)}, was
+broken by \pg.)
+
+\subsection{Leakage and cost}
+
+\begin{itemize}
+  \item \textbf{No leakage into RQ3.} The miner excludes the 23 commits whose
+    fixes we revert, so the model never sees the fix of a bug it is later
+    scored on. The mining window ends at the benchmark base \texttt{26bd08fb}.
+    (Training-data leakage of older public commits cannot be excluded; it is
+    a threat to validity, discussed in the paper.)
+  \item \textbf{Cost.} Prices in \file{client.py}; the cached system prompt is
+    read at a tenth of the input price. One round is about \$0.10; 30 commits
+    with repair rounds about \$5--10 (estimate, to be replaced by the ledger
+    total).
+  \item \textbf{Status.} The pipeline is tested end to end with a live gate
+    (it accepted a valid fragment, 251/251 statements valid, and rejected an
+    invalid one with the server's own error message). The real extension run
+    over $\approx$30 commits is Phase~1 of the execution plan; the RQ3 smoke
+    ``+LLM'' arm ran \emph{without} fragments, so its result equals
+    Grammar+Oracles, as expected.
+\end{itemize}
+
+\subsection{RQ4: what we will report}
+Accepted / rejected fragments per gate check; repair rounds needed; diff
+coverage with vs without the fragment, per commit; tokens and dollars; the
+ablation of RQ1 (\texttt{llm\_frag}: fragments only, \texttt{llm\_seeds}: seeds
+only, \texttt{grammar\_llm}: both) against \texttt{grammar\_mm}; bugs whose
+test case used an LLM alternative (the tree records it).

@@ -1,0 +1,176 @@
+\section{What happened, in order}
+\label{sec:story}
+
+This section is the history of the project. It explains why the system looks
+the way it does: most design decisions were forced by something that went
+wrong on a real server.
+
+\subsection{Before meeting 1 (until 16 October)}
+
+\paragraph{Stage 1: the harness.} An executor (\file{src/pgfuzz/reference/pg_executor.py})
+runs a test case against a real \pg server, one savepoint per statement,
+rolled back at the end; it reads the server log for \texttt{TRAP} (assertion),
+\texttt{PANIC} and ``terminated by signal'' lines; it recovers after crashes.
+An oracle (\file{src/pgfuzz/eval/oracle.py}) classifies each test case
+(crash, assertion, internal error \texttt{XX000}, timeout, \dots). A first
+wrong-result oracle re-ran each deterministic query under 17 planner settings
+(the \emph{plan-variant} oracle). Every trial writes a resumable run log
+(\file{events.jsonl}, \file{timeline.jsonl}, \file{summary.json}) and a
+report builder produces tables, plots and statistics.
+
+\paragraph{Stage 1: the random/mutation arm} (\file{src/generator/}). Seeds
+are built with a small SQL AST; they are then mutated as \emph{text} (flip a
+character, delete a span, swap an operator, splice a keyword). The mutators
+know nothing about types or scopes, so many mutants are invalid. It ignores
+feedback on purpose: it is the unguided baseline.
+
+\paragraph{Stage 2: the typed grammar.} We designed our own grammar format
+(\texttt{.pgg}) and a derivation engine with scopes and type variables
+(Section~\ref{sec:grammar}). Four tuning rounds of 300 test cases each
+on the same server and seed raised server-side validity:
+
+\begin{center}
+\begin{tabular}{lrrrrrr}
+\toprule
+Round & Statements & Accepted & Semantic err. & Runtime err. & Timeouts & Time \\
+\midrule
+1 & 812 & 677 (83.4\%) & 76 & 57 & 0 & 16.7 s \\
+2 & 828 & 688 (83.1\%) & 39 & 89 & 7 & 82.9 s \\
+3 & 929 & 821 (88.4\%) & 28 & 74 & 6 & 56.1 s \\
+4 & 966 & 966 (100\%) & 0 & 0 & 0 & 22.1 s \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Round 2 looks like no progress (83.1\%), but the mix changed: semantic errors
+halved, more statements reached execution, and one rule (\texttt{generate\_series}
+up to a table column) wasted the clock with million-row series. The edits
+were always driven by the error list, never at random. This is the number we
+showed at meeting 1. It is a validity number, not a bug.
+
+\subsection{Meeting 1 (16 October)}
+
+We presented the three claims, the architecture, the RQs, and a plan with
+seven priorities: (1) long grammar campaigns, (2) metamorphic oracles on
+derivation trees, (3) cross-version testing, (4) triage automation, (5) the
+commit-directed LLM loop with diff coverage, (6) a re-injected bug benchmark
+with statistics, (7) stretch goals (plan-shape feedback, a CERT-style
+performance oracle, a row-level security oracle).
+
+\subsection{The bug hunt (16--17 October)}
+
+\paragraph{Setup.} In a cloud container we built \pg master at
+\texttt{26bd08fb} with assertions and \pg 18.6 (\texttt{REL\_18\_STABLE}) as a
+reference. We ran the grammar campaign (\file{configs/cloud_hunt.yaml}, two
+trials of six hours) and two cross-version join fuzzers
+(\file{src/xversion/joinfuzz*.py}) that run the same query on master and on
+18.6 with random planner settings.
+
+\paragraph{Candidates.}
+\begin{enumerate}
+  \item A plan-variant wrong result under \texttt{enable\_hashagg=off}:
+    \emph{false positive}. \texttt{ARRAY(SELECT \dots{} EXCEPT ALL \dots)} has no
+    \texttt{ORDER BY}, so the array's element order legitimately depends on the
+    plan. Fixed in the determinism filter \texttt{eligible()}.
+  \item An assertion failure about 600 s into trial 0 (test case 13306):
+    \texttt{TRAP: failed Assert("list\_length(rcexpr->inputcollids) == nopers")},
+    \file{execExpr.c:2078}. \textbf{A real bug (BUG-01)}, see
+    Section~\ref{sec:bug01}.
+  \item More \texttt{ARRAY(SELECT)} false positives from a trial that started
+    before the fix.
+  \item A crash-recovery failure on one server after the BUG-01 crash chain:
+    \texttt{FATAL: could not create file "base/5/165792": File exists}. We traced
+    it in the WAL to an unlogged sequence created in an open transaction, read
+    the recovery code (\texttt{ResetUnloggedRelations}), but could not
+    reproduce it from a clean data directory. Unreproduced bugs are not
+    reported. Evidence is kept in \file{docs/bughunt/evidence/}.
+\end{enumerate}
+
+\paragraph{Lessons that became code.} The failure writer once saved the wrong
+test case for a signature; the determinism filter needed the
+\texttt{ARRAY(SELECT)} rule; a cross-version mismatch came from
+\texttt{DEFAULT now()} in our own seed data (the clock differs between
+servers) -- fixed with deterministic data and by excluding clock functions.
+
+\subsection{The build session (23 October)}
+
+This is where most of the meeting-2 system was built, in this order.
+
+\begin{enumerate}
+  \item \textbf{Typed node spans.} The engine wraps each node's tokens in
+    invisible markers, so after rendering it knows exactly which tokens each
+    tree node produced. This is what lets an oracle edit one node.
+  \item \textbf{Metamorphic oracles on derivation trees} (TLP, NoREC,
+    expression rewrites, CTE toggle, table fence). In the very first sample
+    of 150 test cases, the scalar-subquery rewrite \texttt{e} $\rightarrow$
+    \texttt{(SELECT e)} found \textbf{BUG-02} (Section~\ref{sec:bug02}).
+    A 600-test-case live check then gave 907 checks, 0 false positives.
+  \item \textbf{Plan-shape guidance and metric.} A test case whose plan has a
+    new shape (digest of node types in \texttt{EXPLAIN}) enters the corpus.
+  \item \textbf{Cross-version executor} (master vs 18.6) with a sequence
+    prelude, deterministic data, clock functions excluded: 1{,}155 comparisons,
+    0 mismatches after the fixes.
+  \item \textbf{Triage pipeline}: reproduce, reduce (statements, clauses,
+    tokens; pairs for metamorphic checks), report, bisect script, precision
+    ledger. On BUG-02's candidate: 4 statements / 107 tokens $\rightarrow$
+    1 statement / 36 tokens in 307 runs.
+  \item \textbf{LLM arm}: commit miner, cached prompts, client with manual
+    mode, validation gate, diff coverage, repair loop, ledger.
+  \item \textbf{RQ3 benchmark}: 23 fixes reverted. The first PoC verification
+    showed only 12/23 observable. Two of our own mistakes caused most of the
+    gap: the PoC tables were called \texttt{i4}/\texttt{i8}, names our schema
+    already uses for \emph{indexes}, so the PoCs failed at \texttt{CREATE TABLE};
+    and the digest masked float aggregates so completely that \texttt{0} vs
+    \texttt{NaN} looked equal. After renaming (prefix \texttt{rb\_}), keeping
+    NaN/Infinity in masked floats, adding \texttt{ANALYZE}, and fixing two PoCs:
+    \textbf{20 of 23 observable}, the same symptom with all 23 injected
+    together (no masking).
+  \item \textbf{Smoke run 1} (4 min per arm on the injected server): the
+    grammar arm \textbf{rediscovered BUG-01}; five metamorphic candidates turned
+    out to be \textbf{our} false positives: TLP-HAVING removed \texttt{HAVING}
+    from a level without \texttt{GROUP BY} (turning a one-group aggregate into a
+    plain query), and \texttt{DISTINCT} over \texttt{numeric} may keep
+    \texttt{21.0000} or \texttt{21.00} depending on the plan. Both fixed with
+    tests. Also: all four workers shared one reference server and raced on
+    schema setup; fixed with one database per worker.
+  \item \textbf{Smoke run 2} (15 min per arm): Grammar+Oracles and +LLM found
+    re-injected bug \texttt{rb-dfcf6fa7} at about 160 s; attribution by replay
+    on the solo servers picked the right one of two bugs that share an error
+    message. Two random-arm ``finds'' were \textbf{our} fault: a PoC replay we
+    ran during the campaign crashed the shared server and the harness blamed
+    the random arm's statement. Fixed: crash evidence now must carry the test
+    case's own backend PID. A cross-version difference (\texttt{CORR} of
+    constant input: NULL on master, 1 on 18.6) is an intended master change;
+    those functions are excluded.
+  \item \textbf{Paper draft, execution plan, progress report.}
+\end{enumerate}
+
+\subsection{The plan-coverage round (24 October)}
+
+We re-read the meeting-1 plan and slides line by line and implemented every
+item still missing: TLP for aggregates and the remaining rewrites of plan
+Section~3.4; grammar-tree reduction (``one tree, four jobs''); localization of
+wrong results (plan oracle $\times$ rewrite oracle); feedback-weighted grammar
+alternatives (bandit); a data profile for boundary and selective literals;
+the RLS leak oracle; the CERT oracle; LLM-proposed equivalence rewrites with a
+value probe; the eager-aggregation plan variant; upstream bug-report drafts;
+95\% bootstrap confidence intervals. Each was checked on master
+(Section~\ref{sec:components}). The traceability matrix is
+\file{docs/PLAN_COVERAGE.md}.
+
+\begin{warnbox}[Things that went wrong and what they taught us]
+\begin{itemize}
+  \item A richer grammar exposes more corners where two ``equivalent'' queries
+    are not equivalent; oracle precision, not generator power, limits a
+    wrong-result fuzzer. Every false-positive class became a fix plus a test.
+  \item Shared servers are dangerous: our own manual replay corrupted a
+    campaign's attribution; the fix is PID-checked evidence.
+  \item Our own PoCs were wrong twice (name clash, stats-dependent plans);
+    ground truth needs verification too (\texttt{bench verify}).
+  \item Sampling is not proof: a false LLM rewrite passed 109 sampled checks
+    and was caught only by evaluating it on NULL.
+  \item \texttt{pkill -f pattern} from a shell whose command line contains the
+    pattern kills that shell; wait loops that \texttt{pgrep} their own pattern
+    never end. Small, but they cost us runs.
+\end{itemize}
+\end{warnbox}

@@ -1,0 +1,118 @@
+\part{The project in brief}
+
+\section{The project on one page}
+\label{sec:onepage}
+
+\paragraph{The problem.} \pg is the most widely used open-source relational
+database. Its query planner and executor change every week on the
+development branch (\emph{master}). The most harmful bugs are \emph{wrong
+results}: a query returns the wrong rows, without an error, without a crash,
+without any trace in the logs. Fuzzers for database systems mostly find
+crashes; tools that find wrong results (SQLancer: TLP, NoREC, PQS) use small,
+hand-written query generators. Neither line of work knows what changed in the
+code yesterday.
+
+\paragraph{Our idea in one sentence.} Generate SQL from a \emph{typed grammar}
+and keep every generated query as a \emph{derivation tree}; use that tree for
+four jobs (generation, mutation, metamorphic oracles, and reduction of
+failures); and let an LLM read recent \pg commits and \emph{extend} the grammar
+and the oracle, while a validation gate on a real server decides what the
+LLM output is allowed to change.
+
+\paragraph{The experiment (backbone of the paper).} Three arms under the same
+budget, server, schema and oracles:
+\textbf{Random/Mutation} (token-level mutation of SQL seeds) $\rightarrow$
+\textbf{Grammar} (typed derivation trees) $\rightarrow$
+\textbf{Grammar+LLM} (grammar extended from recent commits). Four research
+questions: RQ1 reach (validity, coverage, features, plan shapes), RQ2 bugs
+and oracle precision, RQ3 time to find 23 real bugs that we put back into \pg,
+RQ4 what the LLM adds and costs.
+
+\paragraph{Where we are (24 Oct).}
+\begin{itemize}
+  \item Every item of the meeting-1 plan is implemented and tested on a real
+    \pg master server (details: \file{docs/PLAN_COVERAGE.md}); 138 unit tests pass;
+    about 10{,}500 lines of Python plus a 628-line grammar.
+  \item \textbf{Two previously unknown \pg bugs found}, root-caused, with
+    patches and regression tests: \textbf{BUG-01} (JSON\_TABLE collation:
+    assertion failure on master, wrong result and spurious errors on 18.6) and
+    \textbf{BUG-02} (range containment with a NULL element returns
+    \texttt{true}/\texttt{false} instead of NULL in \pg 17, 18.6 and master).
+    Filing upstream is the next step.
+  \item A benchmark of \textbf{23 real bugs} re-injected into one server by
+    reverting their fixes: 20 observable, only 9 of them visible to a
+    crash-only fuzzer.
+  \item Smoke runs work end to end; the long campaigns (RQ1--RQ4) are ready to
+    run from \file{docs/EXECUTION_PLAN.md} (about 1 h of builds, then two
+    overnight runs).
+  \item The paper (ACM/FSE format) is drafted with all five graded parts;
+    the result numbers are placeholders until the campaigns finish.
+\end{itemize}
+
+\begin{keybox}[The three claims (from the meeting-1 slides) and their status]
+\begin{enumerate}
+  \item \textbf{One tree, four jobs.} The derivation tree generates, mutates,
+    is rewritten by the metamorphic oracles, and is reduced in triage.
+    \emph{All four are in code.} Tree reduction made a real BUG-01 reproducer
+    79 tokens long where token reduction alone reached 116.
+  \item \textbf{Soundness we measure, instead of claiming it.} Generator
+    soundness = valid-statement rate (99.5--99.7\%). Oracle soundness =
+    triage precision per oracle, before and after each false-positive class was
+    fixed (Section~\ref{sec:ledger}).
+  \item \textbf{The LLM proposes; the server decides.} Nothing the LLM writes
+    enters the fuzzer unless it parses, is derived, runs, reaches the changed
+    lines of the commit, and, for oracle rewrites, never changes a result on
+    concrete values and on 150 live test cases.
+\end{enumerate}
+\end{keybox}
+
+\section{Numbers cheat sheet}
+\label{sec:cheat}
+
+\begin{longtable}{p{0.47\linewidth}p{0.47\linewidth}}
+\toprule
+\textbf{What} & \textbf{Value (source)} \\
+\midrule
+\endhead
+Subject & \pg master \texttt{26bd08fb} (16 Oct 2026), \texttt{--enable-cassert}; release reference 18.6 \\
+Grammar & 78 rules, 108 variants, 421 alternatives, 13 SQL types, 628 lines (\file{src/grammar/postgres.pgg}) \\
+Schema & 9 relations: plain, partitioned (\texttt{tp}, \texttt{tl}), inheritance (\texttt{ti}), view (\texttt{v0}), generated columns, B-tree/GIN/GiST/BRIN indexes \\
+Code & $\approx$10{,}500 lines of Python (\file{src/pgfuzz}), 138 unit tests passing \\
+Grammar validity, meeting 1 & 83.4\% $\rightarrow$ 83.1\% $\rightarrow$ 88.4\% $\rightarrow$ 100\% (966/966) over four tuning rounds \\
+Grammar validity now & 99.5--99.7\% of statements run without error on master \\
+Throughput (one worker) & $\approx$17--23 grammar test cases per second with all oracles on (3{,}166 in 180 s full system; 5{,}516 in 240 s plain grammar) \\
+Plan variants & 18 planner configurations (Section~\ref{sec:variants}) \\
+Metamorphic check kinds & 12 (TLP-WHERE, TLP-HAVING, TLP-aggregate, NoREC, expression, predicate, NOT NULL, ORDER BY drop, CTE, table fence, RLS, CERT) \\
+Real bugs found & 2 previously unknown (BUG-01, BUG-02), both with patches \\
+Benchmark & 23 reverted fixes (31 Jul--16 Oct 2026); 20 observable: 8 wrong results, 5 internal errors, 4 assertions, 2 missing errors, 1 wrong error \\
+Crash-only visibility & 9 of 20 observable benchmark bugs \\
+RQ3 smoke (15 min/arm) & Grammar+Oracles and +LLM found \texttt{rb-dfcf6fa7} at $\approx$160 s; Random and plain Grammar found none \\
+Precision ledger & 18 candidates: 3 real, 13 false positives / intended changes (all from 6 classes now fixed), 2 flaky \\
+Tree reduction & 116 $\rightarrow$ \textbf{79} tokens on a real BUG-01 case \\
+Data profile & predicates selecting 5--95\% of rows: 29.3\% $\rightarrow$ \textbf{58.6\%} \\
+Bandit weights & 419 $\rightarrow$ 533 distinct plan shapes per 1{,}000 test cases, same validity \\
+New rewrites & 798 live checks of the new kinds, 0 false positives \\
+RLS / CERT & 532 / 58 live checks, 0 false positives \\
+LLM prompt & $\approx$9{,}000-token system prompt, cached; $\approx$\$0.10 per round; \$5--10 for 30 commits (estimate) \\
+Experiment design & RQ1: 7 arms $\times$ 5 trials $\times$ 1 h; RQ3: 4 arms $\times$ 5 trials $\times$ 1 h; 4 workers in parallel \\
+Statistics & medians, IQR, 95\% bootstrap CI, Mann--Whitney U, Vargha--Delaney $\hat A_{12}$ \\
+\bottomrule
+\end{longtable}
+
+\section{Team and grading}
+
+\textbf{Venu} -- recent \pg features, campaigns and new grammar rules.
+\textbf{Bhuvan} -- features and first pass on every bug candidate (reproduce,
+shrink, decide). \textbf{Gowtham} -- experiment, statistics, LLM arm, paper.
+All three must be able to explain the grammar, the oracles, the statistics and
+the plan; this document is the script.
+
+\begin{tabularx}{\linewidth}{lrX}
+\toprule
+Component & Weight & How this project addresses it \\
+\midrule
+Implementation and results & 50\% & Working three-arm fuzzer, 12 metamorphic oracles plus plan-variant and cross-version oracles, triage, LLM arm, benchmark, campaigns. Top marks need an upstream-accepted bug: BUG-01 and BUG-02 have patches ready to file. \\
+Meetings and presentation & 25\% & This guide, the slides, live demo (Section~\ref{sec:demo}). \\
+Paper (ACM/FSE) & 25\% & Five graded parts: motivating example (BUG-02, real), workflow (figure + Steps 1--5), RQs (four), related work (17 verified references), threats. \\
+\bottomrule
+\end{tabularx}

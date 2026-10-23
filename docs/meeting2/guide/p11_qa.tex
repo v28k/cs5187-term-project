@@ -1,0 +1,330 @@
+\part{Questions the professor may ask}
+
+\section{Questions and answers}
+\label{sec:qa}
+
+Short answers we can say out loud, with the section that has the details.
+
+\subsection{Motivation and novelty}
+
+\Q{What is new here compared with SQLancer?}{SQLancer's oracles (TLP, NoREC,
+PQS) run on queries from its own small generators, whose structure it knows.
+We apply the same and more oracles to \emph{derivation trees of a large typed
+grammar} (78 rules, 421 alternatives), at any level of a nested query, and we
+use the same tree for mutation and for reduction. Two further things SQLancer
+does not do: steering towards recent commits with a gated LLM, and measuring
+oracle precision with a ledger. And a ground-truth benchmark of 23 re-injected
+\pg bugs to compare generators fairly.}
+
+\Q{Why not just use SQLsmith or SQLancer as the baseline?}{The paper compares
+\emph{generators} under identical oracles and budget; plugging an external tool
+into our executor would change two things at once. Our random/mutation arm is
+the standard unguided baseline (AFL-style text mutation). We discuss SQLancer,
+SQLsmith and SQLRight in related work, and the motivating example (BUG-02) is
+a bug that had not been reported although it has been in released \pg since 17.}
+
+\Q{Why \pg and why master?}{\pg is the most used open-source DBMS; its master
+branch gets new planner optimisations every month, and regressions there are
+fixed fastest (``open items'' before a release), which helps our chance of an
+accepted bug. We also check every finding on the 18.6 release: BUG-01 and
+BUG-02 affect released versions.}
+
+\Q{Why do wrong results matter more than crashes?}{A crash is loud: the
+user sees an error and the log has a trace. A wrong result is silent: an
+application gets wrong rows and nobody notices. 11 of the 20 observable
+benchmark bugs are invisible to a crash-only fuzzer (Section~\ref{sec:bench}).}
+
+\Q{In one sentence, what is ``one tree, four jobs''?}{The same typed
+derivation tree generates the SQL, is mutated (regenerate, splice, insert,
+drop subtrees), is rewritten by the oracles into an equivalent query, and is
+shrunk when a test case fails; every job reuses the grammar's knowledge of
+types and scopes.}
+
+\subsection{Grammar and generator}
+
+\Q{How did validity go from 83\% to 99.5--100\%?}{By a measurement loop:
+\texttt{pgfuzz sample --execute} prints the valid rate, top server error
+messages and the alternatives with the worst valid rate; each fix targets one
+rule (type a function's arguments correctly, keep a column in scope, avoid a
+million-row \texttt{generate\_series}). Four rounds took it from 83.4\% to
+100\% on 966 statements (Section~\ref{sec:story}). With the larger grammar
+today it is 99.5--99.7\%.}
+
+\Q{Why is the grammar typed? Isn't a CFG enough?}{A CFG gives syntactically
+valid SQL that is mostly rejected by the analyzer: \texttt{int + text}, unknown
+columns, aggregates in \texttt{WHERE}. Types and scopes make generation a
+proof search for $\Gamma \vdash e : T$ (L29--30), so 99.5\% of statements
+reach the planner and executor, which is where the bugs are. Types are also
+what makes rewrites sound: \texttt{e+0} is an identity for \texttt{int}, not
+for \texttt{float8} ($-0 + 0$ prints 0).}
+
+\Q{What is the derivation tree exactly?}{A node per rule expansion, recording
+which alternative was chosen, the bound type, and for builtins the chosen
+value (a column, a literal). Its leaves read left to right are the SQL. The
+renderer wraps every node's tokens in invisible markers, so we know which
+token span each node produced.}
+
+\Q{How does replay work, and why is it needed?}{Given a stored tree, the
+engine re-derives it following the same choices, but re-binds names and types
+in the current state. Mutation and reduction edit a tree and replay it, so the
+result stays valid even if aliases shift. Trees are stored as JSON with stable
+alternative ordinals; 599 of 600 test cases replay to identical SQL in a fresh
+process.}
+
+\Q{What does the bandit do and is it significant?}{Multiplicative weights
+over grammar alternatives: reward 1 if the test case entered the corpus (new
+signature, feature, feature pair or plan shape), $-0.5$ if the statement
+failed; weight $\times e^{\eta(r-\bar r)}$, $\eta = 0.1$, clipped to $[0.2,5]$.
+In one 1{,}000-test-case run: 533 vs 419 plan shapes at the same validity. One
+run is not significance; RQ1 has an ablation arm (\texttt{grammar\_mm\_flat})
+with 5 trials.}
+
+\Q{What is the data profile for?}{Constants chosen blindly make predicates
+select all rows or none, so the planner never faces a hard choice. The
+profile gives per-column min/max/quantiles; \texttt{@dlit} draws a literal from
+the column being compared. Predicates selecting 5--95\% of rows went from
+29.3\% to 58.6\%. Boundary literals (min$\pm$1, $-0$, NaN, $\pm$Infinity, empty
+array) are interval analysis applied to test inputs (L19--20).}
+
+\Q{How big is the schema and why so small?}{Nine relations, about 200 rows
+each, deterministic data with NULLs, all index kinds, partitioning,
+inheritance, a view, generated columns. Small tables keep each query fast (17--23
+test cases per second with all oracles), and most optimizer bugs need
+structure (an index, a partition, a NULL), not volume. Volume-dependent bugs are
+an external threat.}
+
+\subsection{Oracles}
+
+\Q{How do you know a metamorphic mismatch is a real bug and not your
+rewrite?}{Three layers. (1) Each rewrite has a soundness argument and is
+restricted by the tree to where it holds (Section~\ref{sec:mm}): multiset
+contexts only, unique-text types for \texttt{DISTINCT}, no outer joins for the
+NOT NULL conjunct, etc. (2) A mismatch is confirmed by re-running both sides.
+(3) Triage reduces it and a human decides; every verdict goes into the
+ledger. Where we were wrong (TLP-HAVING, numeric scale), we fixed the class
+and added a test, and we report the precision before and after.}
+
+\Q{Explain TLP in one breath.}{For any predicate $p$, every row makes $p$
+TRUE, FALSE or NULL, exactly one of them, so the rows of a query equal the
+union of the rows with \texttt{WHERE p}, \texttt{WHERE NOT p} and
+\texttt{WHERE p IS NULL}. The optimizer treats the four queries very
+differently, so a bug in one shows as a mismatch.}
+
+\Q{Explain NoREC.}{\texttt{SELECT count(*) FROM f WHERE p} lets the optimizer
+use $p$ (indexes, pushdown, join pruning).
+\texttt{SELECT sum(CASE WHEN p THEN 1 ELSE 0 END) FROM f} forces it to evaluate
+$p$ on every row. Both count the rows where $p$ is TRUE.}
+
+\Q{Why did TLP-HAVING give false positives?}{Without \texttt{GROUP BY}, a
+\texttt{HAVING} clause makes the level a single-group aggregate: it returns one
+row even if \texttt{WHERE} removes every row. Our left side \emph{removed}
+\texttt{HAVING}, turning it into a plain query: 0 rows vs 1. Now the left side
+uses \texttt{HAVING TRUE}. It is a good example of a rewrite that is correct
+for the textbook case and wrong in a corner the larger grammar reaches.}
+
+\Q{Why do you mask floats? Doesn't that hide bugs?}{Summing floats in a
+different order (hash vs sort aggregation, parallel workers) legitimately
+changes the last digits, so exact comparison would flood us with false
+positives. We mask only when the query aggregates or uses windows, and the mask
+keeps the class (NaN, $\pm$Infinity, finite): when masking everything we lost a
+real benchmark bug (0 vs NaN), which taught us this.}
+
+\Q{What does the plan-variant oracle catch that metamorphic rewrites
+do not?}{Bugs in one planner path or executor node: a join method, hash
+aggregation spilling with tiny \texttt{work\_mem}, parallel plans, partition-wise
+join, memoize, eager aggregation. The rewrite oracles catch bugs in transformations that
+are always applied (no setting turns them off), like BUG-02. Localization uses
+both together.}
+
+\Q{What does the cross-version oracle add?}{An optimisation new on master that
+is wrong under every planner setting is invisible to plan variants but
+disagrees with 18.6, which does not have it. It needs exclusions for clock
+functions and intended changes (\texttt{corr} on master).}
+
+\Q{What is the RLS oracle and why is it ``security''?}{The query runs as a
+restricted role with row-level security policies, and as superuser on
+explicitly filtered tables; both must be equal. More rows on the restricted
+side is a confidentiality leak: the policy is a label and the check is
+non-interference on concrete data (L21--22). RLS bugs have had CVEs in \pg
+(e.g.\ CVE-2023-2455, CVE-2024-10976). 532 checks, 0 false positives so far.}
+
+\Q{What is CERT?}{Cardinality Estimation Restriction Testing (Ba \& Rigger,
+ICSE 2024): adding a \texttt{WHERE} must not raise the planner's row estimate.
+A violation is a \emph{performance} outcome, reported separately, never as a
+wrong result.}
+
+\Q{Which queries are excluded from comparison and why?}{Those with no single
+correct multiset: \texttt{LIMIT/OFFSET} without full ordering, volatile functions,
+order-dependent windows, order-sensitive aggregates without \texttt{ORDER BY},
+\texttt{ARRAY(SELECT)} without \texttt{ORDER BY}, \texttt{DISTINCT ON}, row
+locking, DML. The grammar writes order-sensitive aggregates with their own
+\texttt{ORDER BY}, so most queries stay eligible.}
+
+\Q{How many metamorphic checks run per second?}{In the full-system smoke,
+1{,}991 checks in 180 s on one worker (about 11/s), alongside 7{,}956
+plan-variant runs.}
+
+\subsection{Triage and bugs}
+
+\Q{Walk us through BUG-02.}{Section~\ref{sec:bug02}. Short: since \pg 17 a
+planner support function simplifies \texttt{range @> elem} with a constant
+range; for an empty or unbounded range it returns the constant false/true and
+forgets that a NULL element must give NULL. Our expression rewrite wrapped the
+range in \texttt{(SELECT ...)}, which blocks the simplification, and the
+results differed for NULL-extended rows of a left join. Fix: only simplify when
+the element is provably non-null.}
+
+\Q{Walk us through BUG-01.}{Section~\ref{sec:bug01}. JSON\_TABLE's context
+item and PASSING arguments never get collations assigned, so a row comparison
+inside them compiles zero column comparisons: false on 18.6, an assertion on
+master; text comparisons error. One-line fix: \texttt{assign\_expr\_collations}.}
+
+\Q{Have you reported them? Why not yet?}{Both have reproducers, root causes,
+patches and regression tests in \file{docs/bughunt/}. We are filing them this
+week (Phase 4 of the plan) after re-running on the newest 17.x/18.x/master
+and searching the archives for duplicates (none found on 23 Oct). We wanted
+the patches tested with the full regression suite first, which is done.}
+
+\Q{Is BUG-02 really a bug, or intended?}{The operators are declared strict, and
+without the planner simplification (the sub-select form) \pg itself returns
+NULL. The same expression giving different answers depending on whether a
+sub-select surrounds a constant cannot be intended.}
+
+\Q{Why reduce on the tree if you have delta debugging?}{Token reduction gets
+stuck: removing any single token breaks the SQL, while a smaller valid query
+needs a \emph{different} derivation. Tree reduction replaces a subtree by the
+smallest derivation of the same rule and type, and replay keeps it valid. On
+the BUG-01 case: 79 tokens vs 116 for token reduction alone, at a similar
+number of server runs (555 vs 406).}
+
+\Q{How do you reduce a metamorphic pair without breaking the
+equivalence?}{The two queries share a prefix and suffix; we reduce the shared
+skeleton with a hole where they differ, and fill the hole with each side's
+middle. Every edit applies to both sides at once.}
+
+\Q{How do you deduplicate?}{Signatures, strongest first: top-5 stack frames,
+assertion file and expression, SQLSTATE + normalised message, oracle/variant +
+statement features, and a weak signal-only key. The strength is logged
+because counting by signature is a threat to validity.}
+
+\Q{What is your oracle precision?}{18 triaged candidates so far: 3 real
+(BUG-01, BUG-02, one re-injected bug), 13 false positives or intended changes,
+2 flaky. Raw precision 0.19, but all 13 came from 6 classes we have since
+fixed, and since then 3{,}000+ new-kind, RLS, CERT and full-system checks gave 0
+false positives. The long campaigns will give the per-oracle numbers for the
+paper (Section~\ref{sec:ledger}).}
+
+\Q{What happens to the unreproduced recovery failure?}{It stays in the
+evidence folder; we report only what we can reproduce. If it reappears in a
+campaign, triage will have a fresh chance with the full log.}
+
+\subsection{LLM arm}
+
+\Q{Why do you need an LLM at all?}{To keep the grammar current with code that
+changes weekly. The model reads a commit and writes grammar that reaches the
+changed code. Doing that by hand for 30 commits would take days.}
+
+\Q{What if the LLM hallucinates?}{It cannot hurt the campaign: a fragment must
+parse, be derivable, run on the server at $\geq$60\% validity, and (with a
+coverage build) execute more of the commit's changed lines. A rewrite must
+pass a value probe (NULL, type edges, data quantiles) and 150 live test cases
+with no mismatch. Rejections go back to the model with the server's messages,
+up to 3 rounds; everything is logged.}
+
+\Q{Did the LLM ever propose something wrong that the gate caught?}{Yes, by
+construction in our tests: \texttt{e + 1} was rejected with 12 mismatches;
+\texttt{e IS TRUE} passed 109 sampled live checks but the value probe rejected
+it at NULL. That is why the probe exists: sampling is not proof.}
+
+\Q{Isn't there data leakage in RQ3?}{The miner excludes the 23 fixes we
+revert, so the model never sees them in the prompt. Older public commits may
+be in its training data; that is a threat to validity we state. The mining
+window ends at the benchmark base commit.}
+
+\Q{How much does it cost?}{About \$0.10 per round with a cached 9k-token
+system prompt; \$5--10 for 30 commits with repair rounds (estimate; the
+ledger will give the exact number). Manual mode costs nothing in API.}
+
+\Q{What is diff coverage?}{Changed executable lines of the commit that the
+generated SQL executed, divided by all changed executable lines, measured with
+gcov on a coverage build at the same commit. It tells us whether a fragment
+reaches the code it was written for.}
+
+\Q{Why did the +LLM arm in the smoke run equal Grammar+Oracles?}{It ran
+without fragments: the extension run is Phase 1 of the plan. It is a
+correctness check of the pipeline: the arm must behave like its base.}
+
+\subsection{Evaluation and statistics}
+
+\Q{Why 5 trials? Klees says more.}{Budget: 7 arms $\times$ 5 trials $\times$ 1
+hour is already 9 hours on 4 cores. We report medians, IQR, bootstrap CIs,
+Mann--Whitney $p$ and $\hat A_{12}$, so the reader sees effect sizes even
+where $p$ is not small. With 5 vs 5 the smallest exact two-sided $p$ is
+0.008. If time allows we add trials.}
+
+\Q{Why Mann--Whitney and not a t-test?}{Fuzzing metrics are skewed and
+bounded (time to bug is censored at the budget); a rank test makes no
+normality assumption. Arcuri \& Briand recommend it with $\hat A_{12}$ for
+randomized algorithms.}
+
+\Q{How do you handle bugs not found within the budget?}{Time-to-bug is
+censored at 3600 s. We report, per bug, in how many trials each arm found it
+and the median time among those trials, and test the per-trial count of bugs
+found.}
+
+\Q{Is the comparison fair to the random arm?}{It gets the same server,
+oracles, schema, budget and seeds. It runs 10$\times$ more test cases (they are
+short) and still reaches 17 features vs 101. Its weakness is validity: 26\%
+of its statements run. That is the point of the comparison.}
+
+\Q{Why is your benchmark valid ground truth?}{The bugs are real \pg bugs,
+fixed by \pg developers with regression tests. We verify that each PoC shows a
+symptom on its solo server and not on the fixed server, and the same symptom
+with all 23 injected (no masking). We count only the 20 observable ones.}
+
+\Q{What if two injected bugs interact?}{Verify shows no masking for the PoCs.
+Attribution replays each finding on each solo server; a finding that needs
+two bugs together is ``unattributed'' and not credited to any arm.}
+
+\Q{How is coverage measured with 4 parallel trials?}{Each worker has its own
+coverage server with its own \texttt{GCOV\_PREFIX}, so counters never merge;
+lcov captures every 300 s.}
+
+\Q{What are the threats to validity?}{One system, one commit, one schema;
+benchmark of recent fixes; our own oracles and verdicts; the rewrite gate is
+testing not proof; one LLM at one time; coverage is not detection; attribution
+by replay (Section~\ref{sec:paper}).}
+
+\subsection{Course connection and process}
+
+\Q{Which course concepts does the project use?}{Grammar fuzzing and
+black/grey-box testing (L14--16), coverage and mutation testing (L13: the
+re-injected benchmark), soundness/precision (L2--L5: generator validity, oracle
+precision), type systems (L29--30: typed grammar), interval and
+constraint-based analysis (L19--20, L27--28: boundary and selective literals),
+information flow (L21--22: RLS oracle), Hoare-style assertions (each rewrite is
+an equivalence assertion), ASTs/CFGs (derivation trees, gcov). Table in
+Section~\ref{sec:background}.}
+
+\Q{Who did what?}{Venu: recent \pg features, campaigns, new grammar rules.
+Bhuvan: first pass on every bug candidate (reproduce, shrink, decide).
+Gowtham: experiment design, statistics, LLM arm, paper. All three know the
+whole system; this guide is our shared script.}
+
+\Q{How did you use AI tools?}{The LLM arm uses Claude as part of the method
+(fragments, seeds, rewrites; every prompt and response stored). We also used
+an AI coding assistant during development; all code is tested (138 unit tests)
+and every reported number comes from a run in the repository. The paper's AI
+statement discloses both.}
+
+\Q{What would you do with two more months?}{More trials and longer campaigns;
+mutation of the schema and data during a campaign; more oracles from the
+plan-variant $\times$ rewrite product (e.g.\ rewrites under each variant);
+LLM-proposed oracles beyond expression identities; other DBMSs with the same
+grammar engine (only the grammar and executor are \pg-specific).}
+
+\Q{What is the single biggest lesson?}{Oracle precision, not generator power,
+limits a wrong-result fuzzer: a richer grammar finds the corners where two
+``equivalent'' queries are not equivalent. Measuring that precision, and
+fixing each false-positive class with a test, is what makes the reports
+trustworthy.}

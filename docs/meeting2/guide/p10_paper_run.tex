@@ -1,0 +1,136 @@
+\part{Paper, plan and demo}
+
+\section{The paper}
+\label{sec:paper}
+
+ACM/FSE format (\file{paper/}, \texttt{make} builds \file{main.pdf}; the current
+draft is \file{docs/PAPER_DRAFT.pdf}). Numbers that come from the campaigns are
+written with \texttt{\textbackslash num\{\}} and appear in blue until filled.
+\texttt{make check} reports LaTeX errors, undefined references and banned
+words.
+
+\subsection{The five graded parts and where they are}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{p{0.22\linewidth}p{0.2\linewidth}X}
+\toprule
+Graded part & Paper section & Content \\
+\midrule
+Motivating example & Introduction & BUG-02: a silent wrong result in released \pg (17, 18), invisible to a crash fuzzer, found by a typed tree rewrite that a string rewrite could not have made safely \\
+Workflow & Approach (Steps 1--5) + figure & typed grammar $\rightarrow$ tree rewrites as oracles $\rightarrow$ run several ways $\rightarrow$ classify/triage/reduce $\rightarrow$ LLM extension behind a gate \\
+Research questions & Evaluation & RQ1 reach, RQ2 bugs and precision, RQ3 re-injected bugs, RQ4 LLM; component checks table \\
+Related work & Related Work & SQLancer (PQS, NoREC, TLP), QPG, CERT, EET, RAGS, SQLsmith, SQUIRREL, SQLRight, AFLGo, Fuzz4All, Magma, Klees, ddmin, HDD, Vargha--Delaney, Arcuri--Briand: 18 references, each checked against the publisher, DBLP or author pages \\
+Threats to validity & Threats & internal (randomness, our own oracles, verdicts by us, rewrite gate is testing not proof, attribution), external (one system, one commit, one schema, recent bugs, one model), construct (coverage $\neq$ detection, symptom mismatch, gate $\neq$ testing the behaviour) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Other sections: background, problem statement (what a wrong-result oracle
+needs; why recent commits), implementation, discussion (oracle precision as the
+bottleneck; what the LLM is and is not good at), conclusion, data availability,
+use of generative AI (the LLM is part of the method; we disclose its role and
+store every prompt and response).
+
+\paragraph{Status.} All number-free text is written; the main text is about one
+page over the 12-page limit, to be cut once the result tables exist.
+
+\subsection{Contributions as we state them}
+\begin{enumerate}
+  \item \textbf{One tree, four jobs}: a typed SQL grammar whose derivation
+    trees are used for generation, mutation, metamorphic oracles (12 kinds,
+    applied at any query level) and failure reduction.
+  \item \textbf{Measured soundness}: generator validity and per-oracle
+    precision before and after each false-positive class was fixed.
+  \item \textbf{A gated LLM extension}: the model reads recent commits and
+    proposes grammar and rewrites; a server-side gate (parse, reach, validity,
+    diff coverage; value probe and live checks for rewrites) decides.
+  \item \textbf{A ground-truth benchmark} of 23 real \pg bugs re-injected into
+    one build, with fixed/solo/injected servers and replay attribution.
+  \item \textbf{Two previously unknown \pg bugs}, with patches.
+\end{enumerate}
+
+\section{Execution plan and timeline}
+\label{sec:plan}
+
+\file{docs/EXECUTION_PLAN.md} has the exact commands, expected times, what to
+look at and what to send back for every phase.
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{cXrr}
+\toprule
+Phase & What & Machine time & Our time \\
+\midrule
+0 & builds (master cassert, 18.6, gcov build, injected, 23 solo) + reference server & $\sim$60 min & 5 min \\
+1 & LLM arm: mine commits, extend grammar (RQ4 ledger) & 1--2 h & 10 min \\
+2 & RQ3: verify, campaign (4 arms $\times$ 5 $\times$ 1 h), attribute & $\sim$5.5 h & 15 min \\
+3 & RQ1/RQ2/RQ4: coverage campaign, 7 arms $\times$ 5 $\times$ 1 h & $\sim$9 h & 10 min \\
+4 & triage every candidate, precision table & 1 h & 30 min \\
+5 & reports, figures, tables into the paper & 10 min & 20 min \\
+\bottomrule
+\end{tabularx}
+\end{center}
+Machine: Linux/WSL2, 4+ cores, 16 GB RAM, $\sim$25 GB disk. Phases 2 and 3
+run overnight and resume if interrupted.
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+When & What \\
+\midrule
+24--26 Oct & Phases 0--1 (builds, LLM extension, about \$5--10 of API) \\
+26--27 Oct & Phase 2: RQ3 overnight \\
+27--28 Oct & Phase 3: RQ1/RQ2/RQ4 overnight \\
+28--30 Oct & triage all candidates; \textbf{file BUG-01 and BUG-02 upstream} \\
+Meeting 3 (2--6 Nov) & all RQ tables and figures; paper with numbers \\
+12 Nov & presentation \\
+13 Nov & paper and repository \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\paragraph{Risks and fallbacks.}
+\begin{itemize}
+  \item New false-positive classes in long campaigns: triage handles them;
+    they are RQ2 data, not a failure of the project.
+  \item LLM API unavailable: manual mode (paste prompts into Claude) needs no
+    key; stored responses replay.
+  \item Upstream does not answer before 13 Nov: we report the filing, the
+    reproducer and the patch; \pg developers often reply within days for
+    reproducible wrong results.
+  \item A build or revert fails on a team machine: the scripts print what to
+    send; a shallow clone is the usual cause (\texttt{git fetch --deepen}).
+\end{itemize}
+
+\section{Live demo script}
+\label{sec:demo}
+
+Five minutes, on a machine with master running on port 5433 (or any server
+from \file{scripts/pg_server.sh}). Rehearse once; keep the outputs as
+screenshots in case the network or server fails.
+
+\begin{enumerate}
+  \item \textbf{Generate} (30 s): \texttt{cd src \&\& python -m pgfuzz sample
+    configs/local.yaml -n 3}. Show generated test cases (setup statement, then
+    queries): every column qualified, every operator parenthesised, typed
+    literals.
+  \item \textbf{Validity} (30 s): \texttt{python -m pgfuzz sample configs/local.yaml
+    -n 300 --execute}: valid rate $\approx$99.5\%, top errors, worst
+    alternatives, bug candidates printed as they happen.
+  \item \textbf{BUG-02 live} (1 min): paste the minimal reproducer into
+    \texttt{psql} on 18.6 and on master: the NULL row returns \texttt{t}.
+    Then \texttt{EXPLAIN VERBOSE}: \texttt{Output: true}. Then the sub-select
+    form: NULL.
+  \item \textbf{Triage} (1 min): \par\texttt{python -m pgfuzz triage configs/local.yaml \textbackslash}\par
+    \texttt{\ \ ../docs/evidence/tree\_reduction/original.sql}\par -- watch
+    the tree stage, then statements and tokens; open \file{report.md} and
+    \file{upstream_report.txt} in \file{../results/triage/<signature>/}.
+  \item \textbf{Precision} (30 s): \texttt{python -m pgfuzz precision
+    ../triage/verdicts.yaml}: the RQ2 table.
+  \item \textbf{Reports} (1 min): open \file{docs/evidence/rq3_smoke2/report.md}
+    (medians, IQR, $\hat A_{12}$, time to first bug) and \file{bench/reinjected/verify.json}.
+\end{enumerate}
+\emph{Check the exact flags with \texttt{python -m pgfuzz <cmd> --help} before
+the meeting; the appendix lists the commands.}

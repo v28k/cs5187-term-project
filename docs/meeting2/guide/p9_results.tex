@@ -1,0 +1,255 @@
+\section{Results so far}
+\label{sec:results}
+
+\begin{warnbox}[What is and is not a result yet]
+The two bugs and the component measurements below are real and reproducible.
+The smoke-run tables are single short trials: they show that the pipeline
+works end to end, not that one arm beats another ($p=1.0$ with one trial).
+The RQ tables of the paper come from the overnight campaigns (Section~\ref{sec:plan}).
+\end{warnbox}
+
+\subsection{BUG-01: JSON\_TABLE does not assign collations}
+\label{sec:bug01}
+
+\paragraph{Found} 16 October by the grammar campaign (\file{configs/cloud_hunt.yaml},
+trial 0, test case 13306, about 600 s in) as an assertion failure on master:
+\begin{lstlisting}
+TRAP: failed Assert("list_length(rcexpr->inputcollids) == nopers"),
+      File: "execExpr.c", Line: 2078
+\end{lstlisting}
+
+\paragraph{Minimal reproducer.}
+\begin{lstlisting}[language=SQL]
+-- expected t; 18.6 returns f, assert builds crash
+SELECT * FROM JSON_TABLE(jsonb_build_object('k', ROW(1, 2) < ROW(3, 4)), '$'
+       COLUMNS (a bool PATH '$.k'));
+-- expected t; 18.6: ERROR: could not determine which collation to use ...
+SELECT * FROM JSON_TABLE(jsonb_build_object('k', 'a' < 'b' COLLATE "C"), '$'
+       COLUMNS (a bool PATH '$.k'));
+\end{lstlisting}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+Build & Behaviour \\
+\midrule
+master \texttt{26bd08fb}, cassert & backend aborts on the assertion \\
+18.6 release & \textbf{wrong result}: \texttt{ROW(1,2) < ROW(3,4)} evaluates to \texttt{false} \\
+18.6 release & text comparison in the context item or in \texttt{PASSING}, even with \texttt{COLLATE "C"}: spurious collation error \\
+17, 18, master & same code, all affected \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\paragraph{Root cause.} \texttt{transformJsonTable()} in
+\file{src/backend/parser/parse_jsontable.c} transforms the context item and the
+\texttt{PASSING} arguments with \texttt{transformExpr()} but never calls
+\texttt{assign\_expr\_collations()} on them (the column expressions get it;
+\texttt{XMLTABLE}'s document expression gets it in \file{parse_clause.c}). A
+function in \texttt{FROM} is not covered by the query-level collation pass,
+so the expressions keep \texttt{InvalidOid}. A \texttt{RowCompareExpr} keeps an
+empty \texttt{inputcollids} list; \texttt{ExecInitExprRec()} walks the
+operators \emph{together with} that list, so it compiles \textbf{zero} column
+comparisons and the result is \texttt{false}. The assertion catches exactly
+that mismatch on assert builds; release builds silently return the wrong
+answer. A text comparison reaches \texttt{varstr\_cmp()} with no collation and
+errors.
+
+\paragraph{Fix} (one line, patch with regression tests in
+\file{docs/bughunt/}):
+\begin{lstlisting}[language=C]
+  tf->docexpr = transformExpr(pstate, (Node *) jfe, EXPR_KIND_FROM_FUNCTION);
++ assign_expr_collations(pstate, tf->docexpr);
+\end{lstlisting}
+The new tests fail on unpatched 18.6 and pass with the patch; the SQL/JSON,
+json, jsonb, jsonpath and collate suites pass.
+
+\paragraph{What it shows.} An assertion build turns a silent wrong result of
+the release into a crash a fuzzer cannot miss -- the reason we fuzz cassert
+builds. The grammar arm \emph{rediscovered} it in smoke run~1 (4 minutes).
+Tree reduction gives a 79-token reproducer (Section~\ref{sec:reduce}).
+
+\subsection{BUG-02: range containment with a NULL element}
+\label{sec:bug02}
+
+\paragraph{Found} 23 October by the new metamorphic oracle (rewrite
+\texttt{expr:scalar\_sub}), in the first 150 test cases it ever ran. The
+generated query (abridged) contained
+\texttt{COALESCE('(,)'::int4range, '(,5]'::int4range) @> a4.c0} where
+\texttt{a4} is the right side of a \texttt{LEFT JOIN}. The rewrite replaced the
+typed node \texttt{expr<int4range>} = \texttt{'(,)'::int4range} by
+\texttt{(SELECT ('(,)'::int4range))}. The original returned \texttt{t} for the
+three NULL-extended rows, the rewrite returned NULL. Confirmed by re-running
+both sides.
+
+\paragraph{Minimal reproducer.}
+\begin{lstlisting}[language=SQL]
+SELECT c,
+       '(,)'::int4range @> c         AS unbounded_contains,  -- expected NULL for c = NULL
+       c <@ '(,)'::int4range         AS unbounded_contained, -- expected NULL
+       'empty'::int4range @> c       AS empty_contains,      -- expected NULL
+       NOT ('empty'::int4range @> c) AS not_empty            -- expected NULL
+FROM (VALUES (NULL::int), (1)) v(c);
+-- actual (17, 18.6, master): the NULL row gives  t | t | f | t
+\end{lstlisting}
+\texttt{EXPLAIN VERBOSE} shows \texttt{Output: true}: the planner replaced the
+expression by a constant. The operator itself is strict:
+\texttt{SELECT (SELECT '(,)'::int4range) @> NULL::int} returns NULL.
+(With a single-row \texttt{VALUES} the planner folds everything with the NULL
+constant and the bug hides; two rows or a column are needed.)
+
+\paragraph{Root cause.} Since \pg 17, the planner support functions of
+\texttt{elem <@ range} and \texttt{range @> elem}
+(\texttt{find\_simplified\_clause()} in \file{src/backend/utils/adt/rangetypes.c})
+simplify a call with a constant range: for a bounded range they build
+\texttt{elem >= lower AND elem < upper} (NULL-correct), but for an empty range
+they return the constant \texttt{false}, and for \texttt{(,)} the constant
+\texttt{true}, ignoring the element. The operators are strict, so for a NULL
+element the answer must be NULL. Wrong wherever NULL and false/true are
+distinguished: the select list, \texttt{NOT}, \texttt{IS NULL},
+\texttt{IS DISTINCT FROM}, \texttt{CASE}, \texttt{COALESCE}, outer-join and
+\texttt{NOT IN} logic. A silent wrong result in released versions 17 and 18.
+
+\paragraph{Fix.}
+\begin{lstlisting}[language=C]
+if (empty || (lower.infinite && upper.infinite))
+{
+    /* the operators are strict, so a NULL element yields NULL */
+    if (!expr_is_nonnullable(root, elemExpr, NOTNULL_SOURCE_HASHTABLE))
+        return NULL;                      /* do not simplify */
+    return makeBoolConst(!empty, false);
+}
+\end{lstlisting}
+With the patch the constant is still produced when the element is provably
+non-null. Full \texttt{make check} passes after updating
+\file{rangetypes.out}; two existing expected outputs change
+(\texttt{current\_date <@ daterange 'empty'} is no longer folded, because
+\texttt{expr\_is\_nonnullable()} does not know \texttt{CURRENT\_DATE} is never
+NULL) -- we mention this to reviewers. Patches for master and for
+\texttt{REL\_17}/\texttt{REL\_18} are in \file{docs/bughunt/}.
+
+\paragraph{Why it matters for the paper.} It is our motivating example:
+(1) a silent wrong result in released \pg, no crash, no log entry;
+(2) a crash-only fuzzer cannot see it; (3) a string-level rewrite would not
+have found it: the oracle needed to know that this token span is \emph{one
+typed expression node} of type \texttt{int4range}, so wrapping it in
+\texttt{(SELECT \dots)} is an identity; (4) localization classified it as
+``not toggled by planner settings'', pointing at a support function, which is
+the true cause.
+
+\subsection{Other candidates from the bug hunt}
+\begin{itemize}
+  \item \textbf{Crash-recovery failure} (unreproduced): after the BUG-01 crash
+    chain one server could not restart: \texttt{FATAL: could not create file
+    "base/5/165792": File exists}. We traced the file in the WAL to an unlogged
+    sequence created in an open transaction and read
+    \texttt{ResetUnloggedRelations}, but a clean data directory never
+    reproduced it. Not reported; evidence kept.
+  \item \texttt{ARRAY(SELECT)}, TLP-HAVING, numeric \texttt{DISTINCT}, clock,
+    PoC replay, \texttt{corr}: our false positives / intended changes, all in
+    the ledger (Section~\ref{sec:ledger}).
+\end{itemize}
+
+\subsection{Smoke run 2 (RQ3 pipeline, 15 minutes per arm, injected server)}
+\label{sec:smoke}
+
+\begin{center}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Arm & Test cases & Valid statements & Features & Plan shapes & Benchmark bugs \\
+\midrule
+Random/Mutation & 174{,}104 & 26.3\% & 17 & 22 & 0 \\
+Grammar & 16{,}841 & 99.6\% of 56{,}233 & 101 & 5{,}416 & 0 \\
+Grammar+Oracles & 15{,}861 & 99.7\% of 42{,}852 & 101 & 5{,}968 & \textbf{1} (158 s) \\
+Grammar+Oracles+LLM$^*$ & 15{,}800 & 99.7\% of 42{,}684 & 101 & 5{,}937 & \textbf{1} (160 s) \\
+\bottomrule
+\end{tabular}
+
+\footnotesize $^*$without fragments (the LLM extension is Phase~1), so it
+equals Grammar+Oracles, as expected. Evidence: \file{docs/evidence/rq3_smoke2/}.
+\end{center}
+
+How to read it:
+\begin{itemize}
+  \item The random arm runs 10$\times$ more test cases (one short statement
+    each, 193 statements/s) but only 26.3\% are valid (33.8\% even parse) and
+    it reaches 17 SQL features and 22 plan shapes: speed is not reach.
+  \item Grammar+Oracles reaches more plan shapes than plain Grammar (5{,}968 vs
+    5{,}416) with fewer test cases: plan-shape guidance and the bandit work.
+  \item The bug found, \texttt{rb-dfcf6fa7} (``could not find pathkey item to
+    sort'', set operations over dummy Append paths), was found only by arms
+    with the extra oracles and plan guidance. The online matcher counted 2
+    known bugs (the message is shared with \texttt{rb-8b29b8da}); attribution
+    by replay picked the right one.
+  \item The random arm's 2 candidates (an assertion the online matcher took
+    for \texttt{rb-a8bb1a77}, and a crash) were the shared-server PoC replay:
+    the \texttt{TRAP} came from another backend (fixed: PID check). Plain
+    Grammar's 2 candidates were the \texttt{corr} cross-version difference
+    (an intended master change, at 677 s) and an internal error ``Append
+    child's targetlist doesn't match Append'' that never reproduced (flaky).
+\end{itemize}
+
+\subsection{Full-system smoke on master (3 minutes, one worker)}
+3{,}166 test cases, 99.5\% valid statements, 1{,}991 metamorphic checks of all
+kinds, 7{,}956 plan-variant runs, 0 false positives.
+
+\subsection{Component checks}
+\label{sec:components}
+
+Each new component was measured on master with a single run (the paper has the
+same table, ``component checks''):
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{p{0.28\linewidth}X}
+\toprule
+Component & Measured \\
+\midrule
+Metamorphic oracles, first live run & 600 test cases, 907 checks, 0 false positives; BUG-02 in the first 150 \\
+New rewrite kinds (TLP-agg, IN$\leftrightarrow$OR, negated comparison, BETWEEN, NOT NULL, ORDER BY) & 798 live checks, 0 false positives \\
+RLS leak oracle & 532 checks, 0 false positives; the role sees 131 of 203 rows of \texttt{t0} \\
+CERT & 58 checks, 0 violations \\
+Cross-version (master vs 18.6) & 1{,}155 comparisons, 0 mismatches after fixes \\
+Tree reduction (BUG-01 case) & 590 $\rightarrow$ 79 tokens (token reduction alone: 116) \\
+Token reduction (BUG-02 case) & 4 statements / 107 tokens $\rightarrow$ 1 / 36 in 307 runs \\
+Localization & BUG-02 $\rightarrow$ ``not toggled by planner settings'' (support function: correct) \\
+Bandit weights & 533 vs 419 distinct plan shapes per 1{,}000 test cases, same validity \\
+Data profile (\texttt{@dlit}) & predicates selecting 5--95\% of rows: 29.3\% $\rightarrow$ 58.6\% \\
+LLM rewrite gate & 2 identities accepted (90/90, 88/88); \texttt{e+1} rejected (12 mismatches); \texttt{e IS TRUE} rejected by the value probe \\
+LLM fragment gate & valid fragment accepted (251/251 statements valid); invalid rejected with the server's message \\
+Tree replay & 599 of 600 stored trees replay to identical SQL in a fresh process \\
+Benchmark & 20/23 observable, same symptom injected together \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Classes of false positives we found and fixed}
+\label{sec:fpclasses}
+
+This list is RQ2 material and a likely professor question (``how do you know
+your oracles are right?''):
+\begin{enumerate}
+  \item \textbf{Unordered collection}: \texttt{ARRAY(SELECT ...)} without
+    \texttt{ORDER BY} $\rightarrow$ element order is plan-dependent
+    $\rightarrow$ excluded by \texttt{eligible()}.
+  \item \textbf{Equal values, different text}: \texttt{DISTINCT}/\texttt{GROUP
+    BY} over \texttt{numeric} keeps \texttt{21.00} or \texttt{21.0000}
+    $\rightarrow$ canonical numeric scale in digests; TLP with
+    \texttt{DISTINCT} only over unique-text types.
+  \item \textbf{Rewrite changed semantics}: removing \texttt{HAVING} from a
+    level without \texttt{GROUP BY} $\rightarrow$ \texttt{HAVING TRUE}.
+  \item \textbf{Scope}: NOT NULL conjunct with a column from a nested
+    sub-select $\rightarrow$ \texttt{\_nested\_under} (found by tests before
+    any campaign).
+  \item \textbf{Environment}: clock in seed data, sequences across servers,
+    shared reference database $\rightarrow$ deterministic data, prelude,
+    per-worker databases.
+  \item \textbf{Harness}: a foreign crash blamed on the current statement
+    $\rightarrow$ PID-checked evidence.
+  \item \textbf{Intended change}: \texttt{corr} on master $\rightarrow$
+    \texttt{\_XVERSION\_CHANGED} list.
+  \item \textbf{Over-masking} (a false \emph{negative}): float masking hid
+    0 vs NaN $\rightarrow$ masked floats keep their class.
+\end{enumerate}

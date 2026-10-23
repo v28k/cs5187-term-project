@@ -1,0 +1,127 @@
+\appendix
+\part{Appendix}
+
+\section{Glossary}
+
+\begin{description}[style=nextline,leftmargin=0.5cm]
+  \item[Alternative] one right-hand side of a grammar rule, with a weight.
+  \item[Arm] one generator configuration in the experiment (random, grammar, \dots).
+  \item[Attribution] deciding which re-injected bug a failure belongs to, by
+    replay on solo and fixed servers.
+  \item[Bug candidate] a test case whose outcome is crash, assertion,
+    sanitizer, panic, corruption, internal error or wrong result.
+  \item[cassert] \pg built with \texttt{--enable-cassert}: \texttt{Assert()}
+    checks are active.
+  \item[CERT] cardinality-estimation restriction testing; performance oracle.
+  \item[Check] one metamorphic comparison (left side, right side, kind).
+  \item[Confirmed mismatch] both sides re-run and gave the same digests again.
+  \item[Culprit] the statement of a test case with the most severe outcome.
+  \item[Derivation tree] the record of which alternative each rule expansion
+    chose; its leaves are the SQL.
+  \item[Diff coverage] changed lines of a commit that were executed / changed
+    executable lines.
+  \item[Digest] order-insensitive hash of a result multiset after canonicalisation.
+  \item[Eligible] a query whose correct result is a single multiset.
+  \item[Feature] a SQL construct from a catalogue of 148 (e.g.\
+    \texttt{join:lateral}, \texttt{agg:filter}).
+  \item[Fragment] grammar text proposed by the LLM for a commit.
+  \item[Gate] the server-side checks a fragment or rewrite must pass.
+  \item[GUC] a \pg configuration setting (``grand unified configuration'').
+  \item[HDD] hierarchical delta debugging.
+  \item[Injected / solo / fixed server] all 23 / one / none of the benchmark fixes reverted.
+  \item[Ledger] (1) the precision ledger of triage verdicts; (2) the LLM ledger of rounds.
+  \item[Localization] re-running a reduced wrong result under every plan
+    variant to point at the responsible code.
+  \item[Metamorphic oracle] compares a query with a transformed query whose
+    result must be equal.
+  \item[MINIMAL marker] tells the engine to derive a subtree with its smallest
+    alternatives (tree reduction).
+  \item[Plan shape] digest of the node types of a query plan.
+  \item[Plan variant] a set of planner settings under which a query is re-run.
+  \item[PoC] proof-of-concept SQL that shows a benchmark bug.
+  \item[Replay] re-deriving a stored tree, re-binding names and types.
+  \item[RLS] row-level security.
+  \item[Signature] deduplication key of a failure.
+  \item[Support function] a planner hook of a SQL function that can simplify
+    or estimate calls to it (BUG-02 lives in one).
+  \item[TLP] ternary logic partitioning.
+  \item[Validity] share of generated statements that the server runs without error.
+\end{description}
+
+\section{Commands}
+
+All from \file{src/} unless noted.
+\begin{lstlisting}[language=bash]
+python3 -m pytest -q                                   # 138 tests
+python -m pgfuzz validate grammar/postgres.pgg         # check a grammar / config
+python -m pgfuzz sample configs/local.yaml -n 5        # print test cases
+python -m pgfuzz sample configs/local.yaml -n 300 --execute   # validity loop
+python -m pgfuzz selftest configs/rq1.yaml             # servers reachable, oracles on
+python -m pgfuzz run configs/rq1.yaml -j 4             # campaign (resumable)
+python -m pgfuzz report ../results/rq1                 # tables, plots, statistics
+python -m pgfuzz replay configs/local.yaml tc.sql --repeat 3
+python -m pgfuzz triage configs/local.yaml <failure dir> [--no-tree] [--reference ...]
+python -m pgfuzz precision ../triage/verdicts.yaml [--latex]
+python -m pgfuzz profile configs/local.yaml            # data profile -> corpus/profile.json
+python -m pgfuzz features file.sql --missing           # SQL features of statements
+python -m pgfuzz llm mine <pg clone> --since 2026-06-29 --until 26bd08fb \
+        --exclude bench/reinjected/commits.txt
+python -m pgfuzz llm extend configs/rq1.yaml ../results/llm/commits.json [--mode manual]
+python -m pgfuzz llm report
+python -m pgfuzz bench verify configs/rq3.yaml
+python -m pgfuzz bench attribute configs/rq3.yaml ../results/rq3
+# repository root:
+bash scripts/setup_env.sh            # master (cassert) + REL_18 builds
+bash scripts/build_reinjected.sh     # base + 23 reverted fixes
+bash scripts/rq3_servers.sh build-solo | init 4 | start 4
+bash scripts/rq1_servers.sh build | init 4 | start 4 | coverage <w>
+bash scripts/ref_server.sh init | start   # 18.6 reference on port 5435
+bash scripts/bisect_pg.sh GOOD BAD reduced.sql crash|error|output|differ
+\end{lstlisting}
+
+\section{File index}
+
+\begin{longtable}{p{0.47\linewidth}p{0.47\linewidth}}
+\toprule
+File & What it is \\
+\midrule
+\endhead
+\file{src/grammar/postgres.pgg} & the typed grammar (628 lines) \\
+\file{src/pgfuzz/grammar/dsl.py} & parser of the \texttt{.pgg} format \\
+\file{src/pgfuzz/grammar/engine.py} & derivation engine: scopes, types, markers, replay, MINIMAL \\
+\file{src/pgfuzz/grammar/generator.py} & test cases, corpus, mutation, bandit, profile literals, failure trees \\
+\file{src/pgfuzz/grammar/rewrite.py} & the 12 metamorphic check kinds \\
+\file{src/pgfuzz/grammar/profile.py} & data profile and type edge values \\
+\file{src/pgfuzz/grammar/treeio.py} & tree JSON with stable ordinals \\
+\file{src/pgfuzz/reference/pg_executor.py} & executor: savepoints, log, variants, checks, CERT, PID filter \\
+\file{src/pgfuzz/reference/xversion_executor.py} & master vs 18.6 \\
+\file{src/pgfuzz/eval/differential.py} & variants, \texttt{eligible}, digests, float masking \\
+\file{src/pgfuzz/eval/oracle.py} & classification into outcomes \\
+\file{src/pgfuzz/eval/signature.py} & deduplication \\
+\file{src/pgfuzz/eval/features.py} & SQL feature catalogue (148), query shapes \\
+\file{src/pgfuzz/eval/stats.py} & median, IQR, bootstrap CI, MWU, $\hat A_{12}$ \\
+\file{src/pgfuzz/triage/triage.py} & reproduce, reduce, observe, report, upstream draft \\
+\file{src/pgfuzz/triage/reduce.py}, \file{sqltok.py} & ddmin, HDD, pair reduction, SQL tokenizer \\
+\file{src/pgfuzz/triage/tree_reduce.py} & tree reduction \\
+\file{src/pgfuzz/triage/localize.py} & localization and suspect files \\
+\file{src/pgfuzz/triage/precision.py} & precision ledger \\
+\file{src/pgfuzz/llm/commits.py} & commit miner \\
+\file{src/pgfuzz/llm/prompt.py} & system prompt, response schema \\
+\file{src/pgfuzz/llm/client.py} & API / manual / replay client, prices \\
+\file{src/pgfuzz/llm/gate.py} & fragment gate, rewrite gate, value probe \\
+\file{src/pgfuzz/llm/diffcov.py} & diff coverage from gcov \\
+\file{src/pgfuzz/llm/loop.py} & propose--gate--repair loop, ledger \\
+\file{src/pgfuzz/bench/reinjected.py} & benchmark verify and attribute \\
+\file{src/bench/reinjected/} & \file{bugs.yaml}, \file{commits.txt}, \file{pocs/}, \file{verify.json} \\
+\file{src/corpus/} & schema (SQL, YAML), RLS policies, data profile \\
+\file{src/configs/} & \file{rq1.yaml}, \file{rq3.yaml}, \file{local.yaml}, hunt configs \\
+\file{triage/verdicts.yaml} & verdicts of all triaged candidates \\
+\file{docs/bughunt/} & BUG-01, BUG-02 reports and patches, hunt log, evidence \\
+\file{docs/evidence/} & tree reduction, RQ3 smoke 2 \\
+\file{docs/EXECUTION_PLAN.md} & commands for all campaigns \\
+\file{docs/PLAN_COVERAGE.md} & meeting-1 plan item $\rightarrow$ code $\rightarrow$ measurement \\
+\file{docs/PROGRESS_MEETING2.md} & progress report \\
+\file{docs/meeting2/} & this guide and the slides \\
+\file{paper/} & the paper \\
+\bottomrule
+\end{longtable}
