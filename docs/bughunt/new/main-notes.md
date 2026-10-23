@@ -62,3 +62,33 @@ JSON_TABLE PASSING with a row comparison still hits BUG-01's assertion on newest
 master (execExpr.c:2078); this is BUG-01's documented PASSING case, not new.
 XMLTABLE is untested: the newest master build has no libxml. SQL/PGQ (GRAPH_TABLE) is
 not in master yet.
+
+## Fourth round (continued hunt), all on newest master 126976a8
+
+### Checked, no bug found
+- Eager aggregation and binary-image equality (sibling of fix d764d61a): join on the
+  record image operator *= with numeric fields of different scale. Both grouping
+  branches (GROUP BY expression, and extra join key) require the type's
+  BTEQUALIMAGE proc, so numeric/record keys are refused. Results correct.
+- Eager aggregation and non-deterministic collations (sibling of d237a7a8, semijoin
+  unique-ification by the wrong collation). Built newest master with ICU (port 5475).
+  Join compares with "C", the column is case-insensitive (und-u-ks-level2), in 5
+  GROUP BY forms: eager aggregation is never chosen (the equalimage check uses the
+  column's collation), results correct. Control: with a deterministic column, eager
+  aggregation is chosen (Partial HashAggregate).
+- Self-join elimination (on vs off): unique columns with NULLs, NULLS NOT DISTINCT,
+  partial unique index, extra join filters, nested outer join, LATERAL, FOR UPDATE,
+  window functions, sublinks, and UPDATE/DELETE/MERGE with RETURNING old/new.
+  All identical.
+- NOT IN to anti-join conversion (383eb21eb, query_outputs_are_not_nullable):
+  22 subquery shapes (nullable sides of LEFT/RIGHT/FULL joins, ON-clause quals of
+  outer joins, join alias columns, USING merged columns, IS NOT FALSE / IS NOT TRUE /
+  IS DISTINCT FROM / coalesce / OR quals, LATERAL, GROUP BY, CASE, greatest) plus 8
+  outer-side cases (outer expression on the nullable side, correlated outputs, row
+  NOT IN, casts, UNION ALL with NULL). Oracle: NOT (x = ANY (ARRAY(subq))). All equal.
+- Functions overwriting their caller's fcinfo->args (sibling of e355089a,
+  jsonb_set_lax use-after-free): no other SQL-callable function does it (the other
+  hits build their own call frames).
+- ILIKE in single-byte encodings (sibling of c00a97b6): LATIN1 database, C locale,
+  non-ASCII letters: ILIKE vs lower() LIKE lower() for 11 patterns, ESCAPE with
+  non-ASCII escape characters, ~* and ~, index scan vs seq scan: all consistent.
