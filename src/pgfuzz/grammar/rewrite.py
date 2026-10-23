@@ -30,6 +30,17 @@ left side is the statement itself):
                    (in the spirit of EET, Jiang and Su, OSDI 2024), e.g.
                    ``e -> COALESCE(e, e)``, ``e -> (SELECT e)``, ``p -> NOT NOT p``;
                    the whole query result must not change.
+``tlp_agg``        TLP for aggregates: a global aggregate whose items are all
+                   ``MIN/MAX/SUM/COUNT/BIT_*/BOOL_*`` calls equals the combination
+                   (MIN of MINs, SUM of COUNTs, ...) over the three WHERE partitions.
+``pred:<name>``    Equivalent forms of one predicate node: ``x IN (a, b)`` ->
+                   ``(x = a) OR (x = b)`` (PG 18 turns such OR chains back into
+                   ``= ANY``), ``a < b`` -> ``NOT (a >= b)``, ``x BETWEEN l AND h`` ->
+                   ``x >= l AND x <= h``.
+``notnull``        ``WHERE p`` -> ``WHERE p AND c IS NOT NULL`` for a NOT NULL column
+                   ``c`` that ``p`` uses (targets NOT NULL based simplification); not
+                   under outer joins and not for generated columns.
+``order_drop``     Drop the statement's own ORDER BY (the result is a multiset).
 ``cte_materialize`` Toggle ``MATERIALIZED`` / ``NOT MATERIALIZED`` on a CTE.
 ``table_fence``    Replace one base-table reference ``t AS a`` with
                    ``(SELECT * FROM t OFFSET 0) AS a``: the planner can no longer
@@ -52,17 +63,52 @@ from typing import Any, Callable
 
 from pgfuzz.eval.differential import eligible, masks_floats
 from pgfuzz.grammar.dsl import Builtin, Grammar
-from pgfuzz.grammar.engine import Node, node_regions, render
+from pgfuzz.grammar.engine import Node, is_marker, node_regions, render
 from pgfuzz.grammar.schema import Schema
 
 # Types whose equality implies an identical text form (so DISTINCT / GROUP BY
 # may pick any representative of a group without changing the output).
 UNIQUE_TEXT_TYPES = frozenset({"int", "bigint", "text", "bool", "date", "tstz", "int4range", "intarr", "textarr"})
 
-KINDS = ("tlp_where", "tlp_having", "norec", "expr", "cte_materialize", "table_fence")
+KINDS = ("tlp_where", "tlp_having", "tlp_agg", "norec", "expr", "pred", "notnull", "order_drop",
+         "cte_materialize", "table_fence")
 # Partitioning checks apply to fewer queries, so they get the larger weights.
-DEFAULT_WEIGHTS = {"tlp_where": 6.0, "tlp_having": 5.0, "norec": 3.0, "expr": 3.0,
-                   "cte_materialize": 1.5, "table_fence": 1.5}
+DEFAULT_WEIGHTS = {"tlp_where": 6.0, "tlp_having": 5.0, "tlp_agg": 5.0, "norec": 3.0, "expr": 3.0,
+                   "pred": 3.0, "notnull": 1.5, "order_drop": 1.0, "cte_materialize": 1.5, "table_fence": 1.5}
+
+# Aggregates whose value over a multiset equals COMBINE over the values of its parts.
+_AGG_COMBINE = {"MIN": "MIN", "MAX": "MAX", "SUM": "SUM", "COUNT": "SUM", "BIT_OR": "BIT_OR",
+                "BIT_AND": "BIT_AND", "BIT_XOR": "BIT_XOR", "BOOL_AND": "BOOL_AND", "BOOL_OR": "BOOL_OR",
+                "EVERY": "BOOL_AND"}
+
+
+def _combinable_items(words: list[str]) -> list[tuple[str, str]] | None:
+    """For a select list whose every item is ``AGG ( ... ) AS cN`` with a combinable AGG
+    (no DISTINCT, FILTER or ORDER BY), the (combiner, alias) per item; else None."""
+    items, cur, depth = [], [], 0
+    for w in words:
+        if w == "," and depth == 0:
+            items.append(cur)
+            cur = []
+            continue
+        depth += (w == "(") - (w == ")")
+        cur.append(w)
+    items.append(cur)
+    out = []
+    for it in items:
+        if len(it) < 6 or it[-2] != "AS" or it[1] != "(" or it[-3] != ")" or it[0].upper() not in _AGG_COMBINE:
+            return None
+        if it[2] == "DISTINCT" or "ORDER" in it or "FILTER" in it:
+            return None
+        d = 0
+        for j, w in enumerate(it[1:-2], 1):
+            d += (w == "(") - (w == ")")
+            if d == 0 and j != len(it) - 3:
+                return None            # the call closes before the end: AGG(..) + 1 is not one call
+        out.append((_AGG_COMBINE[it[0].upper()], it[-1]))
+    return out
+# a OP b  ==  NOT (a NEG b)  under three-valued logic, for every type with a btree total order.
+_NEGATE = {"=": "<>", "<>": "=", "<": ">=", ">": "<=", "<=": ">", ">=": "<"}
 
 
 @dataclass
@@ -130,6 +176,44 @@ class _Tree:
         a = self.alts.get(n.alt)
         return {el.name for el in (a.elems if a else []) if isinstance(el, Builtin)}
 
+    def direct(self, n: Node) -> list[Node]:
+        """Child nodes of ``n``, looking through ``?``/``*`` and groups."""
+        out: list[Node] = []
+        for k in n.kids:
+            if k is None:
+                continue
+            if k.sym in ("#rep", "#grp"):
+                out += self.direct(k)
+            else:
+                out.append(k)
+        return out
+
+    def slots(self, n: Node) -> list[str | Node] | None:
+        """The words of ``n`` with every direct child collapsed to its node, e.g.
+        ``["(", <expr>, "IN", "(", <expr>, ",", <expr>, ")", ")"]``."""
+        r = self.region(n)
+        if r is None:
+            return None
+        starts = {}
+        for k in self.direct(n):
+            kr = self.region(k)
+            if kr is None:
+                return None
+            starts[kr[0]] = (k, kr[1])
+        out: list[str | Node] = []
+        i = r[0] + 1 if is_marker(self.toks[r[0]]) else r[0]
+        end = r[1]
+        while i < end:
+            if i in starts:
+                k, e = starts[i]
+                out.append(k)
+                i = e
+                continue
+            if not is_marker(self.toks[i]):
+                out.append(self.toks[i])
+            i += 1
+        return out
+
     def replace(self, n: Node, new: list[str]) -> list[str]:
         """Statement tokens with node ``n`` replaced by ``new``."""
         start, end = self.region(n)  # type: ignore[misc]
@@ -195,8 +279,9 @@ class Rewriter:
         if root is None or root.sym not in self.query_rules:
             return []
         t = _Tree(tree, toks, self.alts)
-        builders = {"tlp_where": self._tlp_where, "tlp_having": self._tlp_having, "norec": self._norec,
-                    "expr": self._expr, "cte_materialize": self._cte, "table_fence": self._fence}
+        builders = {"tlp_where": self._tlp_where, "tlp_having": self._tlp_having, "tlp_agg": self._tlp_agg,
+                    "norec": self._norec, "expr": self._expr, "pred": self._pred, "notnull": self._notnull,
+                    "order_drop": self._order_drop, "cte_materialize": self._cte, "table_fence": self._fence}
         kinds = list(self.weights)
         out: list[Check] = []
         tried: set[str] = set()
@@ -308,6 +393,118 @@ class Rewriter:
         rhs = self._partition(t, core, having, "HAVING", "UNION ALL",  # type: ignore[arg-type]
                               nested=core is not self._core(t, root))
         return "tlp_having", lhs, rhs
+
+    def _tlp_agg(self, t: _Tree, root: Node, schema: Schema):
+        """TLP for aggregates: ``SELECT AGG(e) FROM f`` equals COMBINE over the three
+        partitions of ``f`` by the WHERE predicate (MIN of MINs, SUM of COUNTs, ...)."""
+        core = self._core(t, root)
+        if core is None or self._grouping(t, core) != "global" or t.child(core, "having_clause") is not None:
+            return None
+        where, items = t.child(core, "where_clause"), t.child(core, "@items")
+        if where is None or items is None or t.child(where, "expr") is None or t.child(core, "distinct") is not None:
+            return None
+        combine = _combinable_items([x for x in (t.tokens(items) or []) if not is_marker(x)])
+        if combine is None:
+            return None
+        start, end = t.region(core)  # type: ignore[misc]
+        lhs = t.replace(where, [])  # type: ignore[arg-type]
+        part = self._partition(t, core, where, "WHERE", "UNION ALL", nested=False)  # type: ignore[arg-type]
+        arms = part[start:len(part) - (len(t.toks) - end)]
+        sel: list[str] = []
+        for k, (comb, alias) in enumerate(combine):
+            sel += ([","] if k else []) + [comb, "(", "tlp_agg", ".", alias, ")", "AS", alias]
+        new = ["SELECT"] + sel + ["FROM", "("] + arms + [")", "AS", "tlp_agg"]
+        return "tlp_agg", lhs, t.toks[:start] + new + t.toks[end:]
+
+    def _pred(self, t: _Tree, root: Node, schema: Schema):
+        """Equivalent forms of one predicate node: IN list <-> OR chain (PG 18 turns OR
+        chains into = ANY), comparison <-> negated complement, BETWEEN <-> two bounds."""
+        cands = []
+        for n in t.nodes:
+            if n.sym != "expr" or n.typ != "bool":
+                continue
+            sl = t.slots(n)
+            if not sl or sl[0] != "(" or sl[-1] != ")":
+                continue
+            body = sl[1:-1]
+            tok = lambda x: t.tokens(x) if isinstance(x, Node) else None   # noqa: E731
+            # ( e [NOT] IN ( a , b , ... ) )
+            if len(body) >= 5 and isinstance(body[0], Node) and body[-1] == ")" and "IN" in body[1:3]:
+                neg = body[1] == "NOT"
+                rest = body[(3 if neg else 2):]
+                if rest and rest[0] == "(" and all(isinstance(x, Node) for x in rest[1:-1:2]) \
+                        and all(x == "," for x in rest[2:-1:2]):
+                    e, opts = tok(body[0]), [tok(x) for x in rest[1:-1:2]]
+                    if e and all(opts):
+                        ors: list[str] = []
+                        for k, o in enumerate(opts):
+                            ors += (["OR"] if k else []) + ["("] + _paren(e) + ["="] + _paren(o) + [")"]  # type: ignore[operator]
+                        cands.append(("in_or", n, (["(", "NOT"] if neg else ["("]) + _paren(ors) + [")"]))
+            # ( a cmp b ), cmp a direct child rule
+            if len(body) == 3 and all(isinstance(x, Node) for x in body) and body[1].sym == "cmp":
+                op = " ".join(w for w in (tok(body[1]) or []) if not is_marker(w))
+                a, b = tok(body[0]), tok(body[2])
+                if op in _NEGATE and a and b:
+                    cands.append(("cmp_negate", n, ["(", "NOT", "("] + _paren(a) + [_NEGATE[op]] + _paren(b) + [")", ")"]))
+            # ( x BETWEEN lo AND hi )
+            if len(body) == 5 and body[1] == "BETWEEN" and body[3] == "AND" \
+                    and all(isinstance(body[i], Node) for i in (0, 2, 4)):
+                x, lo, hi = tok(body[0]), tok(body[2]), tok(body[4])
+                if x and lo and hi:
+                    cands.append(("between", n, ["(", "("] + _paren(x) + [">="] + _paren(lo) + [")", "AND", "("]
+                                  + _paren(x) + ["<="] + _paren(hi) + [")", ")"]))
+        if not cands:
+            return None
+        name, n, new = self.rng.choice(cands)
+        return f"pred:{name}", None, t.replace(n, new)
+
+    def _notnull(self, t: _Tree, root: Node, schema: Schema):
+        """``WHERE p`` -> ``WHERE (p AND c IS NOT NULL)`` for a NOT NULL column ``c`` that
+        ``p`` already uses (targets NOT NULL based simplification). Not under outer joins,
+        where a NOT NULL column can still be NULL-extended."""
+        out = []
+        for core in self._cores(t, root, grouped=False, clause="where_clause") + \
+                self._cores(t, root, grouped=True, clause="where_clause"):
+            frm, where = t.child(core, "from_clause"), t.child(core, "where_clause")
+            if frm is None or where is None or set(t.tokens(frm) or []) & {"LEFT", "RIGHT", "FULL"}:
+                continue
+            pred = t.child(where, "expr")
+            if pred is None:
+                continue
+            for _, m in pred.walk():
+                if m.sym == "@col" and isinstance(m.val, tuple) and not self._nested_under(t, m, pred):
+                    rel = schema.relations.get(m.val[1])
+                    c = rel.col(m.val[2]) if rel is not None else None
+                    # generated columns excluded: a partition may compute them differently (d8444163)
+                    if c is not None and c.flags & {"notnull", "identity"} and "generated" not in c.flags \
+                            and t.tokens(m):
+                        out.append((pred, t.tokens(m)))
+        if not out:
+            return None
+        pred, col = self.rng.choice(out)
+        new = ["("] + _paren(t.tokens(pred) or []) + ["AND", "("] + [w for w in col if not is_marker(w)] + \
+              ["IS", "NOT", "NULL", ")", ")"]
+        return "notnull", None, t.replace(pred, new)
+
+    # rules that open a scope (@scope in the grammar): their columns are not visible outside
+    _NESTED = frozenset({"select_core", "query", "subquery", "in_sub", "exists_sub", "lateral_subquery", "set_arm",
+                         "scalar_sub", "subquery_one"})
+
+    def _nested_under(self, t: _Tree, m: Node, top: Node) -> bool:
+        """Is ``m`` inside a sub-select below ``top`` (so its columns are not in ``top``'s scope)?"""
+        for a in t.ancestors(m):
+            if a is top:
+                return False
+            if a.sym in self._NESTED:
+                return True
+        return False
+
+    def _order_drop(self, t: _Tree, root: Node, schema: Schema):
+        """The statement's own ORDER BY cannot change its multiset (no LIMIT: eligible)."""
+        ob = t.child(root, "order_by")
+        if ob is None or not t.region(ob):
+            return None
+        return "order_drop", None, t.replace(ob, [])
 
     def _norec(self, t: _Tree, root: Node, schema: Schema):
         core = self._core(t, root)

@@ -147,3 +147,41 @@ def test_tlp_having_keeps_the_level_grouped():
         head, _, pred = sql.partition(" HAVING ")
         assert c.lhs == head + " HAVING TRUE"
         assert f"HAVING NOT ({pred})" in c.rhs
+
+
+def test_combinable_aggregate_items():
+    from pgfuzz.grammar.rewrite import _combinable_items
+
+    w = "MAX ( a1 . c0 ) AS c0 , COUNT ( * ) AS c1 , EVERY ( ( x ) ) AS c2".split()
+    assert _combinable_items(w) == [("MAX", "c0"), ("SUM", "c1"), ("BOOL_AND", "c2")]
+    assert _combinable_items("COUNT ( DISTINCT x ) AS c0".split()) is None          # not decomposable
+    assert _combinable_items("MAX ( x ) + 1 AS c0".split()) is None                  # not one call
+    assert _combinable_items("AVG ( x ) AS c0".split()) is None                      # AVG of AVGs is wrong
+    assert _combinable_items("MAX ( x ) FILTER ( WHERE p ) AS c0".split()) is None
+
+
+def test_new_rewrites_on_the_real_grammar():
+    gen = GrammarGenerator(str(PGG), str(SCHEMA), mm_prob=1.0, mm_per_query=2,
+                           mm_weights={"pred": 3, "notnull": 3, "order_drop": 1})
+    gen.setup(GeneratorContext(5, random.Random(5), Path(tempfile.mkdtemp())))
+    seen = Counter()
+    for _ in range(1500):
+        for c in gen.next_testcase().meta.get("checks", []):
+            k, rhs = c["kind"], c["rhs"]
+            seen[k] += 1
+            if k == "pred:in_or":
+                assert " OR " in rhs or rhs.count("=") >= 1
+            elif k == "pred:cmp_negate":
+                assert "(NOT (" in rhs.replace("( NOT (", "(NOT (")
+            elif k == "notnull":
+                assert "IS NOT NULL" in rhs
+    for k in ("pred:in_or", "pred:cmp_negate", "pred:between", "notnull", "order_drop"):
+        assert seen[k] > 0, (k, seen)
+
+    agg = GrammarGenerator(str(PGG), str(SCHEMA), mm_prob=1.0, mm_weights={"tlp_agg": 1.0})
+    agg.setup(GeneratorContext(5, random.Random(5), Path(tempfile.mkdtemp())))
+    checks = [c for _ in range(1500) for c in agg.next_testcase().meta.get("checks", [])]
+    assert checks
+    for c in checks:
+        assert c["kind"] == "tlp_agg" and c["lhs"] is not None
+        assert "AS tlp_agg" in c["rhs"] and c["rhs"].count("UNION ALL") >= 2
