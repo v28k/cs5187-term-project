@@ -44,13 +44,16 @@ errors, 4 fail an assertion, and 3 raise or drop an error message. Only 9 of
 these 20 can be seen by a crash-only fuzzer.
 
 \begin{figure}[t]
-\begin{lstlisting}[numbers=none,escapechar=@,language=SQL]
-SELECT c, '(,)'::int4range @> c AS contains,          -- expected NULL for c = NULL
-          NOT ('empty'::int4range @> c) AS not_empty    -- expected NULL
+\begin{lstlisting}[numbers=none,escapechar=!,language=SQL]
+SELECT c,
+       '(,)'::int4range @> c       AS contains,   -- must be NULL when c is NULL
+       NOT ('empty'::int4range @> c) AS not_empty  -- must be NULL when c is NULL
 FROM (VALUES (NULL::int), (1)) v(c);
---   c   | contains | not_empty
---  NULL | t        | t          @\textbf{$\leftarrow$ wrong: the planner folded the call to a constant}@
---  1    | t        | t
+
+  c   | contains | not_empty
+------+----------+----------
+ NULL | t        | t          !\textbf{$\leftarrow$ wrong: the planner folded the call to a constant}!
+ 1    | t        | t
 \end{lstlisting}
 \caption{A wrong result in \pg~17, 18.6 and master that \tool found: the
 planner support function for range containment returns \texttt{true} or

@@ -198,7 +198,10 @@ background, problem statement, approach with the workflow figure, evaluation
 design (RQs, benchmark, arms, measurements, statistics), discussion, threats
 to validity, related work (13 references, each checked against the publisher or
 author pages), conclusion and data/AI statements. Numbers still to come are
-marked in blue (`\num{}`).
+marked in blue (`\num{}`). It compiles with `make` in `paper/` (ACM `acmart`,
+review mode) to 12 pages with the references starting on page 11, so the result
+tables have room; `make check` reports no LaTeX errors, no undefined references
+and no banned words. The current PDF is `docs/PAPER_DRAFT.pdf`.
 
 # 7. Plan to meeting 3 and the deadline
 

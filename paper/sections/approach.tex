@@ -55,11 +55,12 @@ For each query, \tool picks up to one metamorphic check and stores it with
 the test case as a pair of queries that must return the same multiset. All
 checks are built on the derivation tree:
 \begin{description}
-  \item[TLP on WHERE.] The \texttt{WHERE p} of any \texttt{SELECT} whose result
-    is used as a multiset (the query itself, a derived table, a CTE body, a
+  \item[TLP on WHERE.] \tool picks a \texttt{SELECT} whose result is used as
+    a multiset: the query itself, a derived table, a CTE body, a
     set-operation arm, or an \texttt{IN}, \texttt{EXISTS} or \texttt{LATERAL}
-    subquery) is partitioned into $p$, \texttt{NOT p} and \texttt{p IS NULL},
-    and the three copies are combined with \texttt{UNION ALL}. Because the
+    subquery. Its \texttt{WHERE p} is partitioned into $p$, \texttt{NOT p} and
+    \texttt{p IS NULL}, and the three copies are combined with
+    \texttt{UNION ALL}. Because the
     rewrite edits one node, it also works inside a nested query, where
     text-based TLP does not apply.
   \item[TLP on HAVING.] The same on the \texttt{HAVING} clause. The
