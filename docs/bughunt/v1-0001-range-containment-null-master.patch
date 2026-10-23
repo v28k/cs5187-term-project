@@ -1,0 +1,153 @@
+From 1019bda2339adc00d5555bacd14a161051eb28eb Mon Sep 17 00:00:00 2001
+From: Venu Kummari <venu2805k@gmail.com>
+Date: Fri, 23 Oct 2026 18:41:59 +0000
+Subject: [PATCH v1] Don't reduce range containment with a nullable element to
+ a constant
+
+The planner support functions for elem <@ range and range @> elem
+replace the call with a constant when the range is a constant that is
+empty (false) or unbounded on both sides (true).  But both operators are
+strict, so a NULL element must yield NULL.  The constant is wrong
+wherever NULL and false are distinguished, e.g. in the select list,
+under NOT, or in IS NULL tests:
+
+  SELECT c, '(,)'::int4range @> c, NOT ('empty'::int4range @> c)
+  FROM (VALUES (NULL::int), (1)) v(c);
+
+returned true and true for the NULL row instead of NULL and NULL.
+
+Only reduce to a constant when expr_is_nonnullable() proves that the
+element can't be NULL.
+
+Bug introduced by 075df6b20.  Back-patch to v17.
+---
+ src/backend/utils/adt/rangetypes.c       | 19 ++++++-----
+ src/test/regress/expected/rangetypes.out | 42 ++++++++++++++++++++----
+ src/test/regress/sql/rangetypes.sql      | 13 ++++++++
+ 3 files changed, 60 insertions(+), 14 deletions(-)
+
+diff --git a/src/backend/utils/adt/rangetypes.c b/src/backend/utils/adt/rangetypes.c
+index 84d71761c1..557972a7d1 100644
+--- a/src/backend/utils/adt/rangetypes.c
++++ b/src/backend/utils/adt/rangetypes.c
+@@ -3037,15 +3037,18 @@ find_simplified_clause(PlannerInfo *root, Expr *rangeExpr, Expr *elemExpr)
+ 
+ 	range_deserialize(rangetypcache, range, &lower, &upper, &empty);
+ 
+-	if (empty)
+-	{
+-		/* if the range is empty, then there can be no matches */
+-		return makeBoolConst(false, false);
+-	}
+-	else if (lower.infinite && upper.infinite)
++	if (empty || (lower.infinite && upper.infinite))
+ 	{
+-		/* the range has infinite bounds, so it matches everything */
+-		return makeBoolConst(true, false);
++		/*
++		 * If the range is empty there can be no matches, and if both bounds
++		 * are infinite it matches everything.  But the operators are strict,
++		 * so a NULL element yields NULL, not false or true.  The constant
++		 * result is therefore only correct if the element can't be NULL;
++		 * otherwise leave the expression alone.
++		 */
++		if (!expr_is_nonnullable(root, elemExpr, NOTNULL_SOURCE_HASHTABLE))
++			return NULL;
++		return makeBoolConst(!empty, false);
+ 	}
+ 	else
+ 	{
+diff --git a/src/test/regress/expected/rangetypes.out b/src/test/regress/expected/rangetypes.out
+index fb1bb30b7e..7927f2bd76 100644
+--- a/src/test/regress/expected/rangetypes.out
++++ b/src/test/regress/expected/rangetypes.out
+@@ -1912,19 +1912,19 @@ DETAIL:  A result of type anyrange requires at least one input of type anyrange
+ -- empty range
+ explain (verbose, costs off)
+ select current_date <@ daterange 'empty';
+-   QUERY PLAN    
+------------------
++                   QUERY PLAN                   
++------------------------------------------------
+  Result
+-   Output: false
++   Output: (CURRENT_DATE <@ 'empty'::daterange)
+ (2 rows)
+ 
+ -- unbounded range
+ explain (verbose, costs off)
+ select current_date <@ daterange(NULL, NULL);
+-   QUERY PLAN   
+-----------------
++                  QUERY PLAN                  
++----------------------------------------------
+  Result
+-   Output: true
++   Output: (CURRENT_DATE <@ '(,)'::daterange)
+ (2 rows)
+ 
+ -- only lower bound present
+@@ -1998,6 +1998,36 @@ select daterange('2002-09-25'::date, 'Infinity', '[]') @> current_date;
+    Output: ((CURRENT_DATE >= '09-25-2002'::date) AND (CURRENT_DATE <= 'infinity'::date))
+ (2 rows)
+ 
++-- A NULL element must give NULL, so these can't be reduced to constants
++-- unless the element is known not to be NULL
++explain (verbose, costs off)
++select c <@ int4range(NULL, NULL), int4range(NULL, NULL) @> c,
++       c <@ 'empty'::int4range, 'empty'::int4range @> c
++from (values (NULL::int), (1)) v(c);
++                                                                                      QUERY PLAN                                                                                      
++--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
++ Values Scan on "*VALUES*"
++   Output: ("*VALUES*".column1 <@ '(,)'::int4range), ('(,)'::int4range @> "*VALUES*".column1), ("*VALUES*".column1 <@ 'empty'::int4range), ('empty'::int4range @> "*VALUES*".column1)
++(2 rows)
++
++select c <@ int4range(NULL, NULL), int4range(NULL, NULL) @> c,
++       c <@ 'empty'::int4range, not ('empty'::int4range @> c)
++from (values (NULL::int), (1)) v(c);
++ ?column? | ?column? | ?column? | ?column? 
++----------+----------+----------+----------
++          |          |          | 
++ t        | t        | f        | t
++(2 rows)
++
++explain (verbose, costs off)
++select coalesce(c, 0) <@ int4range(NULL, NULL), 'empty'::int4range @> coalesce(c, 0)
++from (values (NULL::int), (1)) v(c);
++        QUERY PLAN         
++---------------------------
++ Values Scan on "*VALUES*"
++   Output: true, false
++(2 rows)
++
+ -- Check that volatile cases are not optimized
+ explain (verbose, costs off)
+ select now() <@ tstzrange('2024-01-20 00:00', '2024-01-21 00:00');
+diff --git a/src/test/regress/sql/rangetypes.sql b/src/test/regress/sql/rangetypes.sql
+index e4062c3e6a..cd1081ca83 100644
+--- a/src/test/regress/sql/rangetypes.sql
++++ b/src/test/regress/sql/rangetypes.sql
+@@ -697,6 +697,19 @@ select daterange('-Infinity', '1997-04-10'::date, '()') @> current_date;
+ explain (verbose, costs off)
+ select daterange('2002-09-25'::date, 'Infinity', '[]') @> current_date;
+ 
++-- A NULL element must give NULL, so these can't be reduced to constants
++-- unless the element is known not to be NULL
++explain (verbose, costs off)
++select c <@ int4range(NULL, NULL), int4range(NULL, NULL) @> c,
++       c <@ 'empty'::int4range, 'empty'::int4range @> c
++from (values (NULL::int), (1)) v(c);
++select c <@ int4range(NULL, NULL), int4range(NULL, NULL) @> c,
++       c <@ 'empty'::int4range, not ('empty'::int4range @> c)
++from (values (NULL::int), (1)) v(c);
++explain (verbose, costs off)
++select coalesce(c, 0) <@ int4range(NULL, NULL), 'empty'::int4range @> coalesce(c, 0)
++from (values (NULL::int), (1)) v(c);
++
+ -- Check that volatile cases are not optimized
+ explain (verbose, costs off)
+ select now() <@ tstzrange('2024-01-20 00:00', '2024-01-21 00:00');
+-- 
+2.43.0
+
