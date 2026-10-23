@@ -33,7 +33,7 @@ from typing import Any
 from pgfuzz.core.interfaces import Feedback, Generator, GeneratorContext
 from pgfuzz.core.types import Outcome, TestCase
 from pgfuzz.eval.features import feature_pairs, features_of
-from pgfuzz.grammar.dsl import Grammar, load_grammar
+from pgfuzz.grammar.dsl import Grammar, GrammarError, load_grammar, parse_grammar
 from pgfuzz.grammar.engine import Engine, Fail, Node, node_at, render, replace_at
 from pgfuzz.grammar.rewrite import Rewriter
 from pgfuzz.grammar.schema import Schema, load_schema, validate_schema
@@ -97,6 +97,9 @@ class GrammarGenerator(Generator):
         mm_per_query: int = 1,
         mm_weights: dict[str, float] | None = None,
         plan_guidance: bool = True,
+        extra_grammars: list[str] | str | None = None,
+        seeds: list[str] | str | None = None,
+        seed_prob: float = 0.05,
     ) -> None:
         self.grammar_path, self.schema_path = grammar, schema
         self.start, self.setup_rule = start, setup_rule
@@ -108,6 +111,12 @@ class GrammarGenerator(Generator):
         self.mm_prob, self.mm_per_query, self.mm_weights = float(mm_prob), int(mm_per_query), mm_weights
         self.mm_built: Counter[str] = Counter()
         self.plan_guidance = bool(plan_guidance)
+        self.extra_grammars = _paths(extra_grammars, "*.pgg")
+        self.seed_paths = _paths(seeds, "*.sql")
+        self.seed_prob = float(seed_prob)
+        self.fragments_loaded: list[str] = []
+        self.fragments_rejected: dict[str, str] = {}
+        self.seed_cases: list[list[str]] = []
         self.seen_plans: set[str] = set()
         self.corpus: list[_Entry] = []
         self.pending: dict[int, _Built] = {}
@@ -125,8 +134,15 @@ class GrammarGenerator(Generator):
     def setup(self, ctx: GeneratorContext) -> None:
         super().setup(ctx)
         self.rng = ctx.rng
-        self.grammar: Grammar = load_grammar(self.grammar_path)
+        self.grammar: Grammar = self._load_grammar()
         self.schema: Schema = load_schema(self.schema_path)
+        if self.seed_paths:
+            from pgfuzz.core.sqlsplit import split_statements
+
+            for p in self.seed_paths:
+                stmts = split_statements(Path(p).read_text(encoding="utf-8"))
+                if stmts:
+                    self.seed_cases.append(stmts)
         bad = validate_schema(self.schema, set(self.grammar.types))
         if bad:
             raise ValueError(f"{self.schema_path}: {bad}")
@@ -141,6 +157,24 @@ class GrammarGenerator(Generator):
         self.alt_where = {a.uid: f"{v.name}:{a.line}" for vs in self.grammar.rules.values()
                           for v in vs for a in v.alts}
         self.rewriter = Rewriter(self.grammar, self.rng, self.mm_per_query, self.mm_weights)
+
+    def _load_grammar(self) -> Grammar:
+        """The base grammar plus every extra fragment (LLM arm) that still parses
+        together with the ones before it; a fragment that breaks the combination is skipped."""
+        if not self.extra_grammars:
+            return load_grammar(self.grammar_path)
+        text = Path(self.grammar_path).read_text(encoding="utf-8")
+        for f in self.extra_grammars:
+            frag = Path(f).read_text(encoding="utf-8")
+            try:
+                g = parse_grammar(text + "\n" + frag, self.grammar_path)
+                Engine(g, load_schema(self.schema_path), self.rng)   # unknown builtins
+            except (GrammarError, ValueError) as e:
+                self.fragments_rejected[Path(f).name] = str(e)[:200]
+                continue
+            text += f"\n# ---- fragment {Path(f).name}\n" + frag
+            self.fragments_loaded.append(Path(f).name)
+        return parse_grammar(text, self.grammar_path)
 
     # ------------------------------------------------------------ generation
     def _derive(self, stmts: list[_Stmt]) -> _Built:
@@ -214,6 +248,10 @@ class GrammarGenerator(Generator):
         return stmts, "drop", e
 
     def next_testcase(self) -> TestCase | None:
+        if self.seed_cases and self.rng.random() < self.seed_prob:
+            self.ops["seed"] += 1
+            self.n_testcases += 1
+            return TestCase(list(self.rng.choice(self.seed_cases)), origin=self.name, meta={"op": "seed"})
         built = None
         for _ in range(4):
             if self.corpus and self.rng.random() < self.mutate_prob:
@@ -321,6 +359,9 @@ class GrammarGenerator(Generator):
             "generation_failures": self.gen_failures,
             "metamorphic_checks_built": dict(self.mm_built),
             "plan_shapes_seen": len(self.seen_plans),
+            "fragments_loaded": len(self.fragments_loaded),
+            "fragments_rejected": self.fragments_rejected,
+            "seed_cases": len(self.seed_cases),
             "corpus_reasons": dict(Counter(e.why for e in self.corpus)),
             **self.engine.stats(),
         }
@@ -332,9 +373,24 @@ class GrammarGenerator(Generator):
                              "mutate_prob": self.mutate_prob, "max_depth": self.max_depth,
                              "setup_prob": self.setup_prob, "queries": list(self.queries),
                              "mm_prob": self.mm_prob, "mm_per_query": self.mm_per_query}
+        if self.extra_grammars or self.seed_paths:
+            d["fragments"] = [Path(f).name for f in self.extra_grammars]
+            d["seed_files"] = len(self.seed_paths)
+            d["seed_prob"] = self.seed_prob
         if hasattr(self, "grammar"):
             d["grammar_stats"] = self.grammar.stats()
         return d
+
+
+def _paths(spec: list[str] | str | None, pattern: str) -> list[str]:
+    """Files named directly, or every ``pattern`` file of a named directory (sorted)."""
+    if not spec:
+        return []
+    out: list[str] = []
+    for item in [spec] if isinstance(spec, str) else spec:
+        p = Path(item)
+        out += sorted(str(q) for q in p.glob(pattern)) if p.is_dir() else [str(p)] if p.exists() else []
+    return out
 
 
 def _split(tokens: list[str]) -> list[list[str]]:

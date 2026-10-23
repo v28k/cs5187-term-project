@@ -262,6 +262,54 @@ def cmd_features(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_llm(a: argparse.Namespace) -> int:
+    from pgfuzz.llm import commits as cm
+
+    if a.llm_cmd == "mine":
+        ds = cm.mine(a.repo, a.since, a.until, limit=a.limit, require_test=not a.any)
+        cm.save(ds, a.out)
+        print(f"{len(ds)} commit(s) -> {a.out}")
+        for d in ds:
+            print(f"  {d.short} {d.date} {d.stats['target_lines']:>4} lines  {d.subject[:70]}")
+        return 0
+    from pgfuzz.llm.loop import render_markdown, summarize
+
+    if a.llm_cmd == "report":
+        s = summarize(a.out)
+        print(render_markdown(s) if not a.json else json.dumps(s, indent=1))
+        return 0
+    from pgfuzz.llm.client import LLMClient
+    from pgfuzz.llm.gate import Gate, GateConfig
+    from pgfuzz.llm.loop import extend
+    from pgfuzz.llm.prompt import system_prompt
+    from pgfuzz.runner import load_config
+
+    cfg = load_config(a.config)
+    gens = [c for c in cfg.configs if "GrammarGenerator" in c.generator.plugin]
+    if not gens:
+        raise SystemExit("the config has no grammar arm (needed for grammar and schema paths)")
+    gargs = gens[0].generator.render(**cfg.substitutions(gens[0].name, 0, 0))
+    ds = cm.load(a.commits)
+    if a.only:
+        ds = [d for d in ds if any(d.sha.startswith(x) for x in a.only.split(","))]
+    ds = ds[:a.limit]
+    gc = GateConfig(sample_n=a.sample, coverage_build=a.coverage_build, pg_repo=a.pg_repo, pg_head=a.pg_head)
+    ex = _executor_from(a.config, a.name)
+    client = LLMClient(a.out, mode=a.mode, model=a.model, effort=a.effort)
+    ex.start()
+    try:
+        res = extend(ds, client, Gate(gargs["grammar"], gargs["schema"], ex, gc),
+                     system_prompt(gargs["grammar"], gargs["schema"]), a.out, max_rounds=a.rounds)
+    finally:
+        ex.stop()
+    print(f"{res.done} commit(s) finished, {res.accepted} accepted; ledger: {Path(a.out) / 'ledger.jsonl'}")
+    if res.stopped_for:
+        print(f"manual mode: answer the prompt in {res.stopped_for}, save the JSON as "
+              f"{Path(a.out) / 'responses' / (Path(res.stopped_for).stem + '.json')}, and re-run")
+    print(render_markdown(summarize(a.out)))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="pgfuzz", description="Evaluation harness for grammar-aware PostgreSQL fuzzing")
     ap.add_argument("-v", "--verbose", action="count", default=1, help="-v info (default), -vv debug")
@@ -333,6 +381,35 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--execute", action="store_true", help="run them on the configured executor")
     p.add_argument("--out", help="directory for bug-candidate test cases")
     p.set_defaults(fn=cmd_sample)
+
+    p = sub.add_parser("llm", help="commit-directed grammar extension (Grammar + LLM arm)")
+    lsub = p.add_subparsers(dest="llm_cmd", required=True)
+    q = lsub.add_parser("mine", help="digest recent PostgreSQL commits")
+    q.add_argument("repo", help="PostgreSQL git checkout")
+    q.add_argument("--since", required=True, help="date (YYYY-MM-DD) or ref")
+    q.add_argument("--until", default="HEAD")
+    q.add_argument("--limit", type=int, default=200)
+    q.add_argument("--any", action="store_true", help="also commits that add no regression-test SQL")
+    q.add_argument("--out", default="../results/llm/commits.json")
+    q = lsub.add_parser("extend", help="ask for fragments, gate them on the server, repair, keep the accepted")
+    q.add_argument("config", help="experiment config (executor + grammar arm)")
+    q.add_argument("commits", help="commits.json from 'llm mine'")
+    q.add_argument("--name", help="use the executor of this config")
+    q.add_argument("--out", default="../results/llm")
+    q.add_argument("--mode", choices=["api", "manual"], default="api")
+    q.add_argument("--model", default="claude-opus-5-5")
+    q.add_argument("--effort", default="high", choices=["low", "medium", "high", "xhigh", "max"])
+    q.add_argument("--rounds", type=int, default=3, help="proposal + repair rounds per commit")
+    q.add_argument("--limit", type=int, default=30)
+    q.add_argument("--only", help="comma-separated commit sha prefixes")
+    q.add_argument("--sample", type=int, default=150, help="test cases per gate sample")
+    q.add_argument("--coverage-build", help="gcov build dir of the server (enables the diff-coverage check)")
+    q.add_argument("--pg-repo", help="git checkout for mapping changed lines to the build's revision")
+    q.add_argument("--pg-head", default="HEAD")
+    q = lsub.add_parser("report", help="RQ4 summary of a ledger")
+    q.add_argument("--out", default="../results/llm")
+    q.add_argument("--json", action="store_true")
+    p.set_defaults(fn=cmd_llm)
 
     a = ap.parse_args(argv)
     _setup_logging(0 if a.quiet else a.verbose)

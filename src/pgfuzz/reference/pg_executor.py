@@ -416,6 +416,12 @@ class PostgresExecutor(Executor):
                     self._reopen_txn()
         return out
 
+    def reconnect(self) -> None:
+        """Close and reopen the session (gcov counters are written when a backend exits)."""
+        self.stop()
+        time.sleep(0.2)
+        self._connect(wait=True)
+
     def run_outside(self, statements: list[str]) -> None:
         """Run statements in autocommit, outside any test case (best effort)."""
         import psycopg
