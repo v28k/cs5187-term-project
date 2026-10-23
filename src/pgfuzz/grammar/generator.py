@@ -34,6 +34,7 @@ from pgfuzz.core.types import Outcome, TestCase
 from pgfuzz.eval.features import feature_pairs, features_of
 from pgfuzz.grammar.dsl import Grammar, load_grammar
 from pgfuzz.grammar.engine import Engine, Fail, Node, node_at, render, replace_at
+from pgfuzz.grammar.rewrite import Rewriter
 from pgfuzz.grammar.schema import Schema, load_schema, validate_schema
 
 
@@ -91,6 +92,9 @@ class GrammarGenerator(Generator):
         corpus_max: int = 500,
         null_prob: float = 0.06,
         track_alternatives: bool = True,
+        mm_prob: float = 0.0,
+        mm_per_query: int = 1,
+        mm_weights: dict[str, float] | None = None,
     ) -> None:
         self.grammar_path, self.schema_path = grammar, schema
         self.start, self.setup_rule = start, setup_rule
@@ -99,6 +103,8 @@ class GrammarGenerator(Generator):
         self.max_depth, self.soft_depth = max_depth, soft_depth
         self.mutate_prob, self.corpus_max, self.null_prob = mutate_prob, corpus_max, null_prob
         self.track_alternatives = track_alternatives
+        self.mm_prob, self.mm_per_query, self.mm_weights = float(mm_prob), int(mm_per_query), mm_weights
+        self.mm_built: Counter[str] = Counter()
         self.corpus: list[_Entry] = []
         self.pending: dict[int, _Built] = {}
         self.seen_pairs: set[tuple[str, str]] = set()
@@ -130,6 +136,7 @@ class GrammarGenerator(Generator):
                              null_prob=self.null_prob)
         self.alt_where = {a.uid: f"{v.name}:{a.line}" for vs in self.grammar.rules.values()
                           for v in vs for a in v.alts}
+        self.rewriter = Rewriter(self.grammar, self.rng, self.mm_per_query, self.mm_weights)
 
     # ------------------------------------------------------------ generation
     def _derive(self, stmts: list[_Stmt]) -> _Built:
@@ -220,11 +227,27 @@ class GrammarGenerator(Generator):
                 built.sql = ["SELECT 1"]
         self.ops[built.op] += 1
         self.n_testcases += 1
-        tc = TestCase(built.sql, origin=self.name, meta={"op": built.op})
+        meta: dict[str, Any] = {"op": built.op}
+        checks = self._checks(built) if self.mm_prob > 0 else []
+        if checks:
+            meta["checks"] = checks
+        tc = TestCase(built.sql, origin=self.name, meta=meta)
         self.pending[id(tc)] = built
         if len(self.pending) > 64:
             self.pending.pop(next(iter(self.pending)))
         return tc
+
+    def _checks(self, built: _Built) -> list[dict[str, Any]]:
+        """Metamorphic follow-ups (see pgfuzz.grammar.rewrite) for some query statements."""
+        out: list[dict[str, Any]] = []
+        parts_per_tree = Counter(built.owners)
+        for i, owner in enumerate(built.owners):
+            if parts_per_tree[owner] != 1 or i >= len(built.toks) or self.rng.random() >= self.mm_prob:
+                continue
+            for c in self.rewriter.checks(i, built.stmts[owner].tree, built.toks[i], built.sql[i], self.engine.schema):
+                self.mm_built[c.kind.split(":")[0]] += 1
+                out.append(c.to_dict())
+        return out
 
     # ------------------------------------------------------------ feedback
     def feedback(self, fb: Feedback) -> None:
@@ -289,6 +312,7 @@ class GrammarGenerator(Generator):
             "finds_by_op": dict(self.finds),
             "corpus": len(self.corpus),
             "generation_failures": self.gen_failures,
+            "metamorphic_checks_built": dict(self.mm_built),
             **self.engine.stats(),
         }
 
@@ -297,7 +321,8 @@ class GrammarGenerator(Generator):
         d: dict[str, Any] = {"name": self.name, "grammar": self.grammar_path, "schema": self.schema_path,
                              "grammar_sha1": hashlib.sha1(text).hexdigest()[:12],
                              "mutate_prob": self.mutate_prob, "max_depth": self.max_depth,
-                             "setup_prob": self.setup_prob, "queries": list(self.queries)}
+                             "setup_prob": self.setup_prob, "queries": list(self.queries),
+                             "mm_prob": self.mm_prob, "mm_per_query": self.mm_per_query}
         if hasattr(self, "grammar"):
             d["grammar_stats"] = self.grammar.stats()
         return d

@@ -1,0 +1,165 @@
+{
+ "outcome": "wrong_result",
+ "culprit": 3,
+ "sqlstate": null,
+ "message": "metamorphic check expr:scalar_sub failed: 20 rows vs 20 rows",
+ "details": {
+  "oracle": "metamorphic",
+  "variant": "mm:expr:scalar_sub",
+  "check": "expr:scalar_sub",
+  "lhs_sql": null,
+  "rhs_sql": "SELECT (FALSE AND ('0'::text LIKE ''::text)) AS c0, MAX ('2000-01-01 00:00:00+00'::timestamptz) AS c1 FROM tl AS a1, LATERAL (SELECT 10.0::numeric AS c0, '1970-01-01'::date AS c1) AS a2 GROUP BY a2.c0 UNION SELECT (COALESCE ((SELECT ('(,)'::int4range)), '(,5]'::int4range) @> a4.c0) AS c0, TO_TIMESTAMP ((a3.c0 % 100000)) AS c1 FROM (v0 AS a3 LEFT OUTER JOIN tl AS a4 ON (a3.c0 = a4.c0))",
+  "rows_lhs": 20,
+  "rows_rhs": 20
+ },
+ "meta": {
+  "op": "fresh",
+  "checks": [
+   {
+    "stmt": 2,
+    "kind": "expr:double_not",
+    "lhs": null,
+    "rhs": "SELECT PERCENTILE_CONT (0.5) WITHIN GROUP (ORDER BY LEAST ((SELECT MIN (0.0::float8) FILTER (WHERE (a2.c0 IN ((CARDINALITY ('{a,b}'::text[]) % NULLIF (100, 0))))) FROM tl AS a2 WHERE COALESCE ((NOT (NOT (TRUE))), FALSE)), GREATEST (1.0::float8, (1.0 / 3)::float8))) AS c0, COALESCE (0.0::numeric, VARIANCE (a1.c0)) AS c1, MAX ('{1,2,3}'::int[]) OVER (PARTITION BY a1.c1 ORDER BY 100::bigint) AS c2 FROM tp AS a1 GROUP BY a1.c1, a1.c0",
+    "mask": true
+   },
+   {
+    "stmt": 2,
+    "kind": "table_fence",
+    "lhs": null,
+    "rhs": "SELECT PERCENTILE_CONT (0.5) WITHIN GROUP (ORDER BY LEAST ((SELECT MIN (0.0::float8) FILTER (WHERE (a2.c0 IN ((CARDINALITY ('{a,b}'::text[]) % NULLIF (100, 0))))) FROM (SELECT * FROM tl OFFSET 0) AS a2 WHERE COALESCE (TRUE, FALSE)), GREATEST (1.0::float8, (1.0 / 3)::float8))) AS c0, COALESCE (0.0::numeric, VARIANCE (a1.c0)) AS c1, MAX ('{1,2,3}'::int[]) OVER (PARTITION BY a1.c1 ORDER BY 100::bigint) AS c2 FROM tp AS a1 GROUP BY a1.c1, a1.c0",
+    "mask": true
+   },
+   {
+    "stmt": 3,
+    "kind": "expr:scalar_sub",
+    "lhs": null,
+    "rhs": "SELECT (FALSE AND ('0'::text LIKE ''::text)) AS c0, MAX ('2000-01-01 00:00:00+00'::timestamptz) AS c1 FROM tl AS a1, LATERAL (SELECT 10.0::numeric AS c0, '1970-01-01'::date AS c1) AS a2 GROUP BY a2.c0 UNION SELECT (COALESCE ((SELECT ('(,)'::int4range)), '(,5]'::int4range) @> a4.c0) AS c0, TO_TIMESTAMP ((a3.c0 % 100000)) AS c1 FROM (v0 AS a3 LEFT OUTER JOIN tl AS a4 ON (a3.c0 = a4.c0))",
+    "mask": false
+   },
+   {
+    "stmt": 3,
+    "kind": "table_fence",
+    "lhs": null,
+    "rhs": "SELECT (FALSE AND ('0'::text LIKE ''::text)) AS c0, MAX ('2000-01-01 00:00:00+00'::timestamptz) AS c1 FROM (SELECT * FROM tl OFFSET 0) AS a1, LATERAL (SELECT 10.0::numeric AS c0, '1970-01-01'::date AS c1) AS a2 GROUP BY a2.c0 UNION SELECT (COALESCE ('(,)'::int4range, '(,5]'::int4range) @> a4.c0) AS c0, TO_TIMESTAMP ((a3.c0 % 100000)) AS c1 FROM (v0 AS a3 LEFT OUTER JOIN tl AS a4 ON (a3.c0 = a4.c0))",
+    "mask": false
+   }
+  ]
+ },
+ "statements": [
+  {
+   "status": "ok",
+   "sqlstate": null,
+   "message": null,
+   "duration_ms": 1.772757000026104,
+   "rows": null
+  },
+  {
+   "status": "ok",
+   "sqlstate": null,
+   "message": null,
+   "duration_ms": 1.3565960000505584,
+   "rows": null
+  },
+  {
+   "status": "ok",
+   "sqlstate": null,
+   "message": null,
+   "duration_ms": 2.9975489999287674,
+   "rows": 200,
+   "result_hash": "af041f794298aa5fde61961c",
+   "variants": {
+    "hashjoin_only": {
+     "settings": {
+      "enable_nestloop": "off",
+      "enable_mergejoin": "off"
+     },
+     "status": "ok",
+     "hash": "af041f794298aa5fde61961c",
+     "rows": 200,
+     "ms": 3.139
+    },
+    "partitionwise": {
+     "settings": {
+      "enable_partitionwise_join": "on",
+      "enable_partitionwise_aggregate": "on"
+     },
+     "status": "ok",
+     "hash": "af041f794298aa5fde61961c",
+     "rows": 200,
+     "ms": 3.586
+    }
+   },
+   "checks": [
+    {
+     "kind": "expr:double_not",
+     "status": "ok",
+     "lhs_hash": "af041f794298aa5fde61961c",
+     "rhs_hash": "af041f794298aa5fde61961c",
+     "lhs_rows": 200,
+     "rhs_rows": 200
+    },
+    {
+     "kind": "table_fence",
+     "status": "ok",
+     "lhs_hash": "af041f794298aa5fde61961c",
+     "rhs_hash": "af041f794298aa5fde61961c",
+     "lhs_rows": 200,
+     "rhs_rows": 200
+    }
+   ],
+   "plan_shape": "f2b2e42df26f420b"
+  },
+  {
+   "status": "ok",
+   "sqlstate": null,
+   "message": null,
+   "duration_ms": 2.3846439999033464,
+   "rows": 20,
+   "result_hash": "d24eda588cb5b7d437c95f55",
+   "variants": {
+    "no_memoize_material": {
+     "settings": {
+      "enable_memoize": "off",
+      "enable_material": "off"
+     },
+     "status": "ok",
+     "hash": "d24eda588cb5b7d437c95f55",
+     "rows": 20,
+     "ms": 2.732
+    },
+    "no_reordering": {
+     "settings": {
+      "enable_group_by_reordering": "off",
+      "enable_distinct_reordering": "off"
+     },
+     "status": "ok",
+     "hash": "d24eda588cb5b7d437c95f55",
+     "rows": 20,
+     "ms": 4.327
+    }
+   },
+   "checks": [
+    {
+     "kind": "expr:scalar_sub",
+     "status": "ok",
+     "lhs_hash": "d24eda588cb5b7d437c95f55",
+     "rhs_hash": "dfb7e6e9e7f556896d4fee83",
+     "lhs_rows": 20,
+     "rhs_rows": 20,
+     "lhs_sql": null,
+     "rhs_sql": "SELECT (FALSE AND ('0'::text LIKE ''::text)) AS c0, MAX ('2000-01-01 00:00:00+00'::timestamptz) AS c1 FROM tl AS a1, LATERAL (SELECT 10.0::numeric AS c0, '1970-01-01'::date AS c1) AS a2 GROUP BY a2.c0 UNION SELECT (COALESCE ((SELECT ('(,)'::int4range)), '(,5]'::int4range) @> a4.c0) AS c0, TO_TIMESTAMP ((a3.c0 % 100000)) AS c1 FROM (v0 AS a3 LEFT OUTER JOIN tl AS a4 ON (a3.c0 = a4.c0))",
+     "confirmed": true
+    },
+    {
+     "kind": "table_fence",
+     "status": "ok",
+     "lhs_hash": "d24eda588cb5b7d437c95f55",
+     "rhs_hash": "d24eda588cb5b7d437c95f55",
+     "lhs_rows": 20,
+     "rhs_rows": 20
+    }
+   ],
+   "plan_shape": "a1ee25bc9b681214"
+  }
+ ]
+}

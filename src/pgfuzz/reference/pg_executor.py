@@ -37,6 +37,21 @@ The oracle reports a mismatch as ``wrong_result``, an internal error under a
 variant as ``internal_error`` and a lost connection as a crash. Set it to
 ``true`` for the defaults or to ``{variants: [names...], per_query: 2, max_rows: 10000}``.
 
+Metamorphic checks (``metamorphic``): when the generator attached follow-up
+queries to a statement (``TestCase.meta["checks"]``, built on the derivation
+tree by ``pgfuzz.grammar.rewrite``), both sides of every check run after the
+statement succeeded, each in a savepoint that is rolled back, and their result
+digests are recorded in ``StatementResult.checks``. A mismatch is re-run once
+(``confirm``) and only counts if both sides return the same digests again, so
+non-deterministic queries do not produce reports. ``true`` or
+``{confirm: true, max_per_testcase: 6}``.
+
+Plan shapes (``plan_shapes``): every ``every``-th successful read-only query is
+also run under ``EXPLAIN (FORMAT JSON, COSTS OFF)`` and the tree of plan node
+types is digested into ``StatementResult.plan_shape``; guided generators keep
+test cases that reach a new plan shape (Query Plan Guidance, Ba and Rigger,
+ICSE 2023). ``true`` or ``{every: 1}``.
+
 Results are loaded as text (PostgreSQL's output format) so that values the
 client cannot convert (``'infinity'::date``, years > 9999, ...) are not
 misreported as errors, and result digests are exact.
@@ -78,6 +93,8 @@ class PostgresExecutor(Executor):
         recovery_timeout_s: float = 120,
         crash_log_wait_s: float = 1.0,
         differential: bool | dict[str, Any] = False,
+        metamorphic: bool | dict[str, Any] = False,
+        plan_shapes: bool | dict[str, Any] = False,
         text_results: bool = True,
     ) -> None:
         if isolation not in ("savepoint", "autocommit"):
@@ -109,7 +126,14 @@ class PostgresExecutor(Executor):
             if unknown:
                 raise ValueError(f"unknown plan variants {unknown}; known: {sorted(diff.DEFAULT_VARIANTS)}")
             self.variants = {n: dict(diff.DEFAULT_VARIANTS[n]) for n in names}
-        self.diff_stats = {"checked": 0, "variant_runs": 0}
+        self.diff_stats: dict[str, Any] = {"checked": 0, "variant_runs": 0}
+        m = metamorphic if isinstance(metamorphic, dict) else ({} if metamorphic else None)
+        self.mm_enabled = m is not None
+        self.mm_confirm = bool((m or {}).get("confirm", True))
+        self.mm_max = int((m or {}).get("max_per_testcase", 6))
+        ps = plan_shapes if isinstance(plan_shapes, dict) else ({} if plan_shapes else None)
+        self.plan_every = int((ps or {}).get("every", 1)) if ps is not None else 0
+        self._plan_n = 0
         self.conn: Any = None
         self._log_pos = 0
         self._info: dict[str, Any] = {}
@@ -198,6 +222,7 @@ class PostgresExecutor(Executor):
         d = {"name": self.name, "isolation": self.isolation, "statement_timeout_ms": self.statement_timeout_ms,
              "server_log": str(self.server_log) if self.server_log else None,
              "coverage": bool(self.coverage_command), "differential": self.diff_enabled,
+             "metamorphic": self.mm_enabled, "plan_shapes_every": self.plan_every,
              "diff_per_query": self.diff_per_query if self.diff_enabled else None, **self._info}
         if self._info.get("debug_assertions") == "off":
             d["warning"] = "server built without --enable-cassert: assertion failures cannot be observed"
@@ -235,8 +260,12 @@ class PostgresExecutor(Executor):
         in_txn = self.isolation == "savepoint"
         if in_txn:
             self.conn.execute("BEGIN")
+        checks_by_stmt: dict[int, list[dict[str, Any]]] = {}
+        if self.mm_enabled:
+            for c in (testcase.meta.get("checks") or [])[: self.mm_max]:
+                checks_by_stmt.setdefault(int(c.get("stmt", -1)), []).append(c)
 
-        for sql in testcase.statements:
+        for idx, sql in enumerate(testcase.statements):
             if lost:
                 results.append(StatementResult(StatementStatus.SKIPPED))
                 continue
@@ -245,6 +274,7 @@ class PostgresExecutor(Executor):
                 continue
             s0 = time.perf_counter()
             check = self.diff_enabled and bool(self.variants) and diff.eligible(sql)
+            my_checks = checks_by_stmt.get(idx, [])
             n_before = len(results)
             try:
                 if in_txn:
@@ -252,12 +282,14 @@ class PostgresExecutor(Executor):
                 cur = self.conn.execute(sql)
                 rows = cur.rowcount if cur.rowcount is not None and cur.rowcount >= 0 else None
                 digest = None
+                data: list[Any] = []
+                types: list[int] = []
                 if cur.description is not None:
                     data = cur.fetchall()
+                    types = [c.type_code for c in cur.description]
                     rows = len(data)
                     if check:
-                        digest, _ = diff.result_digest(data, [c.type_code for c in cur.description],
-                                                       diff.masks_floats(sql), self.diff_max_rows)
+                        digest, _ = diff.result_digest(data, types, diff.masks_floats(sql), self.diff_max_rows)
                 st = StatementResult(StatementStatus.OK, duration_ms=_ms(s0), rows=rows, result_hash=digest)
                 results.append(st)
                 idle = False
@@ -275,6 +307,19 @@ class PostgresExecutor(Executor):
                         st.sqlstate = st.variants[lost_v].get("sqlstate")
                         st.message = f"server connection lost while running plan variant {lost_v}"
                         lost = True
+                if my_checks and not idle and not lost and cur.description is not None:
+                    st.checks = self._run_checks(sql, data, types, my_checks)
+                    lost_c = next((c for c in st.checks if c["status"] == "connection_lost"), None)
+                    if lost_c is not None:
+                        st.status = StatementStatus.CONNECTION_LOST
+                        st.sqlstate = lost_c.get("sqlstate")
+                        st.message = f"server connection lost while running metamorphic check {lost_c['kind']}"
+                        lost = True
+                if self.plan_every and not idle and not lost and cur.description is not None and in_txn \
+                        and diff.eligible(sql):
+                    self._plan_n += 1
+                    if self._plan_n % self.plan_every == 0:
+                        st.plan_shape = self._plan_shape(sql)
             except psycopg.Error as e:
                 del results[n_before:]  # the statement may have succeeded before RELEASE failed
                 sqlstate = getattr(e, "sqlstate", None)
@@ -368,6 +413,108 @@ class PostgresExecutor(Executor):
                     self._reopen_txn()
         return out
 
+    def _run_side(self, sql: str, mask: bool) -> dict[str, Any]:
+        """Run one read-only query in a savepoint that is rolled back; digest the result."""
+        import psycopg
+
+        sp = self.isolation == "savepoint"
+        rec: dict[str, Any] = {}
+        try:
+            self.conn.execute("SAVEPOINT pgfuzz_m" if sp else "BEGIN")
+            cur = self.conn.execute(sql)
+            data = cur.fetchall() if cur.description is not None else []
+            h, n = diff.result_digest(data, [c.type_code for c in cur.description or []], mask, self.diff_max_rows)
+            rec.update(status="ok", hash=h, rows=n)
+        except psycopg.Error as e:
+            if not self._alive():
+                return {"status": "connection_lost", "sqlstate": getattr(e, "sqlstate", None), "message": _message(e)}
+            rec.update(status="error", sqlstate=getattr(e, "sqlstate", None), message=_message(e))
+        except Exception as e:  # client-side decoding problems
+            rec.update(status="client_error", message=f"{type(e).__name__}: {e}")
+        try:
+            if sp:
+                self.conn.execute("ROLLBACK TO SAVEPOINT pgfuzz_m")
+                self.conn.execute("RELEASE SAVEPOINT pgfuzz_m")
+            else:
+                self.conn.execute("ROLLBACK")
+        except psycopg.Error:
+            if not self._alive():
+                return {"status": "connection_lost", "sqlstate": None, "message": "lost while rolling back a check"}
+            if sp:
+                self._reopen_txn()
+        return rec
+
+    def _run_checks(self, sql: str, data: list[Any], types: list[int], checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Run the metamorphic checks of one successful statement (see ``pgfuzz.grammar.rewrite``)."""
+        out: list[dict[str, Any]] = []
+        st = self.diff_stats
+        for c in checks:
+            kind, lhs, rhs, mask = str(c.get("kind")), c.get("lhs"), str(c.get("rhs")), bool(c.get("mask"))
+            st["mm_checks"] = st.get("mm_checks", 0) + 1
+            st[f"mm_run:{kind.split(':')[0]}"] = st.get(f"mm_run:{kind.split(':')[0]}", 0) + 1
+            rec: dict[str, Any] = {"kind": kind}
+            if lhs is None:
+                h, n = diff.result_digest(data, types, mask, self.diff_max_rows)
+                left: dict[str, Any] = {"status": "ok", "hash": h, "rows": n}
+            else:
+                left = self._run_side(lhs, mask)
+            right = self._run_side(rhs, mask) if left["status"] == "ok" else {"status": "skipped"}
+            failed = left if left["status"] != "ok" else right if right["status"] not in ("ok", "skipped") else None
+            if failed is not None:
+                side = "lhs" if failed is left else "rhs"
+                rec.update(status=failed["status"], side=side, sqlstate=failed.get("sqlstate"),
+                           message=failed.get("message"), sql=lhs if side == "lhs" else rhs)
+                st["mm_side_errors"] = st.get("mm_side_errors", 0) + 1
+                out.append(rec)
+                if failed["status"] == "connection_lost":
+                    return out
+                continue
+            rec.update(status="ok", lhs_hash=left["hash"], rhs_hash=right["hash"],
+                       lhs_rows=left["rows"], rhs_rows=right["rows"])
+            if left["hash"] is not None and right["hash"] is not None and left["hash"] != right["hash"]:
+                rec.update(lhs_sql=lhs, rhs_sql=rhs)
+                if self.mm_confirm:
+                    left2 = self._run_side(lhs if lhs is not None else sql, mask)
+                    right2 = self._run_side(rhs, mask)
+                    if "connection_lost" in (left2["status"], right2["status"]):
+                        rec.update(status="connection_lost", message="lost while confirming a check")
+                        out.append(rec)
+                        return out
+                    rec["confirmed"] = (left2.get("hash") == left["hash"] and right2.get("hash") == right["hash"])
+                else:
+                    rec["confirmed"] = True
+                key = "mm_mismatch" if rec["confirmed"] else "mm_unconfirmed"
+                st[key] = st.get(key, 0) + 1
+            out.append(rec)
+        return out
+
+    def _plan_shape(self, sql: str) -> str | None:
+        """Digest of the plan's node structure for ``sql`` (costs and row counts ignored)."""
+        import hashlib
+
+        import psycopg
+
+        try:
+            self.conn.execute("SAVEPOINT pgfuzz_p")
+            row = self.conn.execute(f"EXPLAIN (FORMAT JSON, COSTS OFF) {sql}").fetchone()
+            self.conn.execute("ROLLBACK TO SAVEPOINT pgfuzz_p")
+            self.conn.execute("RELEASE SAVEPOINT pgfuzz_p")
+        except psycopg.Error:
+            if self._alive():
+                try:
+                    self.conn.execute("ROLLBACK TO SAVEPOINT pgfuzz_p")
+                    self.conn.execute("RELEASE SAVEPOINT pgfuzz_p")
+                except psycopg.Error:
+                    self._reopen_txn()
+            return None
+        try:
+            plan = json.loads(row[0])[0]["Plan"] if isinstance(row[0], str) else row[0][0]["Plan"]
+        except (ValueError, KeyError, IndexError, TypeError):
+            return None
+        shape = plan_shape_string(plan)
+        self.diff_stats["plan_shapes_sampled"] = self.diff_stats.get("plan_shapes_sampled", 0) + 1
+        return hashlib.blake2b(shape.encode(), digest_size=8).hexdigest()
+
     def _txn_status(self) -> str:
         from psycopg.pq import TransactionStatus
 
@@ -415,6 +562,21 @@ class PostgresExecutor(Executor):
         data = json.loads(out.stdout.strip().splitlines()[-1])
         fields = CoverageSample.__dataclass_fields__
         return CoverageSample(**{k: int(v) for k, v in data.items() if k in fields and v is not None})
+
+
+# Plan properties that distinguish algorithms; relation names, costs and row
+# estimates do not count, so the shape is stable across data and literals.
+_PLAN_KEYS = ("Node Type", "Join Type", "Strategy", "Partial Mode", "Parallel Aware", "Command",
+              "Scan Direction", "Subplan Name", "Parent Relationship")
+
+
+def plan_shape_string(plan: dict[str, Any]) -> str:
+    """Canonical text of a plan tree's shape, e.g. ``Hash Join[Inner](Seq Scan,Hash(Seq Scan))``."""
+    label = "|".join(str(plan[k]) for k in _PLAN_KEYS if k in plan and plan[k] not in (False, None))
+    kids = plan.get("Plans") or []
+    if not kids:
+        return label
+    return f"{label}(" + ",".join(plan_shape_string(k) for k in kids) + ")"
 
 
 def _ms(t0: float) -> float:

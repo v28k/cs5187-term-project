@@ -182,6 +182,10 @@ def cmd_sample(a: argparse.Namespace) -> int:
                 if out:
                     out.mkdir(parents=True, exist_ok=True)
                     (out / f"tc{i}.sql").write_text(";\n".join(tc.statements) + ";\n", encoding="utf-8")
+                    (out / f"tc{i}.json").write_text(json.dumps({
+                        "outcome": cls.outcome.value, "culprit": cls.culprit, "sqlstate": cls.sqlstate,
+                        "message": cls.message, "details": cls.details, "meta": tc.meta,
+                        "statements": [r.to_dict() for r in res.statements]}, indent=1, default=str), encoding="utf-8")
     finally:
         ex.stop()
     stats = getattr(gen, "stats", lambda: {})()

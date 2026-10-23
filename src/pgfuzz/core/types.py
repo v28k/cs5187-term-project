@@ -93,7 +93,12 @@ class StatementResult:
     """``result_hash`` is a digest of the result multiset, and ``variants`` maps a
     plan-variant name (e.g. ``"no_hashjoin"``) to what the same statement returned
     under that planner setting: ``{"status", "sqlstate", "message", "hash", "rows", "settings"}``.
-    Both are filled only when the executor runs the differential oracle."""
+    Both are filled only when the executor runs the differential oracle.
+
+    ``checks`` holds the outcome of metamorphic checks the generator attached to
+    the statement (``TestCase.meta["checks"]``, see ``pgfuzz.grammar.rewrite``):
+    ``{"kind", "status", "lhs_hash", "rhs_hash", "lhs_rows", "rhs_rows", "confirmed", ...}``.
+    ``plan_shape`` is a digest of the plan's node types (plan-shape guidance)."""
 
     status: StatementStatus
     sqlstate: str | None = None
@@ -102,14 +107,15 @@ class StatementResult:
     rows: int | None = None
     result_hash: str | None = None
     variants: dict[str, dict[str, Any]] | None = None
+    checks: list[dict[str, Any]] | None = None
+    plan_shape: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["status"] = self.status.value
-        if self.result_hash is None:
-            d.pop("result_hash")
-        if self.variants is None:
-            d.pop("variants")
+        for k in ("result_hash", "variants", "checks", "plan_shape"):
+            if d[k] is None:
+                d.pop(k)
         return d
 
 

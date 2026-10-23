@@ -7,6 +7,10 @@ Rules, in priority order for a test case:
 3. SQLSTATE of each failing statement, mapped by class (PostgreSQL Appendix A).
 4. Differential facts of successful statements: a plan variant that raised an
    internal error, or returned a different result multiset (``wrong_result``).
+5. Metamorphic facts of successful statements: a confirmed mismatch between
+   the two sides of a check (``wrong_result``, variant ``mm:<kind>``), or an
+   internal error raised by a follow-up query. Unconfirmed mismatches (the
+   re-run disagreed with the first run) are non-deterministic and ignored.
 
 When the culprit is a bug candidate, the C backtrace that PostgreSQL printed to
 the server log (after an assertion, or for internal errors with
@@ -209,6 +213,25 @@ def classify_variants(st: StatementResult, benign_internal: tuple[re.Pattern[str
     return None
 
 
+def classify_checks(st: StatementResult, benign_internal: tuple[re.Pattern[str], ...]) -> tuple[Outcome, dict[str, Any]] | None:
+    """Judge metamorphic-check facts of one successful statement."""
+    for c in st.checks or ():
+        kind = c.get("kind", "?")
+        if c.get("status") == "error":
+            oc = classify_sqlstate(c.get("sqlstate"), c.get("message"), benign_internal)
+            if oc.is_bug_candidate:
+                return oc, {"oracle": "metamorphic", "variant": f"mm:{kind}", "check": kind, "side": c.get("side"),
+                            "check_sql": c.get("sql"), "sqlstate": c.get("sqlstate"), "message": c.get("message")}
+        elif c.get("status") == "ok" and c.get("confirmed") and c.get("lhs_hash") != c.get("rhs_hash"):
+            return Outcome.WRONG_RESULT, {
+                "oracle": "metamorphic", "variant": f"mm:{kind}", "check": kind, "sqlstate": None,
+                "message": f"metamorphic check {kind} failed: {c.get('lhs_rows')} rows vs {c.get('rhs_rows')} rows",
+                "lhs_sql": c.get("lhs_sql"), "rhs_sql": c.get("rhs_sql"),
+                "rows_lhs": c.get("lhs_rows"), "rows_rhs": c.get("rhs_rows"),
+            }
+    return None
+
+
 def classify(
     result: ExecResult,
     benign_internal: tuple[re.Pattern[str], ...] = DEFAULT_BENIGN_INTERNAL,
@@ -218,7 +241,7 @@ def classify(
     variant_info: dict[int, dict[str, Any]] = {}
     for i, st in enumerate(result.statements):
         if st.status is StatementStatus.OK:
-            vo = classify_variants(st, benign_internal)
+            vo = classify_variants(st, benign_internal) or classify_checks(st, benign_internal)
             if vo is None:
                 outcomes.append(Outcome.OK)
             else:
@@ -274,6 +297,10 @@ def classify(
         if lost_variant:
             details["variant"] = lost_variant
             details["settings"] = st.variants[lost_variant].get("settings", {})
+        lost_check = next((c for c in (st.checks or []) if c.get("status") == "connection_lost"), None)
+        if lost_check and not lost_variant:
+            details.update(oracle="metamorphic", variant=f"mm:{lost_check.get('kind')}",
+                           check=lost_check.get("kind"), check_sql=lost_check.get("sql"))
     if culprit in variant_info:
         info = variant_info[culprit]
         details.update({k: v for k, v in info.items() if k not in ("sqlstate", "message")})

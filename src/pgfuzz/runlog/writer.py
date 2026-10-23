@@ -97,7 +97,10 @@ class RunLog:
         if self.log_sql == "all" or (self.log_sql == "failures" and cls.is_bug_candidate):
             rec["sql"] = tc.statements
         if tc.meta:
-            rec["meta"] = tc.meta
+            meta = dict(tc.meta)
+            if "checks" in meta and not cls.is_bug_candidate:   # follow-up SQL only where it is needed
+                meta["checks"] = [c.get("kind") for c in meta["checks"]]
+            rec["meta"] = meta
         self._emit(self._events, rec)
 
     def harness_error(self, t: float, tc_id: int, error: str, fatal: bool) -> None:
