@@ -8,7 +8,8 @@
 #   python -m pgfuzz report ../results/rq1
 #
 # Arms: the random/mutation baseline; the plain grammar; grammar with the
-# tree-based oracles and plan guidance; and the LLM arm in three forms for the
+# tree-based oracles, plan guidance and feedback-weighted alternatives (and the
+# same without the weights, grammar_mm_flat); and the LLM arm in three forms for the
 # RQ4 ablation (fragments only, seeds only, both). Every arm gets the same
 # executor, oracles, schema, budget and per-trial seeds (paired design).
 # The LLM arms read ../results/llm (pgfuzz llm extend), built before this run.
@@ -72,6 +73,18 @@ configs:
         schema: "{config_dir}/../corpus/schema.yaml"
         mm_prob: 0.5
         plan_guidance: true
+        bandit: 0.1
+
+  - name: grammar_mm_flat
+    label: Grammar+Oracles, no bandit
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        schema: "{config_dir}/../corpus/schema.yaml"
+        mm_prob: 0.5
+        plan_guidance: true
+        bandit: 0.0
 
   - name: llm_frag
     label: +LLM fragments
@@ -82,6 +95,7 @@ configs:
         schema: "{config_dir}/../corpus/schema.yaml"
         mm_prob: 0.5
         plan_guidance: true
+        bandit: 0.1
         extra_grammars: "{config_dir}/../../results/llm/fragments"
 
   - name: llm_seeds
@@ -93,6 +107,7 @@ configs:
         schema: "{config_dir}/../corpus/schema.yaml"
         mm_prob: 0.5
         plan_guidance: true
+        bandit: 0.1
         seeds: "{config_dir}/../../results/llm/seeds"
         seed_prob: 0.05
 
@@ -105,6 +120,7 @@ configs:
         schema: "{config_dir}/../corpus/schema.yaml"
         mm_prob: 0.5
         plan_guidance: true
+        bandit: 0.1
         extra_grammars: "{config_dir}/../../results/llm/fragments"
         seeds: "{config_dir}/../../results/llm/seeds"
         seed_prob: 0.05

@@ -24,6 +24,7 @@ and the result is as valid as freshly generated SQL.
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from collections import Counter
 from dataclasses import dataclass, field
@@ -97,6 +98,7 @@ class GrammarGenerator(Generator):
         mm_per_query: int = 1,
         mm_weights: dict[str, float] | None = None,
         plan_guidance: bool = True,
+        bandit: float = 0.0,
         extra_grammars: list[str] | str | None = None,
         seeds: list[str] | str | None = None,
         seed_prob: float = 0.05,
@@ -111,6 +113,10 @@ class GrammarGenerator(Generator):
         self.mm_prob, self.mm_per_query, self.mm_weights = float(mm_prob), int(mm_per_query), mm_weights
         self.mm_built: Counter[str] = Counter()
         self.plan_guidance = bool(plan_guidance)
+        # Feedback-weighted alternatives (multiplicative weights, plan 5.3): learning rate
+        # of the per-alternative weight; 0 switches it off.
+        self.bandit = float(bandit)
+        self.reward_avg = 0.0
         self.extra_grammars = _paths(extra_grammars, "*.pgg")
         self.seed_paths = _paths(seeds, "*.sql")
         self.seed_prob = float(seed_prob)
@@ -349,6 +355,8 @@ class GrammarGenerator(Generator):
         why = ("signature" if fb.new_signature else "features" if fb.new_features
                else "pairs" if new_pairs and any_ok
                else "plan" if plans and self.plan_guidance else "")
+        if self.bandit > 0:
+            self._bandit_update(built, fb, bool(why))
         if not why:
             return
         if built.parent is not None:
@@ -360,6 +368,28 @@ class GrammarGenerator(Generator):
             weakest = min(range(len(self.corpus) - 1),
                           key=lambda k: (self.corpus[k].why == "signature", self.corpus[k].finds, -self.corpus[k].picks))
             del self.corpus[weakest]
+
+    BOOST_MIN, BOOST_MAX = 0.2, 5.0
+
+    def _bandit_update(self, built: _Built, fb: Feedback, novel: bool) -> None:
+        """Every alternative used by a tree gets the reward of that tree: 1 if the test
+        case was novel (it enters the corpus), -0.5 if the tree's statements failed, 0
+        otherwise; its weight is multiplied by exp(rate * (reward - average reward)),
+        clipped so that no alternative dies or dominates."""
+        bad: set[int] = set()
+        for i, oc in enumerate(fb.statement_outcomes):
+            if i < len(built.owners) and oc is not Outcome.OK and not oc.is_bug_candidate:
+                bad.add(built.owners[i])
+        rewards = []
+        boost = self.engine.alt_boost
+        for t, stmt in enumerate(built.stmts):
+            r = -0.5 if t in bad else (1.0 if novel else 0.0)
+            rewards.append(r)
+            step = math.exp(self.bandit * (r - self.reward_avg))
+            for uid in {n.alt for _, n in stmt.tree.walk() if n.sym[0] not in "#@"}:
+                boost[uid] = min(self.BOOST_MAX, max(self.BOOST_MIN, boost.get(uid, 1.0) * step))
+        if rewards:
+            self.reward_avg = 0.99 * self.reward_avg + 0.01 * (sum(rewards) / len(rewards))
 
     # ------------------------------------------------------------ reporting
     def stats(self) -> dict[str, Any]:
@@ -384,6 +414,7 @@ class GrammarGenerator(Generator):
             "generation_failures": self.gen_failures,
             "metamorphic_checks_built": dict(self.mm_built),
             "plan_shapes_seen": len(self.seen_plans),
+            "bandit": self._bandit_stats() if self.bandit > 0 else None,
             "fragments_loaded": len(self.fragments_loaded),
             "fragments_rejected": self.fragments_rejected,
             "seed_cases": len(self.seed_cases),
@@ -391,13 +422,22 @@ class GrammarGenerator(Generator):
             **self.engine.stats(),
         }
 
+    def _bandit_stats(self) -> dict[str, Any]:
+        b = self.engine.alt_boost
+        ranked = sorted(b.items(), key=lambda kv: -kv[1])
+        name = lambda uid: self.alt_where.get(uid, str(uid))  # noqa: E731
+        return {"reward_avg": round(self.reward_avg, 4), "boosted": len([v for v in b.values() if v > 1.0]),
+                "damped": len([v for v in b.values() if v < 1.0]),
+                "top": [(name(u), round(v, 2)) for u, v in ranked[:8]],
+                "bottom": [(name(u), round(v, 2)) for u, v in ranked[-8:]]}
+
     def describe(self) -> dict[str, Any]:
         text = Path(self.grammar_path).read_bytes() if Path(self.grammar_path).exists() else b""
         d: dict[str, Any] = {"name": self.name, "grammar": self.grammar_path, "schema": self.schema_path,
                              "grammar_sha1": hashlib.sha1(text).hexdigest()[:12],
                              "mutate_prob": self.mutate_prob, "max_depth": self.max_depth,
                              "setup_prob": self.setup_prob, "queries": list(self.queries),
-                             "mm_prob": self.mm_prob, "mm_per_query": self.mm_per_query}
+                             "mm_prob": self.mm_prob, "mm_per_query": self.mm_per_query, "bandit": self.bandit}
         if self.extra_grammars or self.seed_paths:
             d["fragments"] = [Path(f).name for f in self.extra_grammars]
             d["seed_files"] = len(self.seed_paths)

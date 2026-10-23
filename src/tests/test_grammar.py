@@ -143,3 +143,28 @@ def test_node_spans_cover_exactly_the_node_tokens():
             if nodes[nid].sym == "expr" and nodes[nid].typ == "bool":
                 seen_expr += 1
     assert seen_expr > 50
+
+
+def test_bandit_moves_weights_toward_novel_and_away_from_failing_alternatives():
+    import random as _r
+    import tempfile as _t
+    from pathlib import Path as _P
+
+    from pgfuzz.core.interfaces import Feedback, GeneratorContext
+    from pgfuzz.core.types import ExecResult, Outcome, StatementResult, StatementStatus
+    from pgfuzz.grammar.generator import GrammarGenerator
+
+    src = _P(__file__).resolve().parents[1]
+    g = GrammarGenerator(str(src / "grammar" / "postgres.pgg"), str(src / "corpus" / "schema.yaml"), bandit=0.5)
+    g.setup(GeneratorContext(1, _r.Random(1), _P(_t.mkdtemp())))
+    for k in range(60):
+        tc = g.next_testcase()
+        fail = k % 2 == 0
+        res = ExecResult([StatementResult(StatementStatus.ERROR if fail else StatementStatus.OK, "42883" if fail else None,
+                                          "no such function" if fail else None) for _ in tc.statements])
+        outs = [Outcome.SEMANTIC_ERROR if fail else Outcome.OK for _ in tc.statements]
+        g.feedback(Feedback(tc, res, outs[0], outs, frozenset(), False))
+    b = g.engine.alt_boost
+    assert b and min(b.values()) >= g.BOOST_MIN and max(b.values()) <= g.BOOST_MAX
+    assert any(v < 1.0 for v in b.values())          # failing trees pull their alternatives down
+    assert g.stats()["bandit"]["damped"] > 0
