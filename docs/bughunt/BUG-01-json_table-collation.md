@@ -100,3 +100,17 @@ json, jsonb, jsonpath and collate regression suites pass.
 > so these expressions keep no collation; a RowCompareExpr ends up with an empty
 > inputcollids list and ExecInitExprRec compiles zero column comparisons.
 > Attached patch adds the call, with regression tests.
+
+## Re-verification, 23 Oct 2026 (just before filing)
+
+Reproduced again from a fresh session on:
+
+| Build | Result |
+|---|---|
+| master 126976a8 (23 Oct 2026, newest at the time; cassert) | bug present |
+| REL_18_STABLE 9412c35 (newest 18.x branch head; cassert) | bug present |
+| 18.6 release | bug present |
+
+Newest master's git log has no commit touching this code since the bug was found,
+and a web search of pgsql-bugs on 23 Oct found no existing report, so it is not a
+duplicate and not fixed upstream yet.
