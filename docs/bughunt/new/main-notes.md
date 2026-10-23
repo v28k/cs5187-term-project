@@ -92,3 +92,41 @@ not in master yet.
 - ILIKE in single-byte encodings (sibling of c00a97b6): LATIN1 database, C locale,
   non-ASCII letters: ILIKE vs lower() LIKE lower() for 11 patterns, ESCAPE with
   non-ASCII escape characters, ~* and ~, index scan vs seq scan: all consistent.
+
+## Fifth round
+
+### Checked, no bug found
+- PlaceHolderVar fixes of this week (3138f248 RTE_RESULT removal, 7787aec8 outer-join
+  commutation): 18 mutants of 3138f248's tests and 12 mutants of 7787aec8's test (more
+  nesting, FULL/RIGHT joins, EXISTS, grouping sets/rollup/cube, window functions,
+  sublinks, VALUES, extra outer joins, coalesce/strict clauses). Newest master gives
+  the same results as OFFSET 0-fenced equivalents, with no assertion failures. 18.6
+  fails 8 of them with "failed to build any N-way joins" (fixed by 3138f248, which is
+  backpatched to 14). Built newest REL_18_STABLE (9412c35, cassert, port 5476): it
+  gives master's results for all 18, so the backpatch also covers our mutants.
+- 12 PHV queries over partitioned tables (LATERAL, coalesce from nullable side,
+  GROUP BY/DISTINCT/ORDER BY on the PHV, FULL JOIN, UNION ALL, window) under 7
+  planner configurations (partitionwise, merge only, no hashagg/sort, parallel, ...):
+  no errors, identical multisets.
+- Hash join null-keyed tuples (126976a8) with filters: WHERE conditions evaluated at
+  the join, extra ON conditions, NOT EXISTS with conditions, row-valued keys,
+  RIGHT join: 5 join methods agree on all 8 queries.
+- to_char() with formats ending in a decimal point (sibling of 776df8a6) for int4,
+  int8, float4, float8, numeric and D/PR/MI/PL/TH/SG suffixes: consistent across
+  types and with the fix's expected output. (TH after a decimal point is suppressed,
+  as on 18.6; EEEE followed by a literal drops the literal, but the docs require
+  EEEE to end the format.)
+- Query jumbling of SQL/JSON (pg_stat_statements on newest master): no assertion
+  failures; normalised texts correct for JSON_VALUE/QUERY/EXISTS/OBJECT/ARRAY/aggs/
+  MERGE RETURNING/IN lists.
+
+### Found but already reported upstream (duplicate, do not file)
+- JSON_TABLE column definitions are left out of the query ID (TableFunc.colvalexprs,
+  coltypes, coldefexprs, passingvalexprs and plan are query_jumble_ignore). Queries with
+  different column types, paths, ON ERROR behaviour, NESTED PATH or extra columns get
+  the same query identifier (4688385417845523979 for 8 different queries on master
+  and on 18.6), although one of them raises an error and the others do not.
+  Reported on pgsql-bugs by Ilya Staroverov in October 2026, patch under discussion:
+  https://www.postgresql.org/message-id/457969A9-5D24-422F-B09E-F388053DE028%40localhost.localdomain
+- The overnight campaigns keep rediscovering BUG-01 (hunt2b assertion
+  cde9712bc8db, hunt2a cross-version candidates a666c463ba86, e1fc243acce1).
