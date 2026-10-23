@@ -75,18 +75,21 @@ We present \tool, a grammar-aware fuzzer for \pg built on three ideas:
   \item A \emph{typed grammar} generates SQL as derivation trees. Every node
     knows its type and its place in the query (Section~\ref{sec:grammar}).
   \item \emph{Tree-based oracles} rewrite the derivation tree, not the text:
-    TLP on \texttt{WHERE} and \texttt{HAVING} at any query level, NoREC, ten
-    typed expression rewrites, CTE materialisation and table fences. A
-    plan-variant oracle and a cross-version oracle compare the same query
-    under other planner settings and on the last release
+    TLP on \texttt{WHERE}, \texttt{HAVING} and aggregates at any query level,
+    NoREC, typed expression and predicate rewrites, CTE materialisation,
+    table fences, a row-level security leak check and a cardinality-estimate
+    check. A plan-variant oracle and a cross-version oracle compare the same
+    query under other planner settings and on the last release
     (Section~\ref{sec:oracles}).
-  \item \emph{Commit-directed grammar extension}: an LLM reads a recent commit
-    and proposes grammar alternatives and seed queries; a \gate accepts them
-    only if the server runs them and they execute the lines the commit
-    changed (Section~\ref{sec:llm}).
+  \item \emph{Commit-directed extension}: an LLM reads a recent commit and
+    proposes grammar alternatives, seed queries and new equivalence rewrites;
+    a \gate accepts them only if the server runs them, they execute the lines
+    the commit changed, and a rewrite never changes a result
+    (Section~\ref{sec:llm}).
 \end{enumerate}
-\tool then reduces every finding to a short reproducer and records a verdict
-for it (Section~\ref{sec:triage}).
+\tool then reduces every finding on its derivation tree and its tokens,
+localizes wrong results to a planner path or to an always-applied rewrite,
+and drafts the upstream report (Section~\ref{sec:triage}).
 
 \num{First results.} In a four-minute smoke run on a server with the 23 bugs
 put back, \tool rediscovered an assertion failure in \texttt{JSON\_TABLE}
@@ -99,12 +102,15 @@ generator that reaches more of SQL also reaches more corner cases where two
 
 \paragraph{Contributions.}
 \begin{itemize}
-  \item A typed SQL grammar for \pg with node spans, so that oracles can
-    rewrite derivation trees (Section~\ref{sec:approach}).
-  \item Six metamorphic oracles on derivation trees, plus plan-variant and
-    cross-version oracles, with the precision of each (Section~\ref{sec:rq2}).
-  \item A commit-directed LLM extension with a \gate that checks validity,
-    reachability and diff coverage on the server (Section~\ref{sec:llm}).
+  \item A typed SQL grammar for \pg whose derivation trees serve generation,
+    mutation, metamorphic rewriting and reduction (Section~\ref{sec:approach}).
+  \item Metamorphic oracles on derivation trees, including a row-level
+    security leak check, plus plan-variant and cross-version oracles, with the
+    precision of each (Section~\ref{sec:rq2}).
+  \item A commit-directed LLM extension whose \gate checks validity,
+    reachability and diff coverage on the server, and tests LLM-proposed
+    equivalence rewrites on values and queries before the oracle uses them
+    (Section~\ref{sec:llm}).
   \item A benchmark of 23 real \pg bugs put back into one server, with a
     single-bug server per bug for attribution (Section~\ref{sec:rq3}).
   \item Two previously unknown \pg bugs, one wrong result and one assertion

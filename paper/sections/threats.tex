@@ -18,12 +18,16 @@ Our own oracles can be wrong. Two false-positive classes reached the smoke
 run (Section~\ref{sec:rq2}); we fixed them and added regression tests, but
 others may remain. We therefore report the verdict of every candidate, not
 only the real bugs. Verdicts are made by us and may contain mistakes; we
-release the reduced reproducers so that others can check them. Attribution in
+release the reduced reproducers so that others can check them. An accepted
+LLM rewrite is tested, not proven: the value probe and 150 test cases can miss
+an input on which it is not an identity. Such a rewrite would show up as a
+false-positive class in triage, which we report like any other. Attribution in
 RQ3 replays a test case on single-bug servers; a finding that needs two
 injected bugs at once is reported as unattributed, not credited to an arm.
 
 \paragraph{External threats.} We test one system, \pg, at one commit, with one
-schema of 9 relations. Bugs that need other data shapes, extensions or
+schema of 9 relations and one set of row-level security policies that we
+chose. Bugs that need other data shapes, extensions or
 concurrent sessions are out of reach. The 23 benchmark bugs are recent fixes in
 query processing with regression tests; bugs that were never fixed, or whose
 fix does not revert cleanly, are missing, and the benchmark may favour the

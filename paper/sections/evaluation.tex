@@ -77,12 +77,15 @@ generator and in what the generator can attach.
     checks, because it has no derivation trees.
   \item[\arm{Grammar}.] Step 1 alone: the typed grammar with
     feature-guided corpus, no metamorphic checks, no plan guidance.
-  \item[\arm{Grammar+Oracles}.] Steps 1--4: metamorphic checks on half the
-    queries and plan-shape guidance.
-  \item[\arm{+LLM}.] \arm{Grammar+Oracles} plus the fragments and seeds that
-    passed the \gate. For \rqref{4} we also run \arm{+LLM fragments} and
-    \arm{+LLM seeds} alone. The LLM never sees the 23 benchmark fixes: the
-    commit miner excludes them.
+  \item[\arm{Grammar+Oracles}.] Steps 1--4: metamorphic checks (including
+    the RLS and CERT checks) on half the queries, plan-shape guidance,
+    feedback-weighted alternatives and literals from the data profile. In
+    \rqref{1}, \arm{Grammar+Oracles, flat} is the same arm without the weights,
+    which isolates their effect.
+  \item[\arm{+LLM}.] \arm{Grammar+Oracles} plus the fragments, seeds and
+    equivalence rewrites that passed the \gate. For \rqref{4} we also run
+    \arm{+LLM fragments} and \arm{+LLM seeds} alone. The LLM never sees the 23
+    benchmark fixes: the commit miner excludes them.
 \end{description}
 All arms run with the plan-variant oracle and, in RQ3, the cross-version
 oracle, because these do not depend on the generator.
@@ -94,7 +97,9 @@ oracle, because these do not depend on the generator.
     features from a catalogue of 148 and distinct plan shapes, over time.
   \item[\rqref{2}.] Distinct bug candidates per oracle after signature
     de-duplication, and the verdict of each after triage: real, duplicate,
-    false positive, not a bug, or flaky (Equation~\ref{eq:precision}).
+    false positive, not a bug, or flaky (Equation~\ref{eq:precision}); we give
+    precision before and after fixing each false-positive class. CERT
+    candidates are performance issues and are counted apart.
   \item[\rqref{3}.] For each benchmark bug and arm: the number of trials that
     found it and the median time to the first finding. A crash or assertion is
     attributed by its signature; a wrong result or error is attributed by
@@ -102,18 +107,66 @@ oracle, because these do not depend on the generator.
     server: it belongs to bug $i$ if it fails on solo server $i$ and not on the
     fixed server.
   \item[\rqref{4}.] Share of commits whose proposal passes the gate, repair
-    rounds needed, reasons for rejection, diff coverage gained, tokens and
-    cost; and the \rqref{1}--\rqref{3} measures of the three LLM arms.
+    rounds needed, reasons for rejection, diff coverage gained, equivalence
+    rewrites proposed and accepted, tokens and cost; and the
+    \rqref{1}--\rqref{3} measures of the three LLM arms.
 \end{description}
 
 \subsection{Setup}
 Each arm runs \num{5} trials of one hour on one worker each, four workers in
 parallel, on \num{machine}. Following Klees et al.~\cite{klees2018evaluating},
-we report medians with interquartile ranges, compare arms with the two-sided
-Mann--Whitney U test, and give the Vargha--Delaney $\hat{A}_{12}$ effect
-size~\cite{vargha2000a12}. Each coverage worker writes its gcov counters to its
+and Arcuri and Briand~\cite{arcuri2011practical}, we report medians with
+interquartile ranges and 95\% bootstrap confidence intervals, compare arms
+with the two-sided Mann--Whitney U test, and give the Vargha--Delaney
+$\hat{A}_{12}$ effect size~\cite{vargha2000a12}. Each coverage worker writes its gcov counters to its
 own directory, so parallel trials do not mix coverage. The LLM is Claude Opus
 5.5 with structured output and a cached system prompt of about 9{,}000 tokens.
+
+\subsection{Component Checks}
+\label{sec:components}
+
+Before the campaigns, we checked each component on its own against master
+(Table~\ref{tab:components}). These are single runs on one seed, so they show
+that a component works and is sound, not how large its effect is in a
+campaign; the campaigns measure that.
+
+\begin{table}[t]
+  \centering
+  \small
+  \caption{Component checks on master (single runs). Each row compares the
+  component with the same run without it, or counts false positives of an
+  oracle over live checks.}
+  \label{tab:components}
+  \begin{tabular}{p{0.32\linewidth}p{0.58\linewidth}}
+    \toprule
+    Component & Result \\
+    \midrule
+    New rewrites (TLP on aggregates, predicate, NOT NULL, ORDER BY) &
+      798 live checks of the new kinds (1{,}066 in all) in 1{,}600 test cases, 0 false positives \\
+    RLS and CERT checks & 532 RLS and 58 CERT checks, 0 false positives \\
+    Data profile & column-versus-constant predicates that select 5--95\% of
+      their table: 29.3\% $\rightarrow$ 58.6\% \\
+    Feedback-weighted alternatives & distinct plan shapes in 1{,}000 test
+      cases: 419 $\rightarrow$ 533, validity unchanged (99.7\%) \\
+    Tree reduction (BUG-01 case) & final reproducer 116 $\rightarrow$ 79 tokens
+      (406 vs.\ 555 server runs) \\
+    Localization (BUG-02) & ``not toggled by planner settings'': the planner
+      support function, the true cause \\
+    Rewrite gate & accepted two identities (90/90, 88/88 checks equal);
+      rejected \texttt{\{e\}+1} (12 mismatches) and \texttt{\{e\} IS TRUE}
+      (value probe, $e=\mathrm{NULL}$) \\
+    Tree replay & 599 of 600 test cases replay to identical SQL in a fresh
+      process \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{observation}
+\label{obs:sampling}
+Testing a claimed equivalence on sampled queries is not enough: the false
+identity \texttt{\{e\} IS TRUE} passed 109 sampled checks and failed on the
+first probe value, NULL.
+\end{observation}
 
 \subsection{\rqref{1}: Reach}
 \label{sec:rq1}

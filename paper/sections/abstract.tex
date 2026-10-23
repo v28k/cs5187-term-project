@@ -9,10 +9,12 @@ Of 23 recent query-processing fixes in \pg master, 20 change what a query
 returns, but only 9 of them crash or raise an internal error. We present
 \tool, a fuzzer that keeps every generated query as a typed derivation tree,
 so that metamorphic oracles (TLP, NoREC, expression rewrites, CTE and table
-fences) can rewrite single nodes of known type at any query level. Plan
-variants and the last release serve as two more oracles. An LLM reads recent
-commits and proposes grammar alternatives, which a validation gate accepts
-only if the server runs them and they reach the changed lines. \tool found
+fences, row-level security) can rewrite single nodes of known type at any
+query level, and triage reduces failures on the same trees. Plan variants and
+the last release serve as two more oracles. An LLM reads recent commits and
+proposes grammar alternatives and equivalence rewrites, which a validation
+gate accepts only if the server runs them, they reach the changed lines, and
+a rewrite never changes a result. \tool found
 two previously unknown bugs, a wrong result and an assertion failure, and
 \num{RQ1--RQ4 results}. The main lesson is that oracle precision, not
 generator reach, limits a wrong-result fuzzer: a richer grammar also reaches

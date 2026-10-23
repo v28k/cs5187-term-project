@@ -14,9 +14,15 @@ level, and we report the precision of each oracle on that larger language.
 \paragraph{Guidance for database fuzzing.} Query plan
 guidance~\cite{ba2023qpg} steers SQLancer toward queries with new plan shapes.
 SQUIRREL~\cite{zhong2020squirrel} mutates an intermediate representation of
-SQL with coverage feedback to find crashes. We use plan shapes as one of four
-reasons to keep a test case, and add a second source of guidance that neither
-uses: the commits that changed the code under test.
+SQL with coverage feedback to find crashes, and SQLRight~\cite{liang2022sqlright}
+combines such coverage-guided mutation with the logic-bug oracles of SQLancer.
+CERT~\cite{ba2024cert} finds performance issues by checking that a more
+restrictive query never gets a larger cardinality estimate; we include its
+check as one oracle. Directed greybox fuzzing~\cite{bohme2017aflgo} steers a
+fuzzer toward chosen code locations. We use plan shapes as one of four reasons
+to keep a test case and learn alternative weights from feedback, and we direct
+the campaign toward the commits that changed the code under test, at the level
+of SQL features rather than branches.
 
 \paragraph{Grammar-based and differential SQL testing.} RAGS~\cite{slutz1998rags}
 generated random SQL and compared the results of several database systems.
@@ -31,7 +37,9 @@ the input generator for compilers and language tools, and updates its prompt
 during fuzzing. We use the LLM differently: it writes grammar alternatives
 for one commit, a server-side \gate rejects what does not run or does not
 reach the changed lines, and the grammar then produces the test cases. The
-LLM is called a few times per commit, not once per test case.
+LLM is called a few times per commit, not once per test case, and it can
+also extend the oracle with equivalence rewrites, which the gate tests on
+values and on live queries before use.
 
 \paragraph{Benchmarks and evaluation of fuzzers.} Magma~\cite{hazimeh2020magma}
 ports real bugs into fixed versions of real programs and measures which

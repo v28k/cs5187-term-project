@@ -9,6 +9,13 @@ from SQL that a small generator would not produce: \texttt{HAVING} without
 values of different scale. The cost of a larger grammar is paid in oracle
 precision, and every rewrite needs a soundness check on the tree.
 
+\paragraph{Why keep the tree after generation?} Because it does four jobs
+for the price of one. Mutation re-derives a subtree, the oracles rewrite one
+typed node, and reduction replaces a subtree by its smallest derivation; in
+each case the generator replays the tree and re-binds names and types, so the
+result stays valid SQL. On the BUG-01 case, tree reduction followed by token
+reduction gave a 79-token reproducer where token reduction alone gave 116.
+
 \paragraph{Why rewrite trees instead of text?} A text rewrite must parse the
 query again to find the clause it changes, which is hard for SQL with nested
 subqueries, CTEs and set operations. On the tree, the clause is one node with a
@@ -21,6 +28,12 @@ planner before any plan is chosen, as in Figure~\ref{fig:motivating}. The
 release does not have the newest planner rules, so it disagrees with exactly
 the bugs that new code brings. It also disagrees with intended changes in
 behaviour, which triage must recognise.
+
+\paragraph{Can an LLM be trusted to write oracle rewrites?} Not on its word.
+A rewrite is a claim about semantics, and a wrong claim produces false
+positives in every campaign that uses it. The \gate therefore tests each one
+on concrete values and on live queries, and Observation~\ref{obs:sampling}
+shows why both are needed.
 
 \paragraph{Does the LLM need to be good at SQL?} It needs to know \pg features
 well enough to name the SQL that reaches a commit, which is what its training
