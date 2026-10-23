@@ -235,6 +235,14 @@ def triage(cand: Candidate, executor: Any, out_dir: Path, *, repeat: int = 3, re
         ref_ex = getattr(reference, "ref", reference)
         result["observed_reference"] = {name: run.rows(ref_ex, setup, q) for name, q in shown.items()}
         result["reference_server"] = ref_ex.describe().get("server_version")
+    if cand.outcome is Outcome.WRONG_RESULT and shown and result.get("reduced_reproduces", True):
+        from pgfuzz.triage.localize import localize
+
+        ref_ex = getattr(reference, "ref", reference) if reference is not None else None
+        if ref_ex is None and cand.details.get("variant") == "xversion":
+            ref_ex = getattr(executor, "ref", None)
+        log("  localizing: re-running the reduced case under every plan variant")
+        result["localization"] = localize(executor, setup, shown, reference=ref_ex)
     result["test_server"] = run.base.describe().get("server_version")
     result["verdict"] = "TODO: real | duplicate | false_positive | not_a_bug | flaky"
     _write(out_dir, cand, result, stmts, culprit, check, shown, run)
@@ -308,12 +316,72 @@ def _write(out_dir: Path, cand: Candidate, result: dict[str, Any], stmts: list[s
         lines += [f"## Observed on the reference server ({result.get('reference_server')})", ""]
         for name, obs in result["observed_reference"].items():
             lines += [f"`{name}`:", "", "```", _table(obs), "```", ""]
+    loc = result.get("localization")
+    if loc:
+        v = loc["verdict"]
+        lines += ["## Where the bug is (localization)", "", f"**{v['kind']}**: {v['summary']}.", ""]
+        if v["suspects"]:
+            lines += ["Settings and the code they switch:", ""] + [f"* `{k}`: {f}" for k, f in v["suspects"].items()] + [""]
+        lines += ["| plan variant | answer changes | " + ("sides agree | " if any("sides_agree" in r for r in loc["variants"].values()) else "")
+                  + ("agrees with release |" if loc.get("reference") else ""), "|---|---|---|---|"]
+        for name, r in loc["variants"].items():
+            cells = ["yes" if r["changes_answer"] else "no"]
+            if "sides_agree" in r:
+                cells.append("yes" if r["sides_agree"] else "no")
+            if "agrees_with_release" in r:
+                cells.append("yes" if r["agrees_with_release"] else "no")
+            lines.append(f"| {name} | " + " | ".join(cells) + " |")
+        lines.append("")
     lines += ["## Before filing", "",
               "1. Decide which side is right (SQL standard / documentation) and say why.",
               "2. Search pgsql-bugs and pgsql-hackers for the message / function names.",
               "3. Check the newest master and the latest release; bisect with scripts/bisect_pg.sh.",
               "4. Record the verdict in triage/verdicts.yaml (it feeds the precision table)."]
     (d / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (d / "upstream_report.txt").write_text(upstream_report(cand, result, sql), encoding="utf-8")
+
+
+def upstream_report(cand: Candidate, result: dict[str, Any], sql: str) -> str:
+    """A draft for the pgsql-bugs form / list, in the shape developers expect: version,
+    what happens, what should happen, a minimal script, and what we already know.
+    Every line is a fact from the triage run; the expected behaviour is left to the
+    person filing, who must justify it (SQL standard / documentation)."""
+    det = cand.details
+    what = {"assertion": "fails an assertion", "crash": "crashes the backend", "panic": "PANICs",
+            "internal_error": f"raises an internal error ({cand.sqlstate or 'XX000'})",
+            "wrong_result": "returns a wrong result"}.get(cand.outcome.value, cand.outcome.value)
+    lines = [f"Subject: {what} -- <one line: the feature involved>", "",
+             f"PostgreSQL version: {result.get('test_server', '?')} (built with --enable-cassert)",
+             f"Also checked on: {result.get('reference_server') or '<latest release: run the script there too>'}",
+             "Platform: <OS, compiler>", "",
+             "Description", "-----------", "",
+             f"The following script {what}.", ""]
+    if "assertion" in det:
+        a = det["assertion"]
+        lines += [f'TRAP: failed Assert("{a.get("expr")}"), File: "{a.get("file")}", Line: {a.get("line")}', ""]
+    elif cand.message:
+        lines += [f"ERROR:  {cand.message.splitlines()[0]}", ""]
+    lines += ["Script", "------", "", sql.rstrip(), ""]
+    obs = result.get("observed") or {}
+    if obs:
+        lines += ["Actual output", "-------------", ""]
+        for name, o in obs.items():
+            lines += [f"{name}:", _table(o), ""]
+    if result.get("observed_reference"):
+        lines += [f"Output on {result.get('reference_server')}", "-" * 20, ""]
+        for name, o in result["observed_reference"].items():
+            lines += [f"{name}:", _table(o), ""]
+    lines += ["Expected", "--------", "", "<what should happen, and why: SQL standard / documentation section>", ""]
+    loc = result.get("localization")
+    if loc:
+        lines += ["Analysis", "--------", "", loc["verdict"]["summary"].capitalize() + "."]
+        lines += [f"  {k}: {f}" for k, f in loc["verdict"]["suspects"].items()]
+        lines.append("")
+    if det.get("backtrace"):
+        lines += ["Backtrace (top frames)", "----------------------", "", *det["backtrace"][:12], ""]
+    lines += ["<If bisected: first bad commit (scripts/bisect_pg.sh).>",
+              "Found by a grammar-based fuzzer; the script above is its automatically reduced test case."]
+    return "\n".join(lines) + "\n"
 
 
 def verdict_template(results: list[dict[str, Any]]) -> str:

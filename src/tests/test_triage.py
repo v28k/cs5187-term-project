@@ -53,6 +53,8 @@ def test_triage_reproduces_and_reduces_an_assertion(tmp_path):
     reduced = (tmp_path / "out" / "tc1" / "reduced.sql").read_text()
     assert "JSON_TABLE" in reduced and "ROW" in reduced
     assert (tmp_path / "out" / "tc1" / "report.md").exists()
+    up = (tmp_path / "out" / "tc1" / "upstream_report.txt").read_text()
+    assert 'TRAP: failed Assert("list_length(x) == n")' in up and "JSON_TABLE" in up and "Expected" in up
 
 
 def test_same_failure_compares_assertions_and_variants(tmp_path):
@@ -110,3 +112,19 @@ def test_precision_table():
     assert by["plan-variant"]["precision"] is None
     assert by["all"]["candidates"] == 5 and by["all"]["precision"] == round(2 / 3, 3)
     assert "| assertion | 2 | 1 | 1 |" in render_markdown(rows)
+
+
+def test_localization_verdicts():
+    from pgfuzz.triage.localize import _verdict
+
+    variants = {"no_hashagg": {"enable_hashagg": "off"}, "nestloop_only": {"enable_hashjoin": "off"}}
+    d = {"lhs": {"hash": "a"}, "rhs": {"hash": "b"}}
+    # the sides agree only without hash aggregation: a planner path, named with its source files
+    v = _verdict(["lhs", "rhs"], d, None, {"no_hashagg": {"sides_agree": True}, "nestloop_only": {"sides_agree": False}},
+                 variants)
+    assert v["kind"] == "planner" and v["settings"] == ["enable_hashagg"] and "nodeAgg.c" in v["suspects"]["enable_hashagg"]
+    v = _verdict(["lhs", "rhs"], d, None, {"no_hashagg": {"sides_agree": False}}, variants)
+    assert v["kind"] == "not_toggled_by_planner_settings"
+    v = _verdict(["query"], {"query": {"hash": "a"}}, {"hash": "b"},
+                 {"no_hashagg": {"changes_answer": True, "agrees_with_release": True}}, variants)
+    assert v["kind"] == "planner" and v["variants"] == ["no_hashagg"]

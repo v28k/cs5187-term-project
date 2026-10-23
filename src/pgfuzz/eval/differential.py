@@ -46,6 +46,7 @@ DEFAULT_VARIANTS: dict[str, dict[str, str]] = {
     "tiny_work_mem": {"work_mem": "64kB", "hash_mem_multiplier": "1"},
     "no_reordering": {"enable_group_by_reordering": "off", "enable_distinct_reordering": "off"},
     "no_self_join_elim": {"enable_self_join_elimination": "off"},
+    "no_eager_agg": {"enable_eager_aggregate": "off"},
     "jit": {"jit": "on", "jit_above_cost": "0", "jit_inline_above_cost": "0", "jit_optimize_above_cost": "0"},
 }
 
