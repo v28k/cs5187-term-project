@@ -1,0 +1,74 @@
+{
+  "v": 1,
+  "signature": "886c0db769c0",
+  "strength": "diff",
+  "key": "wrong_result|xversion|SELECT|join:inner",
+  "outcome": "wrong_result",
+  "sqlstate": null,
+  "message": "result differs under plan variant xversion: 378 rows by default, 189 rows with variant",
+  "culprit": 0,
+  "culprit_sql": "SELECT a.c1 FROM t0 AS a JOIN t1 AS b ON (a.c0 = b.c0)",
+  "details": {
+    "variant": "xversion",
+    "settings": {
+      "reference_server": "18.6"
+    },
+    "rows_default": 378,
+    "rows_variant": 189
+  },
+  "known_bugs": [],
+  "first_t": 418.268,
+  "testcase_id": 26234,
+  "origin": "random",
+  "meta": {
+    "arm": "random"
+  },
+  "statements": [
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 3.5112219998154615,
+      "rows": 378,
+      "result_hash": "4a1774516cc7704e40459b63",
+      "variants": {
+        "geqo": {
+          "settings": {
+            "geqo": "on",
+            "geqo_threshold": "2"
+          },
+          "status": "ok",
+          "hash": "4a1774516cc7704e40459b63",
+          "rows": 378,
+          "ms": 5.614
+        },
+        "parallel": {
+          "settings": {
+            "debug_parallel_query": "on",
+            "parallel_setup_cost": "0",
+            "parallel_tuple_cost": "0",
+            "min_parallel_table_scan_size": "0",
+            "min_parallel_index_scan_size": "0",
+            "max_parallel_workers_per_gather": "4",
+            "parallel_leader_participation": "off"
+          },
+          "status": "ok",
+          "hash": "4a1774516cc7704e40459b63",
+          "rows": 378,
+          "ms": 25.355
+        },
+        "xversion": {
+          "status": "ok",
+          "hash": "e23bdc5c6356c09031f92de3",
+          "rows": 189,
+          "settings": {
+            "reference_server": "18.6"
+          }
+        }
+      },
+      "plan_shape": "34255fb76e1bf597"
+    }
+  ],
+  "server_log": [],
+  "extra": {}
+}

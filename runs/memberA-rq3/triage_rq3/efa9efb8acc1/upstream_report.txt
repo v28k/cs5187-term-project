@@ -1,0 +1,41 @@
+Subject: fails an assertion -- <one line: the feature involved>
+
+PostgreSQL version: 20devel (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script fails an assertion.
+
+TRAP: failed Assert("(char *) p == VARDATA_ANY(input) + VARSIZE_ANY_EXHDR(input)"), File: "varlena.c", Line: 5535
+
+Script
+------
+
+-- pgfuzz triage of efa9efb8acc1: assertion via assertion
+VALUES ( NORMALIZE (TO_CHAR (CASE WHEN TRUE THEN 'NaN'::numeric ELSE 0.0::numeric END + 0.0::numeric, 'FM999990.00')));
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+Backtrace (top frames)
+----------------------
+
+ExceptionalCondition
+ExecScan
+standard_ExecutorRun
+PortalRun
+PostgresMain
+BackendMain
+postmaster_child_launch
+PostmasterMain
+main
+__libc_start_main
+_start
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.

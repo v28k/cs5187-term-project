@@ -1,0 +1,821 @@
+{
+  "v": 1,
+  "signature": "4fedb431a765",
+  "strength": "message",
+  "key": "internal_error|XX000|could not find pathkey item to sort",
+  "outcome": "internal_error",
+  "sqlstate": "XX000",
+  "message": "could not find pathkey item to sort",
+  "culprit": 1,
+  "culprit_sql": "INSERT INTO tl AS a1 (c1) SELECT (a2.c1 COLLATE \"C\") AS c0 FROM (tl AS a2 LEFT JOIN t1 AS a3 ON ((a2.c0 = a3.c0) AND FALSE)) WHERE (FALSE > TRUE) UNION (SELECT MD5 (CASE WHEN TRUE THEN TO_CHAR (42.5::numeric, 'FM999990.00') ELSE NULLIF (LOWER ('_'::text), COALESCE ((a4.c0)::text, ' '::text)) END) AS c0 FROM v0 AS a4 WHERE FALSE GROUP BY ROLLUP (a4.c0, a4.n) INTERSECT ALL SELECT COALESCE (('_'::text || '_'::text), (('{}'::jsonb ->> (-1)))::text) AS c0 FROM tl AS a5 GROUP BY a5.c0) ON CONFLICT DO NOTHING",
+  "details": {},
+  "known_bugs": [
+    "rb-8b29b8da",
+    "rb-dfcf6fa7"
+  ],
+  "first_t": 303.419,
+  "testcase_id": 4400,
+  "origin": "grammar",
+  "meta": {
+    "op": "fresh",
+    "trees": [
+      {
+        "rule": "setup_stmt",
+        "tree": {
+          "s": "setup_stmt",
+          "a": 6,
+          "k": [
+            {
+              "s": "create_index",
+              "a": 528,
+              "k": [
+                null,
+                null,
+                null,
+                {
+                  "s": "@target",
+                  "a": -1,
+                  "k": [],
+                  "v": "t1"
+                },
+                null,
+                null,
+                null,
+                {
+                  "s": "@target_col",
+                  "a": -1,
+                  "k": [],
+                  "t": "int4range",
+                  "v": "c3"
+                },
+                null
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "rule": "stmt",
+        "tree": {
+          "s": "stmt",
+          "a": 1,
+          "k": [
+            {
+              "s": "insert_stmt",
+              "a": 483,
+              "k": [
+                null,
+                null,
+                {
+                  "s": "@target",
+                  "a": -1,
+                  "k": [],
+                  "v": "tl"
+                },
+                {
+                  "s": "@insert_body",
+                  "a": -1,
+                  "k": [
+                    {
+                      "s": "insert_query",
+                      "a": 482,
+                      "k": [
+                        {
+                          "s": "set_body",
+                          "a": 55,
+                          "k": [
+                            {
+                              "s": "set_arm",
+                              "a": 56,
+                              "k": [
+                                {
+                                  "s": "select_core",
+                                  "a": 24,
+                                  "k": [
+                                    null,
+                                    {
+                                      "s": "#rep",
+                                      "a": -1,
+                                      "k": []
+                                    },
+                                    {
+                                      "s": "@items",
+                                      "a": -1,
+                                      "k": [
+                                        {
+                                          "s": "select_item",
+                                          "a": 51,
+                                          "k": [
+                                            {
+                                              "s": "expr",
+                                              "a": 212,
+                                              "k": [
+                                                null,
+                                                {
+                                                  "s": "expr",
+                                                  "a": 124,
+                                                  "k": [
+                                                    {
+                                                      "s": "@col",
+                                                      "a": -1,
+                                                      "k": [],
+                                                      "t": "text",
+                                                      "v": {
+                                                        "tuple": [
+                                                          "a2",
+                                                          "tl",
+                                                          "c1"
+                                                        ]
+                                                      }
+                                                    }
+                                                  ],
+                                                  "t": "text"
+                                                },
+                                                null,
+                                                null,
+                                                null
+                                              ],
+                                              "t": "text"
+                                            }
+                                          ],
+                                          "t": "text"
+                                        }
+                                      ],
+                                      "v": {
+                                        "tuple": [
+                                          "text"
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "s": "from_clause",
+                                      "a": 82,
+                                      "k": [
+                                        null,
+                                        {
+                                          "s": "from_item",
+                                          "a": 86,
+                                          "k": [
+                                            {
+                                              "s": "joined",
+                                              "a": 92,
+                                              "k": [
+                                                null,
+                                                {
+                                                  "s": "from_item",
+                                                  "a": 85,
+                                                  "k": [
+                                                    {
+                                                      "s": "@table",
+                                                      "a": -1,
+                                                      "k": [],
+                                                      "v": "tl"
+                                                    }
+                                                  ]
+                                                },
+                                                {
+                                                  "s": "join_kind",
+                                                  "a": 100,
+                                                  "k": [
+                                                    null,
+                                                    null
+                                                  ]
+                                                },
+                                                {
+                                                  "s": "from_item",
+                                                  "a": 85,
+                                                  "k": [
+                                                    {
+                                                      "s": "@table",
+                                                      "a": -1,
+                                                      "k": [],
+                                                      "v": "t1"
+                                                    }
+                                                  ]
+                                                },
+                                                null,
+                                                null,
+                                                {
+                                                  "s": "@join_eq",
+                                                  "a": -1,
+                                                  "k": [],
+                                                  "v": {
+                                                    "tuple": [
+                                                      "tl",
+                                                      "c0",
+                                                      "t1",
+                                                      "c0"
+                                                    ]
+                                                  }
+                                                },
+                                                null,
+                                                {
+                                                  "s": "expr",
+                                                  "a": 125,
+                                                  "k": [
+                                                    {
+                                                      "s": "@lit",
+                                                      "a": -1,
+                                                      "k": [],
+                                                      "t": "bool",
+                                                      "v": "FALSE"
+                                                    }
+                                                  ],
+                                                  "t": "bool"
+                                                },
+                                                null,
+                                                null
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "s": "#rep",
+                                      "a": -1,
+                                      "k": [
+                                        {
+                                          "s": "where_clause",
+                                          "a": 49,
+                                          "k": [
+                                            null,
+                                            {
+                                              "s": "expr",
+                                              "a": 215,
+                                              "k": [
+                                                null,
+                                                {
+                                                  "s": "expr",
+                                                  "a": 125,
+                                                  "k": [
+                                                    {
+                                                      "s": "@lit",
+                                                      "a": -1,
+                                                      "k": [],
+                                                      "t": "bool",
+                                                      "v": "FALSE"
+                                                    }
+                                                  ],
+                                                  "t": "bool"
+                                                },
+                                                {
+                                                  "s": "cmp",
+                                                  "a": 372,
+                                                  "k": [
+                                                    null
+                                                  ]
+                                                },
+                                                {
+                                                  "s": "expr",
+                                                  "a": 125,
+                                                  "k": [
+                                                    {
+                                                      "s": "@lit",
+                                                      "a": -1,
+                                                      "k": [],
+                                                      "t": "bool",
+                                                      "v": "TRUE"
+                                                    }
+                                                  ],
+                                                  "t": "bool"
+                                                },
+                                                null
+                                              ],
+                                              "t": "bool",
+                                              "tv": {
+                                                "X": "bool"
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "s": "set_op",
+                              "a": 57,
+                              "k": [
+                                null
+                              ]
+                            },
+                            null,
+                            {
+                              "s": "set_body",
+                              "a": 54,
+                              "k": [
+                                {
+                                  "s": "set_arm",
+                                  "a": 56,
+                                  "k": [
+                                    {
+                                      "s": "select_core",
+                                      "a": 26,
+                                      "k": [
+                                        null,
+                                        {
+                                          "s": "@items",
+                                          "a": -1,
+                                          "k": [
+                                            {
+                                              "s": "select_item",
+                                              "a": 51,
+                                              "k": [
+                                                {
+                                                  "s": "expr",
+                                                  "a": 193,
+                                                  "k": [
+                                                    null,
+                                                    null,
+                                                    {
+                                                      "s": "expr",
+                                                      "a": 126,
+                                                      "k": [
+                                                        null,
+                                                        null,
+                                                        {
+                                                          "s": "expr",
+                                                          "a": 125,
+                                                          "k": [
+                                                            {
+                                                              "s": "@lit",
+                                                              "a": -1,
+                                                              "k": [],
+                                                              "t": "bool",
+                                                              "v": "TRUE"
+                                                            }
+                                                          ],
+                                                          "t": "bool"
+                                                        },
+                                                        null,
+                                                        {
+                                                          "s": "expr",
+                                                          "a": 202,
+                                                          "k": [
+                                                            null,
+                                                            null,
+                                                            {
+                                                              "s": "expr",
+                                                              "a": 125,
+                                                              "k": [
+                                                                {
+                                                                  "s": "@lit",
+                                                                  "a": -1,
+                                                                  "k": [],
+                                                                  "t": "numeric",
+                                                                  "v": "42.5::numeric"
+                                                                }
+                                                              ],
+                                                              "t": "numeric"
+                                                            },
+                                                            null,
+                                                            null,
+                                                            null
+                                                          ],
+                                                          "t": "text"
+                                                        },
+                                                        null,
+                                                        {
+                                                          "s": "expr",
+                                                          "a": 129,
+                                                          "k": [
+                                                            null,
+                                                            null,
+                                                            {
+                                                              "s": "expr",
+                                                              "a": 185,
+                                                              "k": [
+                                                                null,
+                                                                null,
+                                                                {
+                                                                  "s": "expr",
+                                                                  "a": 125,
+                                                                  "k": [
+                                                                    {
+                                                                      "s": "@lit",
+                                                                      "a": -1,
+                                                                      "k": [],
+                                                                      "t": "text",
+                                                                      "v": "'_'::text"
+                                                                    }
+                                                                  ],
+                                                                  "t": "text"
+                                                                },
+                                                                null
+                                                              ],
+                                                              "t": "text"
+                                                            },
+                                                            null,
+                                                            {
+                                                              "s": "expr",
+                                                              "a": 128,
+                                                              "k": [
+                                                                null,
+                                                                null,
+                                                                {
+                                                                  "s": "expr",
+                                                                  "a": 197,
+                                                                  "k": [
+                                                                    null,
+                                                                    {
+                                                                      "s": "expr",
+                                                                      "a": 124,
+                                                                      "k": [
+                                                                        {
+                                                                          "s": "@col",
+                                                                          "a": -1,
+                                                                          "k": [],
+                                                                          "t": "int",
+                                                                          "v": {
+                                                                            "tuple": [
+                                                                              "a4",
+                                                                              "v0",
+                                                                              "c0"
+                                                                            ]
+                                                                          }
+                                                                        }
+                                                                      ],
+                                                                      "t": "int"
+                                                                    },
+                                                                    null,
+                                                                    null,
+                                                                    null
+                                                                  ],
+                                                                  "t": "text",
+                                                                  "tv": {
+                                                                    "X": "int"
+                                                                  }
+                                                                },
+                                                                null,
+                                                                {
+                                                                  "s": "expr",
+                                                                  "a": 125,
+                                                                  "k": [
+                                                                    {
+                                                                      "s": "@lit",
+                                                                      "a": -1,
+                                                                      "k": [],
+                                                                      "t": "text",
+                                                                      "v": "' '::text"
+                                                                    }
+                                                                  ],
+                                                                  "t": "text"
+                                                                },
+                                                                null
+                                                              ],
+                                                              "t": "text"
+                                                            },
+                                                            null
+                                                          ],
+                                                          "t": "text"
+                                                        },
+                                                        null
+                                                      ],
+                                                      "t": "text"
+                                                    },
+                                                    null
+                                                  ],
+                                                  "t": "text"
+                                                }
+                                              ],
+                                              "t": "text"
+                                            }
+                                          ],
+                                          "v": {
+                                            "tuple": [
+                                              "text"
+                                            ]
+                                          }
+                                        },
+                                        {
+                                          "s": "from_clause",
+                                          "a": 82,
+                                          "k": [
+                                            null,
+                                            {
+                                              "s": "from_item",
+                                              "a": 85,
+                                              "k": [
+                                                {
+                                                  "s": "@table",
+                                                  "a": -1,
+                                                  "k": [],
+                                                  "v": "v0"
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "s": "#rep",
+                                          "a": -1,
+                                          "k": [
+                                            {
+                                              "s": "where_clause",
+                                              "a": 49,
+                                              "k": [
+                                                null,
+                                                {
+                                                  "s": "expr",
+                                                  "a": 125,
+                                                  "k": [
+                                                    {
+                                                      "s": "@lit",
+                                                      "a": -1,
+                                                      "k": [],
+                                                      "t": "bool",
+                                                      "v": "FALSE"
+                                                    }
+                                                  ],
+                                                  "t": "bool"
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        null,
+                                        null,
+                                        {
+                                          "s": "@group_keys",
+                                          "a": -1,
+                                          "k": [],
+                                          "v": [
+                                            {
+                                              "tuple": [
+                                                "a4",
+                                                "v0",
+                                                "c0"
+                                              ]
+                                            },
+                                            {
+                                              "tuple": [
+                                                "a4",
+                                                "v0",
+                                                "n"
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "s": "#rep",
+                                          "a": -1,
+                                          "k": []
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "s": "set_op",
+                                  "a": 60,
+                                  "k": [
+                                    null,
+                                    null
+                                  ]
+                                },
+                                {
+                                  "s": "set_arm",
+                                  "a": 56,
+                                  "k": [
+                                    {
+                                      "s": "select_core",
+                                      "a": 25,
+                                      "k": [
+                                        null,
+                                        {
+                                          "s": "@items",
+                                          "a": -1,
+                                          "k": [
+                                            {
+                                              "s": "select_item",
+                                              "a": 51,
+                                              "k": [
+                                                {
+                                                  "s": "expr",
+                                                  "a": 128,
+                                                  "k": [
+                                                    null,
+                                                    null,
+                                                    {
+                                                      "s": "expr",
+                                                      "a": 184,
+                                                      "k": [
+                                                        null,
+                                                        {
+                                                          "s": "expr",
+                                                          "a": 125,
+                                                          "k": [
+                                                            {
+                                                              "s": "@lit",
+                                                              "a": -1,
+                                                              "k": [],
+                                                              "t": "text",
+                                                              "v": "'_'::text"
+                                                            }
+                                                          ],
+                                                          "t": "text"
+                                                        },
+                                                        null,
+                                                        {
+                                                          "s": "expr",
+                                                          "a": 125,
+                                                          "k": [
+                                                            {
+                                                              "s": "@lit",
+                                                              "a": -1,
+                                                              "k": [],
+                                                              "t": "text",
+                                                              "v": "'_'::text"
+                                                            }
+                                                          ],
+                                                          "t": "text"
+                                                        },
+                                                        null
+                                                      ],
+                                                      "t": "text"
+                                                    },
+                                                    null,
+                                                    {
+                                                      "s": "expr",
+                                                      "a": 197,
+                                                      "k": [
+                                                        null,
+                                                        {
+                                                          "s": "expr",
+                                                          "a": 199,
+                                                          "k": [
+                                                            null,
+                                                            {
+                                                              "s": "expr",
+                                                              "a": 125,
+                                                              "k": [
+                                                                {
+                                                                  "s": "@lit",
+                                                                  "a": -1,
+                                                                  "k": [],
+                                                                  "t": "jsonb",
+                                                                  "v": "'{}'::jsonb"
+                                                                }
+                                                              ],
+                                                              "t": "jsonb"
+                                                            },
+                                                            null,
+                                                            {
+                                                              "s": "jkey",
+                                                              "a": 386,
+                                                              "k": [
+                                                                null
+                                                              ]
+                                                            },
+                                                            null
+                                                          ],
+                                                          "t": "text"
+                                                        },
+                                                        null,
+                                                        null,
+                                                        null
+                                                      ],
+                                                      "t": "text",
+                                                      "tv": {
+                                                        "X": "text"
+                                                      }
+                                                    },
+                                                    null
+                                                  ],
+                                                  "t": "text"
+                                                }
+                                              ],
+                                              "t": "text"
+                                            }
+                                          ],
+                                          "v": {
+                                            "tuple": [
+                                              "text"
+                                            ]
+                                          }
+                                        },
+                                        {
+                                          "s": "from_clause",
+                                          "a": 82,
+                                          "k": [
+                                            null,
+                                            {
+                                              "s": "from_item",
+                                              "a": 85,
+                                              "k": [
+                                                {
+                                                  "s": "@table",
+                                                  "a": -1,
+                                                  "k": [],
+                                                  "v": "tl"
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "s": "#rep",
+                                          "a": -1,
+                                          "k": []
+                                        },
+                                        null,
+                                        null,
+                                        {
+                                          "s": "@group_keys",
+                                          "a": -1,
+                                          "k": [],
+                                          "v": [
+                                            {
+                                              "tuple": [
+                                                "a5",
+                                                "tl",
+                                                "c0"
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "s": "#rep",
+                                          "a": -1,
+                                          "k": []
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            null
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "v": {
+                    "tuple": [
+                      {
+                        "tuple": [
+                          "c1"
+                        ]
+                      },
+                      false,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "s": "on_conflict",
+                  "a": 484,
+                  "k": [
+                    null,
+                    null,
+                    null,
+                    null
+                  ]
+                },
+                {
+                  "s": "#rep",
+                  "a": -1,
+                  "k": []
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "owners": [
+      0,
+      1
+    ],
+    "generator": {
+      "grammar": "/home/bhuvi/cs5187-term-project/src/configs/../grammar/postgres.pgg",
+      "schema": "/home/bhuvi/cs5187-term-project/src/configs/../corpus/schema.yaml",
+      "extra_grammars": [],
+      "fingerprint": "0143ec39bdd4"
+    }
+  },
+  "statements": [
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 4.165747000115516,
+      "rows": null
+    },
+    {
+      "status": "error",
+      "sqlstate": "XX000",
+      "message": "could not find pathkey item to sort",
+      "duration_ms": 3.552645000127086,
+      "rows": null
+    }
+  ],
+  "server_log": [
+    "2026-10-26 16:28:14.844 UTC [120159] ERROR:  could not find pathkey item to sort"
+  ],
+  "extra": {}
+}

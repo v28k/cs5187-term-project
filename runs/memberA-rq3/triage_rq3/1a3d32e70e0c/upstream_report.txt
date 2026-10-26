@@ -1,0 +1,68 @@
+Subject: returns a wrong result -- <one line: the feature involved>
+
+PostgreSQL version: 20devel (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script returns a wrong result.
+
+ERROR:  result differs under plan variant xversion: 218 rows by default, 211 rows with variant
+
+Script
+------
+
+-- pgfuzz triage of 1a3d32e70e0c: wrong_result via cross-version
+INSERT INTO t2 AS a1 (c2, c3) SELECT LAG ('epoch'::timestamptz) IGNORE NULLS OVER (ORDER BY 2) AS c0, '{NULL}'::text[] AS c1 FROM v0 AS a2 ON CONFLICT DO NOTHING;
+WITH rc AS (SELECT) SELECT FROM (SELECT FROM t2);
+
+Actual output
+-------------
+
+query:
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    ... (49 rows)
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+Analysis
+--------
+
+No planner setting removes the disagreement: suspect an always-applied rewrite, constant folding, a planner support function, or expression evaluation.
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.

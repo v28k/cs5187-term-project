@@ -1,0 +1,5 @@
+-- pgfuzz failure 65cd1cb9b0bf (performance, signature strength: message)
+-- test case 28347 from grammar
+-- SQLSTATE -: row estimate rises when the WHERE clause is added: 300.0 -> 720.0
+-- failing statement: #1
+SELECT CASE WHEN a2.c1 THEN '{"k": -1, "a": [1, 2, 3]}'::jsonb ELSE (SELECT JSON_AGG ('NaN'::text ORDER BY 'NaN'::text)::jsonb FROM tp AS a5 WHERE a2.c1) END AS c0, a3.c0 AS c1 FROM ((t0 AS a1 JOIN t3 AS a2 ON ((a1.c0 = a2.c0) AND TRUE)) RIGHT JOIN (t2 AS a3 CROSS JOIN ROWS FROM (GENERATE_SERIES (1, 3), UNNEST (ARRAY['x'::text, NULL::text])) AS a4 (c0, c1)) ON ((a1.c0 = a4.c0) AND (a1.c0 = '4'::int))) WHERE a2.c1 ORDER BY 2, 1;

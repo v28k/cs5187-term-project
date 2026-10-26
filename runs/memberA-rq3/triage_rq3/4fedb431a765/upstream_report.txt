@@ -1,0 +1,26 @@
+Subject: raises an internal error (XX000) -- <one line: the feature involved>
+
+PostgreSQL version: 20devel (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script raises an internal error (XX000).
+
+ERROR:  could not find pathkey item to sort
+
+Script
+------
+
+-- pgfuzz triage of 4fedb431a765: internal_error via internal_error
+SELECT a3.c1 AS c0, CASE WHEN TRUE THEN NULL::bigint ELSE 1000::bigint END AS c1, RANGE_MERGE ('[0,0]'::int4range, '[1,10)'::int4range) AS c2 FROM (t0 AS a1 JOIN (t0 AS a2 JOIN tl AS a3 ON ((a2.c0 = a3.c0) AND FALSE)) ON (a1.c1 = a3.c1)) UNION ALL (SELECT DISTINCT a4.c1 AS c0, 100::bigint, COALESCE (int4range(2, 40), '[1,10)'::int4range) AS c2 FROM tl AS a4 INTERSECT ALL SELECT '{"k": 1}'::text AS c0, COUNT (*) AS c1, '[1,10)'::int4range AS c2 FROM ti AS a5, LATERAL (SELECT 1 AS c0 FROM ti AS a6 WHERE TRUE GROUP BY a6.c1, a6.c0) AS a7 WHERE FALSE GROUP BY a5.c0, a7.c0);
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.

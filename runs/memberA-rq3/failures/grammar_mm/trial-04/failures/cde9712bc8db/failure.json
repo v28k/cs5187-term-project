@@ -1,0 +1,981 @@
+{
+  "v": 1,
+  "signature": "cde9712bc8db",
+  "strength": "stack",
+  "key": "assertion|ExecInitExpr<ExecInitTableFuncScan<ExecInitNode<ExecInitNestLoop<ExecInitNode",
+  "outcome": "assertion",
+  "sqlstate": null,
+  "message": "consuming input failed: server closed the connection unexpectedly",
+  "culprit": 1,
+  "culprit_sql": "SELECT '10'::int AS c0, INITCAP (a1.c2) AS c1 FROM t4 AS a1, JSON_TABLE ((JSONB_BUILD_OBJECT ('k', 1, 'a', JSONB_BUILD_ARRAY (JSON_VALUE ('{\"k\": -1, \"a\": [1, 2, 3]}'::jsonb, '$.k ? (@ > 0)'), (ROW ('2000-01-01'::date, '\u00e9'::text) < ROW ('1999-12-31'::date, '0'::text)))) - 'k'), '$.a[*]' COLUMNS (c0 FOR ORDINALITY, c1 int PATH '$')) AS a2 EXCEPT ALL SELECT 10 AS c0, '{\"k\": 1}'::text AS c1 ORDER BY 1 NULLS FIRST",
+  "details": {
+    "assertion": {
+      "expr": "list_length(rcexpr->inputcollids) == nopers",
+      "file": "execExpr.c",
+      "line": 2078
+    },
+    "signal": 6,
+    "signal_name": "Aborted",
+    "connection_lost": true,
+    "backtrace": [
+      "ExceptionalCondition",
+      "ExecInitExpr",
+      "ExecInitTableFuncScan",
+      "ExecInitNode",
+      "ExecInitNestLoop",
+      "ExecInitNode",
+      "ExecInitSetOp",
+      "ExecInitNode",
+      "ExecInitSort",
+      "ExecInitNode",
+      "standard_ExecutorStart",
+      "PortalStart",
+      "PostgresMain",
+      "BackendMain",
+      "postmaster_child_launch",
+      "PostmasterMain",
+      "main",
+      "__libc_start_main",
+      "_start"
+    ]
+  },
+  "known_bugs": [],
+  "first_t": 908.086,
+  "testcase_id": 11412,
+  "origin": "grammar",
+  "meta": {
+    "op": "fresh",
+    "trees": [
+      {
+        "rule": "stmt",
+        "tree": {
+          "s": "stmt",
+          "a": 0,
+          "k": [
+            {
+              "s": "query",
+              "a": 21,
+              "k": [
+                {
+                  "s": "set_query",
+                  "a": 53,
+                  "k": [
+                    {
+                      "s": "set_body",
+                      "a": 54,
+                      "k": [
+                        {
+                          "s": "set_arm",
+                          "a": 56,
+                          "k": [
+                            {
+                              "s": "select_core",
+                              "a": 24,
+                              "k": [
+                                null,
+                                {
+                                  "s": "#rep",
+                                  "a": -1,
+                                  "k": []
+                                },
+                                {
+                                  "s": "@items",
+                                  "a": -1,
+                                  "k": [
+                                    {
+                                      "s": "select_item",
+                                      "a": 51,
+                                      "k": [
+                                        {
+                                          "s": "expr",
+                                          "a": 125,
+                                          "k": [
+                                            {
+                                              "s": "@lit",
+                                              "a": -1,
+                                              "k": [],
+                                              "t": "int4range",
+                                              "v": "'[0,0]'::int4range"
+                                            }
+                                          ],
+                                          "t": "int4range"
+                                        }
+                                      ],
+                                      "t": "int4range"
+                                    },
+                                    {
+                                      "s": "select_item",
+                                      "a": 51,
+                                      "k": [
+                                        {
+                                          "s": "expr",
+                                          "a": 125,
+                                          "k": [
+                                            {
+                                              "s": "@lit",
+                                              "a": -1,
+                                              "k": [],
+                                              "t": "text",
+                                              "v": "'\u00df'::text"
+                                            }
+                                          ],
+                                          "t": "text"
+                                        }
+                                      ],
+                                      "t": "text"
+                                    }
+                                  ],
+                                  "v": {
+                                    "tuple": [
+                                      "int4range",
+                                      "text"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "s": "from_clause",
+                                  "a": 82,
+                                  "k": [
+                                    null,
+                                    {
+                                      "s": "from_item",
+                                      "a": 85,
+                                      "k": [
+                                        {
+                                          "s": "@table",
+                                          "a": -1,
+                                          "k": [],
+                                          "v": "v0"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "s": "#rep",
+                                  "a": -1,
+                                  "k": [
+                                    {
+                                      "s": "where_clause",
+                                      "a": 49,
+                                      "k": [
+                                        null,
+                                        {
+                                          "s": "expr",
+                                          "a": 270,
+                                          "k": [
+                                            null,
+                                            null,
+                                            {
+                                              "s": "expr",
+                                              "a": 125,
+                                              "k": [
+                                                {
+                                                  "s": "@lit",
+                                                  "a": -1,
+                                                  "k": [],
+                                                  "t": "int4range",
+                                                  "v": "int4range(2, 40)"
+                                                }
+                                              ],
+                                              "t": "int4range"
+                                            },
+                                            null
+                                          ],
+                                          "t": "bool"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "s": "set_op",
+                          "a": 60,
+                          "k": [
+                            null,
+                            null
+                          ]
+                        },
+                        {
+                          "s": "set_arm",
+                          "a": 56,
+                          "k": [
+                            {
+                              "s": "select_core",
+                              "a": 24,
+                              "k": [
+                                null,
+                                {
+                                  "s": "#rep",
+                                  "a": -1,
+                                  "k": []
+                                },
+                                {
+                                  "s": "@items",
+                                  "a": -1,
+                                  "k": [
+                                    {
+                                      "s": "select_item",
+                                      "a": 51,
+                                      "k": [
+                                        {
+                                          "s": "expr",
+                                          "a": 125,
+                                          "k": [
+                                            {
+                                              "s": "@lit",
+                                              "a": -1,
+                                              "k": [],
+                                              "t": "int4range",
+                                              "v": "'[1,10)'::int4range"
+                                            }
+                                          ],
+                                          "t": "int4range"
+                                        }
+                                      ],
+                                      "t": "int4range"
+                                    },
+                                    {
+                                      "s": "select_item",
+                                      "a": 51,
+                                      "k": [
+                                        {
+                                          "s": "expr",
+                                          "a": 193,
+                                          "k": [
+                                            null,
+                                            null,
+                                            {
+                                              "s": "expr",
+                                              "a": 125,
+                                              "k": [
+                                                {
+                                                  "s": "@lit",
+                                                  "a": -1,
+                                                  "k": [],
+                                                  "t": "text",
+                                                  "v": "'0'::text"
+                                                }
+                                              ],
+                                              "t": "text"
+                                            },
+                                            null
+                                          ],
+                                          "t": "text"
+                                        }
+                                      ],
+                                      "t": "text"
+                                    }
+                                  ],
+                                  "v": {
+                                    "tuple": [
+                                      "int4range",
+                                      "text"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "s": "from_clause",
+                                  "a": 82,
+                                  "k": [
+                                    null,
+                                    {
+                                      "s": "from_item",
+                                      "a": 87,
+                                      "k": [
+                                        {
+                                          "s": "derived",
+                                          "a": 104,
+                                          "k": [
+                                            null,
+                                            {
+                                              "s": "subquery",
+                                              "a": 80,
+                                              "k": [
+                                                {
+                                                  "s": "select_core",
+                                                  "a": 30,
+                                                  "k": [
+                                                    null,
+                                                    {
+                                                      "s": "@items",
+                                                      "a": -1,
+                                                      "k": [
+                                                        {
+                                                          "s": "select_item",
+                                                          "a": 51,
+                                                          "k": [
+                                                            {
+                                                              "s": "expr",
+                                                              "a": 125,
+                                                              "k": [
+                                                                {
+                                                                  "s": "@lit",
+                                                                  "a": -1,
+                                                                  "k": [],
+                                                                  "t": "int",
+                                                                  "v": "'1'::int"
+                                                                }
+                                                              ],
+                                                              "t": "int"
+                                                            }
+                                                          ],
+                                                          "t": "int"
+                                                        }
+                                                      ],
+                                                      "v": {
+                                                        "tuple": [
+                                                          "int"
+                                                        ]
+                                                      }
+                                                    }
+                                                  ]
+                                                },
+                                                {
+                                                  "s": "#rep",
+                                                  "a": -1,
+                                                  "k": []
+                                                }
+                                              ]
+                                            },
+                                            null,
+                                            null,
+                                            {
+                                              "s": "@derived_alias",
+                                              "a": -1,
+                                              "k": []
+                                            }
+                                          ],
+                                          "v": {
+                                            "tuple": [
+                                              "int"
+                                            ]
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "s": "#rep",
+                                  "a": -1,
+                                  "k": [
+                                    {
+                                      "s": "where_clause",
+                                      "a": 49,
+                                      "k": [
+                                        null,
+                                        {
+                                          "s": "expr",
+                                          "a": 252,
+                                          "k": [
+                                            null,
+                                            {
+                                              "s": "expr",
+                                              "a": 125,
+                                              "k": [
+                                                {
+                                                  "s": "@lit",
+                                                  "a": -1,
+                                                  "k": [],
+                                                  "t": "jsonb",
+                                                  "v": "'{}'::jsonb"
+                                                }
+                                              ],
+                                              "t": "jsonb"
+                                            },
+                                            null,
+                                            {
+                                              "s": "#grp",
+                                              "a": 254,
+                                              "k": [
+                                                null
+                                              ]
+                                            },
+                                            null
+                                          ],
+                                          "t": "bool"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    null,
+                    {
+                      "s": "#rep",
+                      "a": -1,
+                      "k": []
+                    }
+                  ],
+                  "v": {
+                    "tuple": [
+                      "int4range",
+                      "text"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "rule": "stmt",
+        "tree": {
+          "s": "stmt",
+          "a": 0,
+          "k": [
+            {
+              "s": "query",
+              "a": 21,
+              "k": [
+                {
+                  "s": "set_query",
+                  "a": 53,
+                  "k": [
+                    {
+                      "s": "set_body",
+                      "a": 54,
+                      "k": [
+                        {
+                          "s": "set_arm",
+                          "a": 56,
+                          "k": [
+                            {
+                              "s": "select_core",
+                              "a": 24,
+                              "k": [
+                                null,
+                                {
+                                  "s": "#rep",
+                                  "a": -1,
+                                  "k": []
+                                },
+                                {
+                                  "s": "@items",
+                                  "a": -1,
+                                  "k": [
+                                    {
+                                      "s": "select_item",
+                                      "a": 51,
+                                      "k": [
+                                        {
+                                          "s": "expr",
+                                          "a": 125,
+                                          "k": [
+                                            {
+                                              "s": "@lit",
+                                              "a": -1,
+                                              "k": [],
+                                              "t": "int",
+                                              "v": "'10'::int"
+                                            }
+                                          ],
+                                          "t": "int"
+                                        }
+                                      ],
+                                      "t": "int"
+                                    },
+                                    {
+                                      "s": "select_item",
+                                      "a": 51,
+                                      "k": [
+                                        {
+                                          "s": "expr",
+                                          "a": 211,
+                                          "k": [
+                                            null,
+                                            null,
+                                            {
+                                              "s": "expr",
+                                              "a": 124,
+                                              "k": [
+                                                {
+                                                  "s": "@col",
+                                                  "a": -1,
+                                                  "k": [],
+                                                  "t": "text",
+                                                  "v": {
+                                                    "tuple": [
+                                                      "a1",
+                                                      "t4",
+                                                      "c2"
+                                                    ]
+                                                  }
+                                                }
+                                              ],
+                                              "t": "text"
+                                            },
+                                            null
+                                          ],
+                                          "t": "text"
+                                        }
+                                      ],
+                                      "t": "text"
+                                    }
+                                  ],
+                                  "v": {
+                                    "tuple": [
+                                      "int",
+                                      "text"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "s": "from_clause",
+                                  "a": 84,
+                                  "k": [
+                                    null,
+                                    {
+                                      "s": "@table",
+                                      "a": -1,
+                                      "k": [],
+                                      "v": "t4"
+                                    },
+                                    null,
+                                    {
+                                      "s": "srf_item",
+                                      "a": 116,
+                                      "k": [
+                                        null,
+                                        null,
+                                        {
+                                          "s": "expr",
+                                          "a": 329,
+                                          "k": [
+                                            null,
+                                            {
+                                              "s": "jobj",
+                                              "a": 395,
+                                              "k": [
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                {
+                                                  "s": "expr",
+                                                  "a": 125,
+                                                  "k": [
+                                                    {
+                                                      "s": "@lit",
+                                                      "a": -1,
+                                                      "k": [],
+                                                      "t": "int",
+                                                      "v": "1"
+                                                    }
+                                                  ],
+                                                  "t": "int"
+                                                },
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                {
+                                                  "s": "expr",
+                                                  "a": 213,
+                                                  "k": [
+                                                    null,
+                                                    null,
+                                                    {
+                                                      "s": "expr",
+                                                      "a": 125,
+                                                      "k": [
+                                                        {
+                                                          "s": "@lit",
+                                                          "a": -1,
+                                                          "k": [],
+                                                          "t": "jsonb",
+                                                          "v": "'{\"k\": -1, \"a\": [1, 2, 3]}'::jsonb"
+                                                        }
+                                                      ],
+                                                      "t": "jsonb"
+                                                    },
+                                                    null,
+                                                    {
+                                                      "s": "jsonpath",
+                                                      "a": 394,
+                                                      "k": [
+                                                        null
+                                                      ]
+                                                    },
+                                                    null
+                                                  ],
+                                                  "t": "text"
+                                                },
+                                                null,
+                                                {
+                                                  "s": "expr",
+                                                  "a": 275,
+                                                  "k": [
+                                                    null,
+                                                    null,
+                                                    null,
+                                                    {
+                                                      "s": "expr",
+                                                      "a": 125,
+                                                      "k": [
+                                                        {
+                                                          "s": "@lit",
+                                                          "a": -1,
+                                                          "k": [],
+                                                          "t": "date",
+                                                          "v": "'2000-01-01'::date"
+                                                        }
+                                                      ],
+                                                      "t": "date"
+                                                    },
+                                                    null,
+                                                    {
+                                                      "s": "expr",
+                                                      "a": 125,
+                                                      "k": [
+                                                        {
+                                                          "s": "@lit",
+                                                          "a": -1,
+                                                          "k": [],
+                                                          "t": "text",
+                                                          "v": "'\u00e9'::text"
+                                                        }
+                                                      ],
+                                                      "t": "text"
+                                                    },
+                                                    null,
+                                                    {
+                                                      "s": "cmp",
+                                                      "a": 371,
+                                                      "k": [
+                                                        null
+                                                      ]
+                                                    },
+                                                    null,
+                                                    null,
+                                                    {
+                                                      "s": "expr",
+                                                      "a": 125,
+                                                      "k": [
+                                                        {
+                                                          "s": "@lit",
+                                                          "a": -1,
+                                                          "k": [],
+                                                          "t": "date",
+                                                          "v": "'1999-12-31'::date"
+                                                        }
+                                                      ],
+                                                      "t": "date"
+                                                    },
+                                                    null,
+                                                    {
+                                                      "s": "expr",
+                                                      "a": 125,
+                                                      "k": [
+                                                        {
+                                                          "s": "@lit",
+                                                          "a": -1,
+                                                          "k": [],
+                                                          "t": "text",
+                                                          "v": "'0'::text"
+                                                        }
+                                                      ],
+                                                      "t": "text"
+                                                    },
+                                                    null,
+                                                    null
+                                                  ],
+                                                  "t": "bool",
+                                                  "tv": {
+                                                    "X": "date",
+                                                    "Y": "text"
+                                                  }
+                                                },
+                                                null,
+                                                null
+                                              ]
+                                            },
+                                            null,
+                                            null,
+                                            null
+                                          ],
+                                          "t": "jsonb"
+                                        },
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        {
+                                          "s": "@define_alias",
+                                          "a": -1,
+                                          "k": []
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "s": "#rep",
+                                  "a": -1,
+                                  "k": []
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "s": "set_op",
+                          "a": 62,
+                          "k": [
+                            null,
+                            null
+                          ]
+                        },
+                        {
+                          "s": "set_arm",
+                          "a": 56,
+                          "k": [
+                            {
+                              "s": "select_core",
+                              "a": 30,
+                              "k": [
+                                null,
+                                {
+                                  "s": "@items",
+                                  "a": -1,
+                                  "k": [
+                                    {
+                                      "s": "select_item",
+                                      "a": 51,
+                                      "k": [
+                                        {
+                                          "s": "expr",
+                                          "a": 125,
+                                          "k": [
+                                            {
+                                              "s": "@lit",
+                                              "a": -1,
+                                              "k": [],
+                                              "t": "int",
+                                              "v": "10"
+                                            }
+                                          ],
+                                          "t": "int"
+                                        }
+                                      ],
+                                      "t": "int"
+                                    },
+                                    {
+                                      "s": "select_item",
+                                      "a": 51,
+                                      "k": [
+                                        {
+                                          "s": "expr",
+                                          "a": 125,
+                                          "k": [
+                                            {
+                                              "s": "@lit",
+                                              "a": -1,
+                                              "k": [],
+                                              "t": "text",
+                                              "v": "'{\"k\": 1}'::text"
+                                            }
+                                          ],
+                                          "t": "text"
+                                        }
+                                      ],
+                                      "t": "text"
+                                    }
+                                  ],
+                                  "v": {
+                                    "tuple": [
+                                      "int",
+                                      "text"
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    null,
+                    {
+                      "s": "#rep",
+                      "a": -1,
+                      "k": [
+                        {
+                          "s": "order_by",
+                          "a": 43,
+                          "k": [
+                            null,
+                            null,
+                            {
+                              "s": "#rep",
+                              "a": -1,
+                              "k": [
+                                {
+                                  "s": "order_item",
+                                  "a": 44,
+                                  "k": [
+                                    {
+                                      "s": "@ordinal",
+                                      "a": -1,
+                                      "k": [],
+                                      "v": 0
+                                    },
+                                    {
+                                      "s": "#rep",
+                                      "a": -1,
+                                      "k": []
+                                    },
+                                    {
+                                      "s": "#rep",
+                                      "a": -1,
+                                      "k": [
+                                        {
+                                          "s": "#grp",
+                                          "a": 47,
+                                          "k": [
+                                            null,
+                                            null
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "v": {
+                    "tuple": [
+                      "int",
+                      "text"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "owners": [
+      0,
+      1
+    ],
+    "generator": {
+      "grammar": "/home/bhuvi/cs5187-term-project/src/configs/../grammar/postgres.pgg",
+      "schema": "/home/bhuvi/cs5187-term-project/src/configs/../corpus/schema.yaml",
+      "extra_grammars": [],
+      "fingerprint": "0143ec39bdd4"
+    }
+  },
+  "statements": [
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 3.687054000693024,
+      "rows": 0,
+      "result_hash": "b8e1dda3ac0aa3820ad2990b",
+      "variants": {
+        "seq_scans": {
+          "settings": {
+            "enable_indexscan": "off",
+            "enable_indexonlyscan": "off",
+            "enable_bitmapscan": "off"
+          },
+          "status": "ok",
+          "hash": "b8e1dda3ac0aa3820ad2990b",
+          "rows": 0,
+          "ms": 6.861
+        },
+        "no_reordering": {
+          "settings": {
+            "enable_group_by_reordering": "off",
+            "enable_distinct_reordering": "off"
+          },
+          "status": "ok",
+          "hash": "b8e1dda3ac0aa3820ad2990b",
+          "rows": 0,
+          "ms": 5.544
+        }
+      },
+      "plan_shape": "01d7d092ea8a2c7c"
+    },
+    {
+      "status": "connection_lost",
+      "sqlstate": null,
+      "message": "consuming input failed: server closed the connection unexpectedly",
+      "duration_ms": 1446.5789690002566,
+      "rows": null
+    }
+  ],
+  "server_log": [
+    "TRAP: failed Assert(\"list_length(rcexpr->inputcollids) == nopers\"), File: \"execExpr.c\", Line: 2078, PID: 302154",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(ExceptionalCondition+0x70)[0x5adb025b4450]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(+0x3915d3)[0x5adb022245d3]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(+0x391f34)[0x5adb02224f34]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(+0x38f92d)[0x5adb0222292d]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(+0x391f34)[0x5adb02224f34]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(+0x38f92d)[0x5adb0222292d]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(+0x391f34)[0x5adb02224f34]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(+0x38f92d)[0x5adb0222292d]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(+0x39091b)[0x5adb0222391b]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(ExecInitExpr+0xaa)[0x5adb02224b5a]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(ExecInitTableFuncScan+0x14b)[0x5adb02272f1b]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(ExecInitNode+0x2bf)[0x5adb0223bc3f]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(ExecInitNestLoop+0x60)[0x5adb0226cc70]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(ExecInitNode+0x241)[0x5adb0223bbc1]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(ExecInitSetOp+0x93)[0x5adb0226fad3]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(ExecInitNode+0x11b)[0x5adb0223ba9b]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(ExecInitSort+0x71)[0x5adb02270201]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(ExecInitNode+0x1d8)[0x5adb0223bb58]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(standard_ExecutorStart+0x494)[0x5adb02233a94]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(PortalStart+0x281)[0x5adb02449121]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(+0x5b2669)[0x5adb02445669]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(PostgresMain+0x1826)[0x5adb02447386]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(BackendMain+0x53)[0x5adb02441343]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(postmaster_child_launch+0x111)[0x5adb0237e371]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(+0x4ef012)[0x5adb02382012]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(PostmasterMain+0xdfd)[0x5adb02383c0d]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(main+0x1ce)[0x5adb02025f8e]",
+    "/lib/x86_64-linux-gnu/libc.so.6(+0x2a1ca)[0x7b03e822a1ca]",
+    "/lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x8b)[0x7b03e822a28b]",
+    "postgres: postgres postgres 127.0.0.1(55219) SELECT(_start+0x25)[0x5adb02026305]",
+    "2026-10-26 18:38:20.459 UTC [32481] LOG:  client backend (PID 302154) was terminated by signal 6: Aborted",
+    "2026-10-26 18:38:20.459 UTC [32481] DETAIL:  Failed process was running: SELECT '10'::int AS c0, INITCAP (a1.c2) AS c1 FROM t4 AS a1, JSON_TABLE ((JSONB_BUILD_OBJECT ('k', 1, 'a', JSONB_BUILD_ARRAY (JSON_VALUE ('{\"k\": -1, \"a\": [1, 2, 3]}'::jsonb, '$.k ? (@ > 0)'), (ROW ('2000-01-01'::date, '??'::text) < ROW ('1999-12-31'::date, '0'::text)))) - 'k'), '$.a[*]' COLUMNS (c0 FOR ORDINALITY, c1 int PATH '$')) AS a2 EXCEPT ALL SELECT 10 AS c0, '{\"k\": 1}'::text AS c1 ORDER BY 1 NULLS FIRST",
+    "2026-10-26 18:38:20.459 UTC [32481] LOG:  terminating any other active server processes",
+    "2026-10-26 18:38:20.493 UTC [32481] LOG:  all server processes terminated; reinitializing",
+    "2026-10-26 18:38:20.508 UTC [343439] LOG:  database system was interrupted; last known up at 2026-10-26 18:34:40 UTC",
+    "2026-10-26 18:38:20.509 UTC [343439] LOG:  database system was not properly shut down; automatic recovery in progress",
+    "2026-10-26 18:38:20.512 UTC [343439] LOG:  redo starts at 0/5FCDBB50",
+    "2026-10-26 18:38:21.463 UTC [343448] FATAL:  the database system is not yet accepting connections",
+    "2026-10-26 18:38:21.463 UTC [343448] DETAIL:  Consistent recovery state has not been yet reached.",
+    "2026-10-26 18:38:21.968 UTC [343449] FATAL:  the database system is not yet accepting connections",
+    "2026-10-26 18:38:21.968 UTC [343449] DETAIL:  Consistent recovery state has not been yet reached.",
+    "2026-10-26 18:38:22.211 UTC [343439] LOG:  invalid record length at 0/61126FF0: expected at least 24, got 0",
+    "2026-10-26 18:38:22.211 UTC [343439] LOG:  redo done at 0/61126F68 system usage: CPU: user: 0.33 s, system: 0.59 s, elapsed: 1.69 s",
+    "2026-10-26 18:38:22.226 UTC [32481] LOG:  database system is ready to accept connections"
+  ],
+  "extra": {}
+}

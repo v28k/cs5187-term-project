@@ -1,0 +1,69 @@
+{
+  "v": 1,
+  "signature": "686d5e233140",
+  "strength": "diff",
+  "key": "wrong_result|xversion|SELECT|",
+  "outcome": "wrong_result",
+  "sqlstate": null,
+  "message": "result differs under plan variant xversion: 30 rows by default, 30 rows with variant",
+  "culprit": 0,
+  "culprit_sql": "SELECT * FROM t2",
+  "details": {
+    "variant": "xversion",
+    "settings": {
+      "reference_server": "18.6"
+    },
+    "rows_default": 30,
+    "rows_variant": 30
+  },
+  "known_bugs": [],
+  "first_t": 409.217,
+  "testcase_id": 26050,
+  "origin": "random",
+  "meta": {
+    "arm": "random"
+  },
+  "statements": [
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 2.192386000388069,
+      "rows": 30,
+      "result_hash": "e44e2c91efe63f26d790e771",
+      "variants": {
+        "no_join_reorder": {
+          "settings": {
+            "join_collapse_limit": "1",
+            "from_collapse_limit": "1"
+          },
+          "status": "ok",
+          "hash": "e44e2c91efe63f26d790e771",
+          "rows": 30,
+          "ms": 4.775
+        },
+        "no_reordering": {
+          "settings": {
+            "enable_group_by_reordering": "off",
+            "enable_distinct_reordering": "off"
+          },
+          "status": "ok",
+          "hash": "e44e2c91efe63f26d790e771",
+          "rows": 30,
+          "ms": 5.279
+        },
+        "xversion": {
+          "status": "ok",
+          "hash": "bd57c92b4407ad502360fd10",
+          "rows": 30,
+          "settings": {
+            "reference_server": "18.6"
+          }
+        }
+      },
+      "plan_shape": "abdedf1e19771488"
+    }
+  ],
+  "server_log": [],
+  "extra": {}
+}

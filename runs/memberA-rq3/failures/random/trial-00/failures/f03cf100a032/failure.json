@@ -1,0 +1,69 @@
+{
+  "v": 1,
+  "signature": "f03cf100a032",
+  "strength": "diff",
+  "key": "wrong_result|no_eager_agg|SELECT|",
+  "outcome": "wrong_result",
+  "sqlstate": null,
+  "message": "result differs under plan variant no_eager_agg: 0 rows by default, 80 rows with variant",
+  "culprit": 0,
+  "culprit_sql": "SELECT * FROM tl LIM",
+  "details": {
+    "variant": "no_eager_agg",
+    "settings": {
+      "enable_eager_aggregate": "off"
+    },
+    "rows_default": 0,
+    "rows_variant": 80
+  },
+  "known_bugs": [],
+  "first_t": 504.31,
+  "testcase_id": 31807,
+  "origin": "random",
+  "meta": {
+    "arm": "random"
+  },
+  "statements": [
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 2.4448980002489407,
+      "rows": 0,
+      "result_hash": "b8e1dda3ac0aa3820ad2990b",
+      "variants": {
+        "seq_scans": {
+          "settings": {
+            "enable_indexscan": "off",
+            "enable_indexonlyscan": "off",
+            "enable_bitmapscan": "off"
+          },
+          "status": "ok",
+          "hash": "b8e1dda3ac0aa3820ad2990b",
+          "rows": 0,
+          "ms": 5.475
+        },
+        "no_eager_agg": {
+          "settings": {
+            "enable_eager_aggregate": "off"
+          },
+          "status": "ok",
+          "hash": "7dc6e89f00b0dca786e8be9e",
+          "rows": 80,
+          "ms": 3.851
+        },
+        "xversion": {
+          "status": "ok",
+          "hash": "7dc6e89f00b0dca786e8be9e",
+          "rows": 80,
+          "settings": {
+            "reference_server": "18.6"
+          }
+        }
+      },
+      "plan_shape": "11be537b9d48e069"
+    }
+  ],
+  "server_log": [],
+  "extra": {}
+}

@@ -1,0 +1,26 @@
+Subject: returns a wrong result -- <one line: the feature involved>
+
+PostgreSQL version: ? (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script returns a wrong result.
+
+ERROR:  result differs under plan variant xversion: 19 rows by default, 19 rows with variant
+
+Script
+------
+
+-- pgfuzz triage of f8f3de89048d: wrong_result via cross-version
+SELECT c0, count(*) AS n FROM t0 GROUP BY c0;
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.

@@ -1,0 +1,42 @@
+Subject: fails an assertion -- <one line: the feature involved>
+
+PostgreSQL version: 20devel (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script fails an assertion.
+
+TRAP: failed Assert("var->varno == rel->relid"), File: "pathkeys.c", Line: 1268
+
+Script
+------
+
+-- pgfuzz triage of 448f485d72d5: assertion via assertion
+SELECT FROM t4 a1 WHERE (c0 <> ANY (SELECT a1.c1 UNION ALL SELECT a1.c0 FROM v0) AND FALSE);
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+Backtrace (top frames)
+----------------------
+
+ExceptionalCondition
+convert_subquery_pathkeys
+make_one_rel
+query_planner
+subquery_planner
+standard_planner
+planner
+pg_plan_query
+pg_plan_queries
+PostgresMain
+BackendMain
+postmaster_child_launch
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.

@@ -1,0 +1,8 @@
+-- pgfuzz failure 28a639c0f92c (wrong_result, signature strength: diff)
+-- test case 36941 from grammar
+-- SQLSTATE -: result differs under plan variant xversion: 218 rows by default, 211 rows with variant
+-- failing statement: #4
+INSERT INTO t2 AS a1 (c2, c3) SELECT LAG (COALESCE ('epoch'::timestamptz, NULL::timestamptz)) IGNORE NULLS OVER (PARTITION BY ARRAY[1, 2, 3], 100 ORDER BY (CASE WHEN (('{"k": -1, "a": [1, 2, 3]}'::jsonb @? '$.k ? (@ > 0)') AND ('A'::text LIKE '%\\%'::text)) THEN 1.5::numeric ELSE 100.0::numeric END <> 2.25::numeric) NULLS LAST, LEAST ('{"k": -1, "a": [1, 2, 3]}'::jsonb, '{"k": 1, "a": [1, 2]}'::jsonb)) AS c0, LAG ('{}'::text[]) OVER (ORDER BY 22, a2.c0) AS c1 FROM (SELECT (-1.5)::float8 AS c0) AS a2 ON CONFLICT DO NOTHING RETURNING LEAST (a1.c3, a1.c3) AS c0, JSONB_BUILD_OBJECT ('k', (a1.c0 % 1000)::int) AS c1;
+SET LOCAL enable_bitmapscan = OFF;
+VALUES ('{"k": 1, "a": [1, 2]}'::jsonb, NULLIF ((-1)::bigint, 100::bigint), GREATEST (COALESCE (COALESCE ('{"k": 1, "a": [1, 2]}'::jsonb, COALESCE ('{"k": 0, "a": [3, 4, 5]}'::jsonb, '{"k": 0, "a": [3, 4, 5]}'::jsonb)), '{}'::jsonb), TO_JSONB (INT4RANGE (LEAST (((-2) - 2), 10), GREATEST (10, 10), '[]'))));
+WITH RECURSIVE rc(c0) AS (SELECT 1 UNION SELECT (r.c0 * 7) % 10 FROM rc AS r) CYCLE c0 SET cy USING pth SELECT CONCAT ((NOT EXISTS (SELECT (JSONB_PATH_QUERY_FIRST ('{"k": 2, "a": [0]}'::jsonb, '$.k ? (@ > 0)') -> 0) AS c0, ARRAY[1] AS c1, a4.c0 AS c2 FROM rc AS a4 GROUP BY CUBE (a4.c0))), REVERSE (a3.c0)) AS c0, '(,5]'::int4range AS c1 FROM (SELECT ' '::text AS c0 FROM (t2 AS a1 RIGHT JOIN t2 AS a2 ON ((a1.c3 = a2.c3) AND ('{"k": 0, "a": [3, 4, 5]}'::jsonb @> '{}'::jsonb))) GROUP BY CUBE (a2.c2, a1.c0, a2.c1)) AS a3;
