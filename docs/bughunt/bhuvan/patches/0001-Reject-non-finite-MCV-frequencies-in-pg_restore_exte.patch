@@ -1,0 +1,245 @@
+From 55479a12218190082d13456f46d8125d7e0ff266 Mon Sep 17 00:00:00 2001
+From: Bhuvan C <c.bhuvan@iitg.ac.in>
+Date: Sun, 18 Oct 2026 16:59:30 +0000
+Subject: [PATCH] Reject non-finite MCV frequencies in
+ pg_restore_extended_stats()
+
+pg_restore_extended_stats() accepted NaN and Infinity in
+most_common_freqs and most_common_base_freqs and stored them verbatim in
+the MCV list.  check_mcvlist_array() verified only the number of
+dimensions, the absence of NULLs, and the length.
+
+The frequencies are consumed by the planner as probabilities.
+CLAMP_PROBABILITY() cannot neutralize NaN, as both of its comparisons are
+false, so a NaN frequency propagates into selectivity estimates and row
+counts reach the clamp ceiling.  This is the same class of problem
+addressed by 7cb9060d for reltuples.
+
+Reject non-finite values with a WARNING, like the other inconsistent
+inputs handled by check_mcvlist_array().  Finite but out-of-range values
+are still accepted, as these functions perform only superficial
+validation by design and the planner clamps them.
+
+Tests are added to stats_import.
+---
+ src/backend/statistics/extended_stats_funcs.c | 21 +++++
+ src/test/regress/expected/stats_import.out    | 87 ++++++++++++++++++-
+ src/test/regress/sql/stats_import.sql         | 62 +++++++++++++
+ 3 files changed, 169 insertions(+), 1 deletion(-)
+
+diff --git a/src/backend/statistics/extended_stats_funcs.c b/src/backend/statistics/extended_stats_funcs.c
+index 00b8dbe3..4fdcff2e 100644
+--- a/src/backend/statistics/extended_stats_funcs.c
++++ b/src/backend/statistics/extended_stats_funcs.c
+@@ -16,6 +16,8 @@
+  */
+ #include "postgres.h"
+ 
++#include <math.h>
++
+ #include "access/heapam.h"
+ #include "catalog/indexing.h"
+ #include "catalog/namespace.h"
+@@ -801,6 +803,25 @@ check_mcvlist_array(const ArrayType *arr, int argindex, int required_ndims,
+ 		return false;
+ 	}
+ 
++	/*
++	 * The frequencies are used by the planner as probabilities.  NaN is not
++	 * neutralized by CLAMP_PROBABILITY(), so reject non-finite values.  The
++	 * callers pass float8 arrays without NULLs (checked above).
++	 */
++	Assert(ARR_ELEMTYPE(arr) == FLOAT8OID);
++	for (int i = 0; i < mcv_length; i++)
++	{
++		if (isnan(((const float8 *) ARR_DATA_PTR(arr))[i]) ||
++			isinf(((const float8 *) ARR_DATA_PTR(arr))[i]))
++		{
++			ereport(WARNING,
++					errcode(ERRCODE_INVALID_PARAMETER_VALUE),
++					errmsg("could not parse array \"%s\": non-finite value found",
++						   extarginfo[argindex].argname));
++			return false;
++		}
++	}
++
+ 	return true;
+ }
+ 
+diff --git a/src/test/regress/expected/stats_import.out b/src/test/regress/expected/stats_import.out
+index 87b0e032..05825c1b 100644
+--- a/src/test/regress/expected/stats_import.out
++++ b/src/test/regress/expected/stats_import.out
+@@ -4149,8 +4149,92 @@ SELECT COUNT(*) FROM stats_import.test_range_expr_null
+     19
+ (1 row)
+ 
++-- Non-finite MCV frequencies must be rejected, as they are not neutralized by
++-- CLAMP_PROBABILITY() and would otherwise be stored and used by the planner.
++CREATE TABLE stats_import.test_mcv_finite (a int, b int);
++INSERT INTO stats_import.test_mcv_finite
++  SELECT i % 3, i % 3 FROM generate_series(1, 300) AS i;
++CREATE STATISTICS stats_import.test_mcv_finite_stat (mcv)
++  ON a, b FROM stats_import.test_mcv_finite;
++ANALYZE stats_import.test_mcv_finite;
++-- warn: NaN in most_common_freqs
++SELECT pg_catalog.pg_restore_extended_stats(
++  'schemaname', 'stats_import',
++  'relname', 'test_mcv_finite',
++  'statistics_schemaname', 'stats_import',
++  'statistics_name', 'test_mcv_finite_stat',
++  'inherited', false,
++  'most_common_vals', '{{0,0},{1,1}}'::text[],
++  'most_common_freqs', '{NaN,0.3}'::double precision[],
++  'most_common_base_freqs', '{0.1,0.1}'::double precision[]);
++WARNING:  could not parse array "most_common_freqs": non-finite value found
++ pg_restore_extended_stats 
++---------------------------
++ f
++(1 row)
++
++-- warn: Infinity in most_common_freqs
++SELECT pg_catalog.pg_restore_extended_stats(
++  'schemaname', 'stats_import',
++  'relname', 'test_mcv_finite',
++  'statistics_schemaname', 'stats_import',
++  'statistics_name', 'test_mcv_finite_stat',
++  'inherited', false,
++  'most_common_vals', '{{0,0},{1,1}}'::text[],
++  'most_common_freqs', '{Infinity,0.3}'::double precision[],
++  'most_common_base_freqs', '{0.1,0.1}'::double precision[]);
++WARNING:  could not parse array "most_common_freqs": non-finite value found
++ pg_restore_extended_stats 
++---------------------------
++ f
++(1 row)
++
++-- warn: NaN in most_common_base_freqs
++SELECT pg_catalog.pg_restore_extended_stats(
++  'schemaname', 'stats_import',
++  'relname', 'test_mcv_finite',
++  'statistics_schemaname', 'stats_import',
++  'statistics_name', 'test_mcv_finite_stat',
++  'inherited', false,
++  'most_common_vals', '{{0,0},{1,1}}'::text[],
++  'most_common_freqs', '{0.3,0.3}'::double precision[],
++  'most_common_base_freqs', '{0.1,NaN}'::double precision[]);
++WARNING:  could not parse array "most_common_base_freqs": non-finite value found
++ pg_restore_extended_stats 
++---------------------------
++ f
++(1 row)
++
++-- Nothing was restored by the calls above, so the MCV list is still the
++-- one built by ANALYZE, with finite values only.
++SELECT count(*) AS nonfinite_items
++FROM pg_mcv_list_items((SELECT d.stxdmcv
++                        FROM pg_statistic_ext_data AS d
++                        JOIN pg_statistic_ext AS e ON e.oid = d.stxoid
++                        WHERE e.stxname = 'test_mcv_finite_stat'))
++WHERE NOT (frequency BETWEEN 0 AND 1 AND base_frequency BETWEEN 0 AND 1);
++ nonfinite_items 
++-----------------
++               0
++(1 row)
++
++-- ok: finite values are still accepted
++SELECT pg_catalog.pg_restore_extended_stats(
++  'schemaname', 'stats_import',
++  'relname', 'test_mcv_finite',
++  'statistics_schemaname', 'stats_import',
++  'statistics_name', 'test_mcv_finite_stat',
++  'inherited', false,
++  'most_common_vals', '{{0,0},{1,1}}'::text[],
++  'most_common_freqs', '{0.3,0.3}'::double precision[],
++  'most_common_base_freqs', '{0.1,0.1}'::double precision[]);
++ pg_restore_extended_stats 
++---------------------------
++ t
++(1 row)
++
+ DROP SCHEMA stats_import CASCADE;
+-NOTICE:  drop cascades to 27 other objects
++NOTICE:  drop cascades to 28 other objects
+ DETAIL:  drop cascades to view stats_import.pg_stats_stable
+ drop cascades to view stats_import.pg_statistic_flat_t
+ drop cascades to function stats_import.pg_statistic_flat(text)
+@@ -4178,3 +4262,4 @@ drop cascades to table stats_import.test_dom_ts_clone
+ drop cascades to table stats_import.test_clone
+ drop cascades to table stats_import.test_mr_clone
+ drop cascades to table stats_import.test_range_expr_null
++drop cascades to table stats_import.test_mcv_finite
+diff --git a/src/test/regress/sql/stats_import.sql b/src/test/regress/sql/stats_import.sql
+index f24da5bf..95302b8e 100644
+--- a/src/test/regress/sql/stats_import.sql
++++ b/src/test/regress/sql/stats_import.sql
+@@ -2898,4 +2898,66 @@ SELECT * FROM stats_import.test_range_expr_null
+ SELECT COUNT(*) FROM stats_import.test_range_expr_null
+   WHERE (rng * int4range(50, 150)) && '[60,70)'::int4range;
+ 
++-- Non-finite MCV frequencies must be rejected, as they are not neutralized by
++-- CLAMP_PROBABILITY() and would otherwise be stored and used by the planner.
++CREATE TABLE stats_import.test_mcv_finite (a int, b int);
++INSERT INTO stats_import.test_mcv_finite
++  SELECT i % 3, i % 3 FROM generate_series(1, 300) AS i;
++CREATE STATISTICS stats_import.test_mcv_finite_stat (mcv)
++  ON a, b FROM stats_import.test_mcv_finite;
++ANALYZE stats_import.test_mcv_finite;
++
++-- warn: NaN in most_common_freqs
++SELECT pg_catalog.pg_restore_extended_stats(
++  'schemaname', 'stats_import',
++  'relname', 'test_mcv_finite',
++  'statistics_schemaname', 'stats_import',
++  'statistics_name', 'test_mcv_finite_stat',
++  'inherited', false,
++  'most_common_vals', '{{0,0},{1,1}}'::text[],
++  'most_common_freqs', '{NaN,0.3}'::double precision[],
++  'most_common_base_freqs', '{0.1,0.1}'::double precision[]);
++
++-- warn: Infinity in most_common_freqs
++SELECT pg_catalog.pg_restore_extended_stats(
++  'schemaname', 'stats_import',
++  'relname', 'test_mcv_finite',
++  'statistics_schemaname', 'stats_import',
++  'statistics_name', 'test_mcv_finite_stat',
++  'inherited', false,
++  'most_common_vals', '{{0,0},{1,1}}'::text[],
++  'most_common_freqs', '{Infinity,0.3}'::double precision[],
++  'most_common_base_freqs', '{0.1,0.1}'::double precision[]);
++
++-- warn: NaN in most_common_base_freqs
++SELECT pg_catalog.pg_restore_extended_stats(
++  'schemaname', 'stats_import',
++  'relname', 'test_mcv_finite',
++  'statistics_schemaname', 'stats_import',
++  'statistics_name', 'test_mcv_finite_stat',
++  'inherited', false,
++  'most_common_vals', '{{0,0},{1,1}}'::text[],
++  'most_common_freqs', '{0.3,0.3}'::double precision[],
++  'most_common_base_freqs', '{0.1,NaN}'::double precision[]);
++
++-- Nothing was restored by the calls above, so the MCV list is still the
++-- one built by ANALYZE, with finite values only.
++SELECT count(*) AS nonfinite_items
++FROM pg_mcv_list_items((SELECT d.stxdmcv
++                        FROM pg_statistic_ext_data AS d
++                        JOIN pg_statistic_ext AS e ON e.oid = d.stxoid
++                        WHERE e.stxname = 'test_mcv_finite_stat'))
++WHERE NOT (frequency BETWEEN 0 AND 1 AND base_frequency BETWEEN 0 AND 1);
++
++-- ok: finite values are still accepted
++SELECT pg_catalog.pg_restore_extended_stats(
++  'schemaname', 'stats_import',
++  'relname', 'test_mcv_finite',
++  'statistics_schemaname', 'stats_import',
++  'statistics_name', 'test_mcv_finite_stat',
++  'inherited', false,
++  'most_common_vals', '{{0,0},{1,1}}'::text[],
++  'most_common_freqs', '{0.3,0.3}'::double precision[],
++  'most_common_base_freqs', '{0.1,0.1}'::double precision[]);
++
+ DROP SCHEMA stats_import CASCADE;
+-- 
+2.43.0
+

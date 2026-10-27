@@ -1,0 +1,194 @@
+AUDIT-F2: fix endless loop in IGNORE NULLS frame scan, with regression test
+===========================================================================
+
+Base: PostgreSQL master 126976a8ffcfa47f40d3df09243ebf4606001912 (20devel,
+2026-10-23).  Also applies unchanged to REL_19_STABLE fc189eb750
+("git apply --check" OK).  Apply with:  git apply AUDIT-F2_REGRESSION_TEST.patch
+(git apply skips this header).
+
+Status: proposed by this audit.  NOT reviewed or accepted upstream.
+
+Files changed
+-------------
+
+src/backend/executor/nodeWindowAgg.c   (+15)
+  ignorenulls_getfuncarginframe() walks the frame row by row looking for the
+  n-th non-null value.  It calls row_is_in_frame() on each position without
+  first checking that the position is inside the partition, although
+  row_is_in_frame() requires its caller to have done so ("The caller must
+  have already determined that the row is in the partition").  When the
+  frame ends at UNBOUNDED FOLLOWING, row_is_in_frame() has no end-of-frame
+  test, and with EXCLUDE GROUP (or EXCLUDE TIES, for rows other than the
+  current one) and no ORDER BY it returns 0 ("excluded") for every
+  position, including positions past the last row.  The loop then never
+  calls window_gettupleslot(), which is what would have noticed the end of
+  the partition, and it advances abs_pos forever.
+  The fix checks the partition end before calling row_is_in_frame(), the
+  same way window_gettupleslot() does (spool_tuples(), then compare with
+  spooled_rows).  It also adds CHECK_FOR_INTERRUPTS() at the top of the
+  loop: the loop can pass over many excluded or known-NULL rows without
+  fetching any tuple, and window_gettupleslot() is where the interrupt check
+  normally happens.
+
+src/test/regress/sql/window.sql        (+30)
+src/test/regress/expected/window.out   (+56)
+  Four queries, added next to the existing IGNORE NULLS tests:
+    1. first_value/nth_value IGNORE NULLS, ROWS ... UNBOUNDED FOLLOWING
+       EXCLUDE GROUP, no ORDER BY  -> empty frame, all NULL
+    2. same functions, RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+       EXCLUDE TIES, no ORDER BY  -> frame = current row only
+    3. first_value IGNORE NULLS with PARTITION BY and EXCLUDE TIES
+    4. last_value IGNORE NULLS, ROWS ... UNBOUNDED FOLLOWING EXCLUDE TIES,
+       no ORDER BY  -> frame = current row only, so each row returns its own
+       value.  last_value() scans backward from the frame tail; this guards
+       the backward-scan path (which starts at a row after the current row)
+       against a later change to row_is_in_frame() that reports every
+       position after the current row as out of frame with -1.
+  Without the C change, the first query never finishes (pg_regress was
+  killed by a 180 s watchdog, still running).  With it, the output is
+  identical to the same frames computed through the aggregate path,
+  (array_agg(x) FILTER (WHERE x IS NOT NULL) OVER w)[n], on the unpatched
+  server.  The expected output was taken from the patched run only after
+  that independent check.  The expected-file change is a pure insertion.
+
+diff --git a/src/backend/executor/nodeWindowAgg.c b/src/backend/executor/nodeWindowAgg.c
+index b86dcbba05..25cf3c15f7 100644
+--- a/src/backend/executor/nodeWindowAgg.c
++++ b/src/backend/executor/nodeWindowAgg.c
+@@ -3466,6 +3466,9 @@ ignorenulls_getfuncarginframe(WindowObject winobj, int argno,
+ 		int			inframe;
+ 		int			v;
+ 
++		/* we may skip many rows without fetching any of them */
++		CHECK_FOR_INTERRUPTS();
++
+ 		/*
+ 		 * Check apparent out of frame case.  We need to do this because we
+ 		 * may not call window_gettupleslot before row_is_in_frame, which
+@@ -3474,6 +3477,18 @@ ignorenulls_getfuncarginframe(WindowObject winobj, int argno,
+ 		if (abs_pos < 0)
+ 			goto out_of_frame;
+ 
++		/*
++		 * Likewise, stop at the end of the partition, which row_is_in_frame
++		 * expects its caller to have checked.  It cannot always detect that
++		 * itself: for a frame ending at UNBOUNDED FOLLOWING with EXCLUDE
++		 * GROUP or EXCLUDE TIES and no ORDER BY, it reports every row other
++		 * than the current one as excluded, wherever it is, so we would
++		 * never reach the end of the loop.
++		 */
++		spool_tuples(winstate, abs_pos);
++		if (abs_pos >= winstate->spooled_rows)
++			goto out_of_frame;
++
+ 		/* check whether row is in frame */
+ 		inframe = row_is_in_frame(winobj, abs_pos, slot, true);
+ 		if (inframe == -1)
+diff --git a/src/test/regress/expected/window.out b/src/test/regress/expected/window.out
+index c0bde1c5ee..9f007a2396 100644
+--- a/src/test/regress/expected/window.out
++++ b/src/test/regress/expected/window.out
+@@ -6188,6 +6188,62 @@ WINDOW w AS (ORDER BY x ROWS BETWEEN 2 PRECEDING AND 2 FOLLOWING);
+  5 |         4
+ (5 rows)
+ 
++-- EXCLUDE GROUP/TIES without ORDER BY: every row is a peer of the current
++-- row, so the IGNORE NULLS scan must stop at the end of the partition
++SELECT x,
++       first_value(x) IGNORE NULLS OVER w,
++       nth_value(x, 2) IGNORE NULLS OVER w
++FROM (VALUES (1), (NULL), (3)) v(x)
++WINDOW w AS (ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE GROUP)
++ORDER BY x;
++ x | first_value | nth_value 
++---+-------------+-----------
++ 1 |             |          
++ 3 |             |          
++   |             |          
++(3 rows)
++
++SELECT x,
++       first_value(x) IGNORE NULLS OVER w,
++       nth_value(x, 2) IGNORE NULLS OVER w
++FROM (VALUES (1), (NULL), (3)) v(x)
++WINDOW w AS (RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING EXCLUDE TIES)
++ORDER BY x;
++ x | first_value | nth_value 
++---+-------------+-----------
++ 1 |           1 |          
++ 3 |           3 |          
++   |             |          
++(3 rows)
++
++SELECT p, x,
++       first_value(x) IGNORE NULLS OVER w
++FROM (VALUES (1, 1), (1, NULL), (2, NULL)) v(p, x)
++WINDOW w AS (PARTITION BY p ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES)
++ORDER BY p, x;
++ p | x | first_value 
++---+---+-------------
++ 1 | 1 |           1
++ 1 |   |            
++ 2 |   |            
++(3 rows)
++
++-- last_value IGNORE NULLS scans backward; with EXCLUDE TIES and no ORDER BY
++-- the only in-frame row is the current row, and the scan must skip past the
++-- rows after the current row (which a later fix to row_is_in_frame might mark
++-- as out of frame with -1) rather than stopping there.
++SELECT x,
++       last_value(x) IGNORE NULLS OVER w
++FROM (VALUES (1), (2), (3)) v(x)
++WINDOW w AS (ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES)
++ORDER BY x;
++ x | last_value 
++---+------------
++ 1 |          1
++ 2 |          2
++ 3 |          3
++(3 rows)
++
+ -- volatile arguments cannot use the IGNORE NULLS nullness cache
+ CREATE TEMPORARY SEQUENCE null_treatment_seq;
+ CREATE FUNCTION pg_temp.volatile_null(i int) RETURNS int
+diff --git a/src/test/regress/sql/window.sql b/src/test/regress/sql/window.sql
+index 8e6f92d94c..689fb0201f 100644
+--- a/src/test/regress/sql/window.sql
++++ b/src/test/regress/sql/window.sql
+@@ -2271,6 +2271,36 @@ SELECT x,
+ FROM generate_series(1,5) g(x)
+ WINDOW w AS (ORDER BY x ROWS BETWEEN 2 PRECEDING AND 2 FOLLOWING);
+ 
++-- EXCLUDE GROUP/TIES without ORDER BY: every row is a peer of the current
++-- row, so the IGNORE NULLS scan must stop at the end of the partition
++SELECT x,
++       first_value(x) IGNORE NULLS OVER w,
++       nth_value(x, 2) IGNORE NULLS OVER w
++FROM (VALUES (1), (NULL), (3)) v(x)
++WINDOW w AS (ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE GROUP)
++ORDER BY x;
++SELECT x,
++       first_value(x) IGNORE NULLS OVER w,
++       nth_value(x, 2) IGNORE NULLS OVER w
++FROM (VALUES (1), (NULL), (3)) v(x)
++WINDOW w AS (RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING EXCLUDE TIES)
++ORDER BY x;
++SELECT p, x,
++       first_value(x) IGNORE NULLS OVER w
++FROM (VALUES (1, 1), (1, NULL), (2, NULL)) v(p, x)
++WINDOW w AS (PARTITION BY p ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES)
++ORDER BY p, x;
++
++-- last_value IGNORE NULLS scans backward; with EXCLUDE TIES and no ORDER BY
++-- the only in-frame row is the current row, and the scan must skip past the
++-- rows after the current row (which a later fix to row_is_in_frame might mark
++-- as out of frame with -1) rather than stopping there.
++SELECT x,
++       last_value(x) IGNORE NULLS OVER w
++FROM (VALUES (1), (2), (3)) v(x)
++WINDOW w AS (ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES)
++ORDER BY x;
++
+ -- volatile arguments cannot use the IGNORE NULLS nullness cache
+ CREATE TEMPORARY SEQUENCE null_treatment_seq;
+ CREATE FUNCTION pg_temp.volatile_null(i int) RETURNS int

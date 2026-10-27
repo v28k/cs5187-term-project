@@ -1,0 +1,73 @@
+nohup: ignoring input
+=== kind=sequence savepoint
+$ /home/bhuvi/pgfuzz/install/master/bin/initdb -D /tmp/cand2-sequence -U postgres --auth=trust --no-instructions
+$ /home/bhuvi/pgfuzz/install/master/bin/pg_ctl -D /tmp/cand2-sequence -l /tmp/cand2-sequence/postgresql.log -w start
+relation file: base/5/16384
+files before crash: [('16384', 0)]
+$ /home/bhuvi/pgfuzz/install/master/bin/pg_ctl -D /tmp/cand2-sequence -m immediate stop
+files after crash:  [('16384', 0)]
+$ /home/bhuvi/pgfuzz/install/master/bin/pg_ctl -D /tmp/cand2-sequence -l /tmp/cand2-sequence/postgresql.log -w -t 30 start
+restart exit code: 1
+2026-10-17 13:08:05.992 UTC [38755] LOG:  listening on IPv4 address "127.0.0.1", port 5450
+2026-10-17 13:08:06.000 UTC [38755] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5450"
+2026-10-17 13:08:06.012 UTC [38760] LOG:  database system was interrupted; last known up at 2026-10-17 13:08:05 UTC
+2026-10-17 13:08:06.532 UTC [38760] LOG:  database system was not properly shut down; automatic recovery in progress
+2026-10-17 13:08:06.545 UTC [38760] LOG:  redo starts at 0/01764240
+2026-10-17 13:08:06.549 UTC [38760] LOG:  invalid record length at 0/01787778: expected at least 24, got 0
+2026-10-17 13:08:06.549 UTC [38760] LOG:  redo done at 0/01787600 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2026-10-17 13:08:06.558 UTC [38760] FATAL:  could not create file "base/5/16384": File exists
+2026-10-17 13:08:06.560 UTC [38755] LOG:  startup process (PID 38760) exited with exit code 1
+2026-10-17 13:08:06.560 UTC [38755] LOG:  terminating any other active server processes
+2026-10-17 13:08:06.560 UTC [38755] LOG:  shutting down due to startup process failure
+2026-10-17 13:08:06.564 UTC [38755] LOG:  database system is shut down
+RESULT: RECOVERY FAILED (File exists)
+$ /home/bhuvi/pgfuzz/install/master/bin/pg_ctl -D /tmp/cand2-sequence -m fast stop
+EXIT=1
+=== kind=table savepoint
+$ /home/bhuvi/pgfuzz/install/master/bin/initdb -D /tmp/cand2-table -U postgres --auth=trust --no-instructions
+$ /home/bhuvi/pgfuzz/install/master/bin/pg_ctl -D /tmp/cand2-table -l /tmp/cand2-table/postgresql.log -w start
+relation file: base/5/16384
+files before crash: [('16384', 0)]
+$ /home/bhuvi/pgfuzz/install/master/bin/pg_ctl -D /tmp/cand2-table -m immediate stop
+files after crash:  [('16384', 0)]
+$ /home/bhuvi/pgfuzz/install/master/bin/pg_ctl -D /tmp/cand2-table -l /tmp/cand2-table/postgresql.log -w -t 30 start
+restart exit code: 1
+2026-10-17 13:08:10.491 UTC [38799] LOG:  listening on IPv4 address "127.0.0.1", port 5450
+2026-10-17 13:08:10.498 UTC [38799] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5450"
+2026-10-17 13:08:10.510 UTC [38804] LOG:  database system was interrupted; last known up at 2026-10-17 13:08:10 UTC
+2026-10-17 13:08:10.920 UTC [38804] LOG:  database system was not properly shut down; automatic recovery in progress
+2026-10-17 13:08:10.926 UTC [38804] LOG:  redo starts at 0/01764240
+2026-10-17 13:08:10.928 UTC [38804] LOG:  invalid record length at 0/01789380: expected at least 24, got 0
+2026-10-17 13:08:10.928 UTC [38804] LOG:  redo done at 0/01789208 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2026-10-17 13:08:10.931 UTC [38804] FATAL:  could not create file "base/5/16384": File exists
+2026-10-17 13:08:10.934 UTC [38799] LOG:  startup process (PID 38804) exited with exit code 1
+2026-10-17 13:08:10.934 UTC [38799] LOG:  terminating any other active server processes
+2026-10-17 13:08:10.935 UTC [38799] LOG:  shutting down due to startup process failure
+2026-10-17 13:08:10.939 UTC [38799] LOG:  database system is shut down
+RESULT: RECOVERY FAILED (File exists)
+$ /home/bhuvi/pgfuzz/install/master/bin/pg_ctl -D /tmp/cand2-table -m fast stop
+EXIT=1
+=== kind=sequence no-savepoint
+$ /home/bhuvi/pgfuzz/install/master/bin/initdb -D /tmp/cand2-ns -U postgres --auth=trust --no-instructions
+$ /home/bhuvi/pgfuzz/install/master/bin/pg_ctl -D /tmp/cand2-ns -l /tmp/cand2-ns/postgresql.log -w start
+relation file: base/5/16384
+files before crash: [('16384', 8192), ('16384_init', 8192)]
+$ /home/bhuvi/pgfuzz/install/master/bin/pg_ctl -D /tmp/cand2-ns -m immediate stop
+files after crash:  [('16384', 8192), ('16384_init', 8192)]
+$ /home/bhuvi/pgfuzz/install/master/bin/pg_ctl -D /tmp/cand2-ns -l /tmp/cand2-ns/postgresql.log -w -t 30 start
+restart exit code: 0
+2026-10-17 13:08:14.955 UTC [38844] LOG:  database system is shut down
+2026-10-17 13:08:15.081 UTC [38859] LOG:  starting PostgreSQL 20devel on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit
+2026-10-17 13:08:15.085 UTC [38859] LOG:  listening on IPv4 address "127.0.0.1", port 5450
+2026-10-17 13:08:15.096 UTC [38859] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5450"
+2026-10-17 13:08:15.111 UTC [38864] LOG:  database system was interrupted; last known up at 2026-10-17 13:08:14 UTC
+2026-10-17 13:08:15.602 UTC [38864] LOG:  database system was not properly shut down; automatic recovery in progress
+2026-10-17 13:08:15.609 UTC [38864] LOG:  redo starts at 0/01764240
+2026-10-17 13:08:15.610 UTC [38864] LOG:  invalid record length at 0/01787778: expected at least 24, got 0
+2026-10-17 13:08:15.610 UTC [38864] LOG:  redo done at 0/01787600 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2026-10-17 13:08:15.627 UTC [38862] LOG:  checkpoint starting: end-of-recovery fast wait
+2026-10-17 13:08:15.700 UTC [38862] LOG:  checkpoint complete: end-of-recovery fast wait: wrote 27 buffers (0.2%), wrote 3 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.009 s, sync=0.031 s, total=0.077 s; sync files=24, longest=0.008 s, average=0.002 s; distance=141 kB, estimate=141 kB; lsn=0/01787778, redo lsn=0/01787778
+2026-10-17 13:08:15.710 UTC [38859] LOG:  database system is ready to accept connections
+RESULT: recovered
+$ /home/bhuvi/pgfuzz/install/master/bin/pg_ctl -D /tmp/cand2-ns -m fast stop
+EXIT=0

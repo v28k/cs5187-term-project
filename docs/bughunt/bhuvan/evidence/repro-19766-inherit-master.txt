@@ -1,0 +1,27 @@
+server: postgres (PostgreSQL) 20devel
+Q1 default        : TRAP via ExecMaterialInitializeDSM
+Q2 default        : TRAP via ExecSortInitializeDSM
+Q3 default        : TRAP via ExecMaterialInitializeDSM
+--- plan of Q1 with default settings
+                          QUERY PLAN                          
+--------------------------------------------------------------
+ Gather
+   Workers Planned: 2
+   ->  Parallel Append
+         ->  Parallel Seq Scan on ic ip_2
+               Filter: (NOT (ANY (a = (SubPlan any_1).col1)))
+               SubPlan any_1
+                 ->  Materialize
+                       ->  Nested Loop
+                             ->  Seq Scan on s
+                             ->  Materialize
+                                   ->  Seq Scan on s s2
+         ->  Parallel Seq Scan on ip ip_1
+               Filter: (NOT (ANY (a = (SubPlan any_1).col1)))
+(13 rows)
+
+TRAP: failed Assert("toc->toc_entry[i].key != key"), File: "shm_toc.c", Line: 190, PID: 400720
+postgres: postgres postgres 127.0.0.1(39809) EXPLAIN(ExceptionalCondition+0x92)[0x62e7fef3b45d]
+postgres: postgres postgres 127.0.0.1(39809) EXPLAIN(shm_toc_insert+0x10b)[0x62e7fed8f614]
+postgres: postgres postgres 127.0.0.1(39809) EXPLAIN(ExecMaterialInitializeDSM+0x84)[0x62e7febb96a9]
+postgres: postgres postgres 127.0.0.1(39809) EXPLAIN(+0x35dfbe)[0x62e7feb8bfbe]

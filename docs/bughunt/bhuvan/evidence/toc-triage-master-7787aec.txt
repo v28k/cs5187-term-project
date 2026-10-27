@@ -1,0 +1,36 @@
+server: postgres (PostgreSQL) 20devel
+Q1 default settings      : ok
+Q1 parallel variant      : CRASH (TRAP)
+Q1 parallel, no ANALYZE  : ok
+Q1 parallel, plain SELECT: ok
+Q1 parallel variant rep1 : CRASH (TRAP)
+Q1 parallel variant rep2 : CRASH (TRAP)
+Q1 parallel variant rep3 : CRASH (TRAP)
+--- plan of Q1 under the parallel variant
+                                              QUERY PLAN                                              
+------------------------------------------------------------------------------------------------------
+ Gather
+   Workers Planned: 2
+   ->  Nested Loop
+         ->  Parallel Append
+               ->  Seq Scan on tl_ab a1_1
+                     Filter: (ALL ((('é'::text >= c1) AND ('é'::text <= c1)) > (SubPlan all_1).col1))
+                     SubPlan all_1
+                       ->  Materialize
+                             ->  Seq Scan on t1 a3
+               ->  Seq Scan on tl_null a1_2
+                     Filter: (ALL ((('é'::text >= c1) AND ('é'::text <= c1)) > (SubPlan all_1).col1))
+               ->  Seq Scan on tl_def a1_3
+                     Filter: (ALL ((('é'::text >= c1) AND ('é'::text <= c1)) > (SubPlan all_1).col1))
+         ->  Function Scan on generate_series a2
+(14 rows)
+
+--- TRAP lines
+TRAP: failed Assert("toc->toc_entry[i].key != key"), File: "shm_toc.c", Line: 190, PID: 384605
+postgres: postgres postgres 127.0.0.1(38313) EXPLAIN(ExceptionalCondition+0x92)[0x55b5ead8f45d]
+postgres: postgres postgres 127.0.0.1(38313) EXPLAIN(shm_toc_insert+0x10b)[0x55b5eabe3614]
+postgres: postgres postgres 127.0.0.1(38313) EXPLAIN(ExecMaterialInitializeDSM+0x84)[0x55b5eaa0d6a9]
+--
+TRAP: failed Assert("toc->toc_entry[i].key != key"), File: "shm_toc.c", Line: 190, PID: 384647
+postgres: postgres postgres 127.0.0.1(37961) EXPLAIN(ExceptionalCondition+0x92)[0x55b5ead8f45d]
+postgres: postgres postgres 127.0.0.1(37961) EXPLAIN(shm_toc_insert+0x10b)[0x55b5eabe3614]

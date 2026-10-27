@@ -1,0 +1,1120 @@
+===============================================================================
+1. TITLE
+===============================================================================
+
+PostgreSQL Query Optimizer Correctness Bug: NOT IN Null Semantics with
+User-Defined Implicit Casts
+
+Local finding ID : AUDIT-F1
+Report date      : 2026-10-23 (all times UTC)
+Report status    : LOCAL REPORT ONLY. Nothing has been submitted to any
+                   PostgreSQL list, tracker, commitfest or maintainer.
+
+Evidence labels used in this report:
+  [EXEC]    fact directly demonstrated by execution in this verification
+  [SOURCE]  finding supported by reading source code or documentation
+  [INTERP]  interpretation or judgement drawn from the facts above
+  [UNVERIFIED] claim that was not checked, or could not be checked
+
+
+===============================================================================
+2. EXECUTIVE SUMMARY
+===============================================================================
+
+PostgreSQL 19 added a planner transformation (commit 383eb21ebf, 2026-03-12)
+that rewrites "x NOT IN (SELECT y ...)" into an anti-join when it can prove
+that neither side of the comparison can be NULL. The proof checks the outer
+expression, the comparison operator and the sub-select's output column. It
+does not check the inner operand that is actually compared. The parser may
+wrap the sub-select's output in an implicit cast, and a cast function is
+allowed to return NULL for a non-NULL input. When that happens the comparison
+is NULL, so NOT IN is NULL and the row must not qualify. The anti-join instead
+treats the comparison as "no match" and returns the row.
+
+Verified in this session on freshly built, isolated clusters:
+
+  * [EXEC] The original reproducer runs as written, without errors, on all
+    five builds.
+  * [EXEC] On 19rc1 (exact tag REL_19_RC1), the REL_19_STABLE tip and master
+    896246ea, the reproducer returns 1 row instead of 0, in 3 of 3 runs each.
+    The plan is an anti-join (hash, merge or nested loop).
+  * [EXEC] On 18.6 (exact tag REL_18_6) it returns 0 rows in 3 of 3 runs,
+    using a hashed SubPlan.
+  * [EXEC] On the same affected build, the identical predicate gives the
+    correct 0 rows whenever the transformation is prevented (control queries).
+    PostgreSQL's own evaluation of the NOT IN expression gives NULL on every
+    version.
+  * [EXEC] An unprivileged role can trigger it with a type it owns. The
+    verbatim reproducer, which casts int to text, needs a superuser.
+  * [EXEC] The proposed fix (41 lines in subselect.c) makes every tested
+    variant correct. With the fix plus a new regression test:
+      - core suite: 239/239 pass;
+      - isolation suite: 134/134 pass;
+      - contrib suites: 191 test lines, 0 failures.
+    Without the fix, the new regression test fails for exactly the intended
+    reason.
+  * [EXEC] The fix has a cost. It also gives up the anti-join for queries
+    whose sub-select side needs a built-in non-binary cast, for example
+    "numeric_col NOT IN (SELECT int_col ...)". Those return to PostgreSQL 18
+    behaviour (hashed SubPlan). Results stay correct.
+
+Final status: A. CONFIRMED REPRODUCIBLE BUG (see Section 3).
+
+
+===============================================================================
+3. VERIFICATION STATUS
+===============================================================================
+
+Selected status: A. CONFIRMED REPRODUCIBLE BUG
+
+Why each requirement is met:
+
+  (1) Reproducible.
+      [EXEC] The wrong result occurred in 9 of 9 runs on the three affected
+      builds (3 runs each, each in a newly created database on a freshly
+      initialized cluster). The correct result occurred in 3 of 3 runs on
+      18.6. Output was identical across runs.
+
+  (2) Expected semantics established.
+      [SOURCE] The documentation defines NOT IN as true only if all subquery
+      rows are unequal, false if any is equal, and otherwise NULL "in
+      accordance with SQL's normal rules for Boolean combinations of null
+      values" (func-subquery.sgml lines 141-147 and 158-172). A WHERE row
+      qualifies only "if it returns true" (select.sgml lines 786-789).
+      [EXEC] PostgreSQL itself evaluates the same NOT IN expression to NULL
+      on all five builds, including the affected ones.
+
+  (3) The optimizer is responsible.
+      [EXEC] On an affected build the same data and the same predicate give
+      the correct result whenever no anti-join is formed:
+        - control C1: predicate wrapped in IS TRUE;
+        - control C2: NOT NULL constraint dropped, no NULL inserted.
+      The wrong row appears only with anti-join plans, under every join
+      method.
+      [EXEC] The parse tree is identical on all versions: an implicit cast
+      FUNCEXPR of i2t over a PARAM_SUBLINK.
+      [SOURCE] The planner code path is identified in Section 11.
+
+  (4) Not an invalid test setup.
+      [EXEC] The cast is created successfully. No int4->text cast existed
+      beforehand. The cast really is applied to the compared value, and it
+      really returns NULL for 0.
+      [SOURCE] The CREATE CAST documentation places no restriction on a cast
+      function returning NULL. It does advise against cross-category implicit
+      casts; see Section 18.
+
+Why not B (REPRODUCIBLE BUT FIX UNVALIDATED):
+  [INTERP] The proposed fix only adds conditions under which the
+  transformation is refused, so it cannot create a new anti-join or a new
+  wrong result. It was tested by:
+    - baseline-fails / patch-passes of the new regression test;
+    - the full core, isolation and contrib suites.
+  Its remaining issues are a design trade-off (lost optimization for some
+  built-in casts, Section 14) and limits on what was tested (TAP tests not
+  run, Section 19). These are reported for maintainers to judge. They do not
+  make the bug itself uncertain.
+  If the status had to describe the patch rather than the bug, it would be
+  "validated by local tests; design not yet reviewed by maintainers".
+
+
+===============================================================================
+4. AFFECTED POSTGRESQL VERSIONS AND TESTED COMMIT HASHES
+===============================================================================
+
+All builds were made in this verification from separate git worktrees, with
+identical configure options (Section 15).
+
+Build     Source ref        Commit (full hash)                         Version  Result
+--------  ----------------  -----------------------------------------  -------  --------
+v-r186    tag REL_18_6      724edf9bde9d356724ad384a2e196edc3c9f80f7   18.6     correct
+          ("Stamp 18.6", 2026-08-11)
+v-r19rc1  tag REL_19_RC1    0b8bff042a997fe50fcd1c4c83b9ef1cc9ed8a89   19rc1    AFFECTED
+          ("Stamp 19rc1", 2026-10-12)
+v-r19tip  REL_19_STABLE     015f4c9fc35f91a1ab46bafab05a3686cfe09d46   19rc1*   AFFECTED
+          (2026-10-23)
+v-base    master            896246ea10cb9d20f69d0442223ce5fa9b365636   20devel  AFFECTED
+          (2026-10-23)
+v-fix     master + patch    896246ea... + 0001 diff (Section 13)       20devel  correct
+
+  * The REL_19_STABLE tip still reports "19rc1" in version(), but it is 11
+    days of commits after the RC1 tag. It is identified here by commit, not
+    by version string. 19rc1 is a release candidate, not a final release.
+
+Git facts [EXEC: git in a clone fetched 2026-10-23 15:34 UTC]:
+
+  * Introducing commit, found with git log -S"sublink_testexpr_is_not_nullable":
+      383eb21ebffe9ddd97dca03e529fa363580e7ccf
+      2026-03-12 09:45:18 +0900, Richard Guo
+      "Convert NOT IN sublinks to anti-joins when safe"
+  * It is an ancestor of REL_19_RC1, REL_19_STABLE and master 896246ea.
+  * src/backend/optimizer/plan/subselect.c at tag REL_18_6 contains no
+    sublink_testexpr_is_not_nullable (0 occurrences).
+  * git log -L on sublink_testexpr_is_not_nullable shows no commits after
+    383eb21ebf.
+  * At verification time origin/master had no commits newer than 896246ea.
+
+Affected-version conclusion:
+  [EXEC + SOURCE] PostgreSQL 19 (tested 19rc1 and the REL_19_STABLE tip) and
+  master. PostgreSQL 18.6 is not affected; the transformation does not exist
+  there.
+  [UNVERIFIED] Other 19 pre-releases (betas) were not tested individually.
+  They are expected to be affected because they contain 383eb21ebf.
+
+
+===============================================================================
+5. BUG DESCRIPTION
+===============================================================================
+
+When a WHERE clause contains "expr NOT IN (subquery)" at top level, the
+planner calls convert_ANY_sublink_to_join() with under_not = true
+(prepjointree.c lines 1004-1016). Since 383eb21ebf, that function produces a
+JOIN_ANTI if two checks pass (subselect.c lines 1383-1385):
+
+  * sublink_testexpr_is_not_nullable() returns true. It checks that every
+    operator belongs to a btree or hash opfamily and that every OUTER
+    operand is provably non-nullable.
+  * query_outputs_are_not_nullable() returns true. It checks that every
+    output column of the sub-select is provably non-nullable.
+
+Neither check looks at the INNER operand of the comparison as the parser
+built it. In the reproducer the test expression is
+
+    o.t = i2t($1)    with $1 a PARAM_SUBLINK for s.i
+
+and i2t(0) is NULL. Because s.i is NOT NULL, query_outputs_are_not_nullable()
+succeeds. Because o.t is NOT NULL and "=" (texteq) is a btree member,
+sublink_testexpr_is_not_nullable() succeeds. The planner therefore assumes
+the comparison can never be NULL, which is false.
+
+Observable effect: rows that NOT IN must reject (its value is NULL) are
+returned by the anti-join. The effect requires all of the following:
+  - both sides provably non-nullable (otherwise no conversion);
+  - an implicit cast on the sub-select side chosen by operator resolution;
+  - that cast returning NULL for a non-NULL value present in the sub-select.
+
+
+===============================================================================
+6. EXPECTED SQL SEMANTICS
+===============================================================================
+
+[SOURCE] PostgreSQL documentation (master tree 896246ea):
+
+  * doc/src/sgml/func/func-subquery.sgml, lines 162-164:
+      "The result of NOT IN is 'true' if only unequal subquery rows are
+       found ... The result is 'false' if any equal row is found."
+  * Same file, lines 168-172: the result "will be null, not true",
+    "in accordance with SQL's normal rules for Boolean combinations of null
+    values".
+  * Same file, lines 141-147: per-row results are combined by the normal
+    Boolean rules; if they are "either unequal or null, with at least one
+    null", IN is null.
+  * doc/src/sgml/ref/select.sgml, lines 786-789: in WHERE, "A row satisfies
+    the condition if it returns true".
+
+Applied to the reproducer (o = {'1'}, s = {0}, i2t(0) = NULL):
+
+  '1' = i2t(0)             ->  '1' = NULL  ->  NULL (neither equal nor unequal)
+  '1' NOT IN (that set)    ->  NOT (NULL)  ->  NULL
+  WHERE NULL               ->  row does not qualify
+  Expected result of "SELECT t FROM o WHERE t NOT IN (SELECT i FROM s)": 0 rows
+
+Contrast: NOT EXISTS (SELECT 1 FROM s WHERE o.t = s.i) is TRUE here, because
+NOT EXISTS only asks whether a TRUE match exists. An anti-join implements
+NOT EXISTS semantics, which is why the conversion is only valid when no
+comparison can be NULL.
+
+[EXEC] Explicit inspection queries (script v1, all five builds, identical):
+
+  [S1] pg_cast entry after CREATE CAST:
+       integer | text | i2t(integer) | castcontext i | castmethod f
+  [S2] i2t(0) = <NULL>, i2t(0) IS NULL = t, i2t(1) = '1'
+  [S3] SELECT o.t, s.i, (o.t = s.i), (o.t = s.i) IS NULL FROM o, s
+       -> 1 | 0 | <NULL> | t
+  [S4] Stored parse tree of the view "SELECT t FROM o WHERE t NOT IN
+       (SELECT i FROM s)":
+       {FUNCEXPR :funcid <oid of i2t> ... :funcformat 2 ...
+        :args ({PARAM :paramkind 2 :paramid 1 ...
+       funcformat 2 = COERCE_IMPLICIT_CAST and paramkind 2 = PARAM_SUBLINK
+       (src/include/nodes/primnodes.h lines 389-392 and 761-764).
+       So the implicit cast i2t() is applied to the sub-select output inside
+       the comparison.
+  [S5] ('1' = NULL) -> NULL; ('1' NOT IN (NULL)) -> NULL;
+       rows qualifying under WHERE NULL -> 0
+  [S6] NOT EXISTS (...) -> t ;  NOT IN (...) -> <NULL>
+
+[INTERP] This rules out a faulty assumption about coercion or expression
+semantics. The cast is applied where claimed, it returns NULL as claimed, and
+PostgreSQL's own expression evaluation gives NULL for the NOT IN.
+
+
+===============================================================================
+7. MINIMAL REPRODUCER
+===============================================================================
+
+The original reproducer was run verbatim, unchanged, in a fresh database:
+
+  CREATE FUNCTION i2t(int) RETURNS text
+  IMMUTABLE STRICT LANGUAGE sql
+  AS $$ SELECT CASE WHEN $1 <> 0 THEN format('%s', $1) END $$;
+
+  CREATE CAST (int AS text)
+  WITH FUNCTION i2t(int) AS IMPLICIT;
+
+  CREATE TABLE o (t text NOT NULL);
+  INSERT INTO o VALUES ('1');
+
+  CREATE TABLE s (i int NOT NULL);
+  INSERT INTO s VALUES (0);
+
+  SELECT t, t NOT IN (SELECT i FROM s) AS not_in FROM o;
+
+  SELECT t FROM o WHERE t NOT IN (SELECT i FROM s);
+
+Validity checks [EXEC, all five builds]:
+  * Before CREATE CAST, pg_cast has 0 rows with source int4 and target text,
+    so the cast neither conflicts with nor replaces an existing cast.
+  * Every statement succeeded; psql exit code 0; no ERROR lines.
+  * The verbatim SQL requires a superuser, because int and text are built-in
+    types (CREATE CAST requires owning the source or target type:
+    create_cast.sgml lines 165-166). The verification ran as the bootstrap
+    superuser "postgres".
+
+Unprivileged variant (script v5b). This is an addition, not a replacement for
+the original. It runs as a NOSUPERUSER role that owns an enum type:
+
+  CREATE TYPE level AS ENUM ('low', 'high');
+  CREATE FUNCTION level_to_text(level) RETURNS text IMMUTABLE STRICT
+    LANGUAGE sql
+    AS $$ SELECT CASE WHEN enum_eq($1, 'high'::level) THEN 'high'::text END $$;
+  CREATE CAST (level AS text) WITH FUNCTION level_to_text(level) AS IMPLICIT;
+  CREATE TABLE lo (t text NOT NULL);  INSERT INTO lo VALUES ('x');
+  CREATE TABLE li (l level NOT NULL); INSERT INTO li VALUES ('low');
+  SELECT t FROM lo WHERE t NOT IN (SELECT l FROM li);   -- correct: 0 rows
+
+Changes needed to reach this variant, all documented in the logs:
+  * Attempt 1 (script v5) cast int to the enum. It failed on every build with
+    "operator does not exist: level = integer", because enum equality is the
+    polymorphic anyenum = anyenum. That attempt was abandoned.
+  * In attempt 2 the function body first used "$1 = 'high'". After the
+    implicit level->text cast existed, this recursed (stack depth exceeded)
+    and then became ambiguous ("operator is not unique: level = level").
+    Calling enum_eq() directly avoids operator resolution. These are side
+    effects of creating a cross-category implicit cast, not part of the bug.
+  * Each v5b log contains one "ERROR: role "f1_user" already exists". The
+    role is cluster-wide and was created by script v5. The query
+    "SELECT ... rolsuper" in each run shows is_superuser = f.
+
+
+===============================================================================
+8. ACTUAL RESULTS
+===============================================================================
+
+[EXEC] Verbatim reproducer, output identical in all 3 runs per build:
+
+  18.6 (REL_18_6):
+    SELECT t, t NOT IN (SELECT i FROM s) AS not_in FROM o;
+     t | not_in
+    ---+--------
+     1 | <NULL>
+    (1 row)
+    SELECT t FROM o WHERE t NOT IN (SELECT i FROM s);
+     t
+    ---
+    (0 rows)
+
+  19rc1 (REL_19_RC1), REL_19_STABLE tip, master 896246ea:
+    SELECT t, t NOT IN (SELECT i FROM s) AS not_in FROM o;
+     t | not_in
+    ---+--------
+     1 | <NULL>
+    (1 row)
+    SELECT t FROM o WHERE t NOT IN (SELECT i FROM s);
+     t
+    ---
+     1
+    (1 row)
+
+  master + proposed fix (v-fix):
+    not_in = <NULL>; WHERE form returns (0 rows)
+
+[EXEC] Unprivileged variant v5b, WHERE form, 3 runs each:
+  master 896246ea : (1 row) (1 row) (1 row)    plan: Merge Anti Join   WRONG
+  19rc1           : (1 row) (1 row) (1 row)    plan: Merge Anti Join   WRONG
+  18.6            : (0 rows) x3                plan: hashed SubPlan    correct
+  master + fix    : (0 rows) x3                plan: hashed SubPlan    correct
+  In all four builds the expression value "t NOT IN (...)" was <NULL>.
+
+
+===============================================================================
+9. EXPECTED VERSUS ACTUAL BEHAVIOR
+===============================================================================
+
+Query                                     Expected  18.6     19rc1   19 tip  master  master+fix
+----------------------------------------  --------  -------  ------  ------  ------  ----------
+t NOT IN (...) in the target list         NULL      NULL     NULL    NULL    NULL    NULL
+WHERE t NOT IN (SELECT i FROM s)          0 rows    0        1 (X)   1 (X)   1 (X)   0
+multi-column (t,k) NOT IN (SELECT i,k)    0 rows    0        1 (X)   1 (X)   1 (X)   0
+correlated t NOT IN (... WHERE s2.k=o2.k) 0 rows    0        1 (X)   1 (X)   1 (X)   0
+NOT ((t,k) > ANY (SELECT i,k ...))        0 rows    0        1 (X)   1 (X)   1 (X)   0
+control C1: (... NOT IN ...) IS TRUE      0 rows    0        0       0       0       0
+control C2: same, inner NOT NULL dropped  0 rows    0        0       0       0       0
+control N1: int = int, no custom cast     2 rows    2        2       2       2       2
+
+(X) = wrong result. Every cell was observed in 3 of 3 runs (scripts v1 and v2).
+
+
+===============================================================================
+10. QUERY PLAN AND OPTIMIZER ANALYSIS
+===============================================================================
+
+[EXEC] master 896246ea (identical shapes on 19rc1 and the REL_19_STABLE tip).
+Script v2 runs ANALYZE on both tables first.
+
+  [P1] EXPLAIN (VERBOSE, COSTS OFF) SELECT t FROM o WHERE t NOT IN (SELECT i FROM s);
+     Hash Anti Join
+       Output: o.t
+       Hash Cond: (o.t = (s.i)::text)
+       ->  Seq Scan on public.o
+             Output: o.t
+       ->  Hash
+             Output: s.i
+             ->  Seq Scan on public.s
+                   Output: s.i
+     result: 1 row ('1')                                          WRONG
+
+  [P2] SET enable_mergejoin = off  -> Hash Anti Join,        1 row  WRONG
+  [P3] also enable_hashjoin = off  -> Nested Loop Anti Join
+                                      Join Filter: (o.t = (s.i)::text)
+                                                             1 row  WRONG
+       RESET enable_mergejoin; RESET enable_hashjoin;
+       (SHOW confirmed both back to "on")
+
+  [C1] WHERE (t NOT IN (SELECT i FROM s)) IS TRUE
+     Seq Scan on o
+       Filter: ((NOT (ANY (t = ((hashed SubPlan any_1).col1)::text))) IS TRUE)
+     result: 0 rows                                               correct
+
+  [C2] ALTER TABLE s ALTER COLUMN i DROP NOT NULL (no data change)
+     Seq Scan on o
+       Filter: (NOT (ANY (t = ((hashed SubPlan any_1).col1)::text)))
+     result: 0 rows                                               correct
+     ALTER TABLE s ALTER COLUMN i SET NOT NULL  -> 1 row again    WRONG
+
+  [C3] OFFSET 0 in the sub-select: still a Hash Anti Join, 1 row  WRONG
+
+  [V1] multi-column: Merge Anti Join,
+       Merge Cond: ((o2.t = ((s2.i)::text)) AND (o2.k = s2.k)) -> 1 row WRONG
+  [V2] correlated:   Merge Anti Join (same condition)          -> 1 row WRONG
+  [V3] row compare:  Nested Loop Anti Join,
+       Join Filter: (ROW(o2.t, o2.k) > ROW((s2.i)::text, s2.k))  -> 1 row WRONG
+  [N1] int = int, no custom cast: Hash Anti Join, 2 rows          correct
+
+[EXEC] 18.6 (REL_18_6), P1:
+     Seq Scan on public.o
+       Output: o.t
+       Filter: (NOT (ANY (o.t = ((hashed SubPlan 1).col1)::text)))
+       SubPlan 1
+         ->  Seq Scan on public.s
+               Output: s.i
+     result: 0 rows
+  18.6 never forms an anti-join for NOT IN. Even the N1 int = int case uses
+  "Filter: (NOT (ANY (x = (hashed SubPlan 1).col1)))".
+
+[EXEC] master + fix: every case above uses a SubPlan filter and returns
+0 rows, except N1, which keeps its Hash Anti Join and returns 2 rows.
+
+[INTERP] The wrong row appears exactly when, and only when, an anti-join is
+formed. It appears under all three join methods, so it does not depend on
+the join executor. Controls C1 and C2 change only whether the transformation
+fires, not the data or the expression, and they restore the correct result.
+This attributes the bug to the planner transformation.
+
+
+===============================================================================
+11. ROOT CAUSE IN THE SOURCE CODE
+===============================================================================
+
+All line numbers refer to the unmodified master tree at 896246ea.
+
+[SOURCE] Parser: how the inner operand is built
+
+  * src/backend/parser/parse_expr.c, transformSubLink():
+      lines 1964-1986 build one PARAM_SUBLINK Param per sub-select output
+      column; lines 2008-2012 call make_row_comparison_op() with those
+      Params as the right-hand list.
+  * parse_expr.c, make_row_comparison_op() (line 2839):
+      - line 2882: make_op() is called for each column pair;
+      - lines 2910-2911: a single column yields one OpExpr;
+      - lines 2970-2973: "=" or "<>" yield an AND/OR of OpExprs;
+      - lines 3009-3030: other operators yield a RowCompareExpr. The comment
+        at 3009-3010 notes that "make_op inserted coercion operations" may be
+        present in largs/rargs.
+  * src/backend/parser/parse_oper.c, make_op() (line 711):
+      - line 771: args = list_make2(ltree, rtree), so the outer side is
+        first and the Param second;
+      - line 813: make_fn_arguments() coerces both arguments in place to the
+        operator's declared input types. That is where i2t() wraps the Param.
+
+[SOURCE] Planner: the conversion and its checks
+
+  * src/backend/optimizer/prep/prepjointree.c, lines 1004-1016: for
+    NOT (ANY sublink) in a top-level qual, convert_ANY_sublink_to_join() is
+    called with under_not = true.
+  * src/backend/optimizer/plan/subselect.c, convert_ANY_sublink_to_join()
+    (line 1356). Lines 1383-1385:
+        if (under_not &&
+            (!sublink_testexpr_is_not_nullable(root, sublink) ||
+             !query_outputs_are_not_nullable(subselect)))
+            return NULL;
+    Line 1459 builds the join quals with convert_testexpr(). Line 1465 sets
+    jointype = JOIN_ANTI.
+  * subselect.c, sublink_testexpr_is_not_nullable() (line 1501):
+      - OpExpr branch: line 1524 checks op_is_safe_index_member(); line 1527
+        collects only linitial(opexpr->args), the outer side.
+      - AND/OR branch: lines 1544 and 1547, same pattern.
+      - RowCompareExpr branch: line 1562 collects only rcexpr->largs.
+      - Line 1589: each collected outer expression must pass
+        expr_is_nonnullable(..., NOTNULL_SOURCE_HASHTABLE).
+    The function never inspects lsecond(opexpr->args) or rcexpr->rargs. The
+    function as introduced in 383eb21ebf has the same structure (verified
+    with git show).
+  * src/backend/optimizer/util/clauses.c, query_outputs_are_not_nullable()
+    (line 2177): examines the sub-select's targetList entries (stripping
+    RelabelType at line 2225; expr_is_nonnullable(..., CATALOG) at line
+    2265). It sees s.i, which is NOT NULL, not i2t(s.i).
+
+[SOURCE] Why the missed check matters
+
+  The commit message of 383eb21ebf states the safety condition: the result
+  is identical when "neither side of the comparison can yield NULL" and the
+  operator cannot return NULL for non-null inputs. The compared right-hand
+  value is i2t($1), not $1. Nothing in PostgreSQL forbids a cast function
+  from returning NULL for a non-NULL input:
+    - doc/src/sgml/ref/create_cast.sgml contains no statement about NULL
+      results;
+    - the executor simply propagates the function's NULL result, as S2 and
+      S3 show.
+
+[SOURCE] Related facts used in the patch review
+
+  * Input functions cannot return NULL for a non-NULL string:
+      - fmgr.c lines 1551-1563 (InputFunctionCall raises an error);
+      - execExprInterp.c lines 1412-1437 (EEOP_IOCOERCE never sets resnull
+        from the input function; the check there is an Assert).
+  * Domain coercion only raises errors: execExprInterp.c lines 4484-4509.
+
+
+===============================================================================
+12. REGRESSION TEST
+===============================================================================
+
+Location:
+  src/test/regress/sql/subselect.sql, appended inside the existing block
+  "Check NOT IN performs an ANTI JOIN ..." (which opens with BEGIN at line
+  1586), just before its final ROLLBACK. The custom cast is therefore never
+  committed and is invisible to tests running in parallel. The expected
+  output is appended to expected/subselect.out. The diff is purely
+  additive: the first 4076 lines of the new expected file are byte-identical
+  to the original.
+
+Test SQL, exactly as added (41 lines):
+
+  -- No ANTI JOIN: the sub-select's output is coerced to the operator's input
+  -- type by a cast function, which can return NULL for a non-null input, so a
+  -- comparison can yield NULL even though both sides are non-nullable
+  CREATE FUNCTION int4_to_text_nullzero(int4) RETURNS text
+      AS $$ SELECT CASE WHEN $1 <> 0 THEN format('%s', $1) END $$
+      LANGUAGE sql IMMUTABLE STRICT;
+  CREATE CAST (int4 AS text) WITH FUNCTION int4_to_text_nullzero(int4) AS IMPLICIT;
+  CREATE TEMP TABLE nn_text_tab (t text NOT NULL, k int NOT NULL);
+  CREATE TEMP TABLE nn_int_tab (i int NOT NULL, k int NOT NULL);
+  INSERT INTO nn_text_tab VALUES ('1', 1), ('5', 1);
+  INSERT INTO nn_int_tab VALUES (0, 1), (1, 1);
+
+  EXPLAIN (COSTS OFF)
+  SELECT * FROM nn_text_tab WHERE t NOT IN (SELECT i FROM nn_int_tab);
+
+  -- '1' matches 1, and '5' is compared with the NULL that 0 is cast to, so no
+  -- row qualifies
+  SELECT * FROM nn_text_tab WHERE t NOT IN (SELECT i FROM nn_int_tab);
+
+  -- The cast cannot return NULL here, so '5' qualifies but '1' does not
+  SELECT * FROM nn_text_tab WHERE t NOT IN (SELECT i FROM nn_int_tab WHERE i <> 0);
+
+  -- Likewise for the multi-column form
+  EXPLAIN (COSTS OFF)
+  SELECT * FROM nn_text_tab WHERE (t, k) NOT IN (SELECT i, k FROM nn_int_tab);
+
+  SELECT * FROM nn_text_tab WHERE (t, k) NOT IN (SELECT i, k FROM nn_int_tab);
+
+  -- Likewise for a row comparison
+  EXPLAIN (COSTS OFF)
+  SELECT * FROM nn_text_tab WHERE NOT (t, k) > ANY (SELECT i, k FROM nn_int_tab);
+
+  SELECT * FROM nn_text_tab WHERE NOT (t, k) > ANY (SELECT i, k FROM nn_int_tab);
+
+  -- ANTI JOIN: a binary-compatible relabeling of the sub-select's output cannot
+  -- produce NULLs
+  CREATE TEMP TABLE nn_varchar_tab (v varchar NOT NULL);
+
+  EXPLAIN (COSTS OFF)
+  SELECT * FROM nn_text_tab WHERE t NOT IN (SELECT v FROM nn_varchar_tab);
+
+Requested coverage and where it is provided:
+  - minimal reproducer / cast returns NULL: 1st and 2nd queries ('5' vs NULL)
+  - cast returns a non-NULL value:         3rd query (WHERE i <> 0)
+  - actual matching value:                 '1' matches 1 in the 2nd and 3rd queries
+  - NULL in the sub-select result:         not added. Already covered by the
+                                           existing tests at subselect.sql lines
+                                           1601 ("inner side is nullable"),
+                                           1763-1775 and 1787-1790 ("NOT IN with
+                                           NULL on inner side should return no
+                                           rows"). In that case the conversion
+                                           never fires.
+  - no custom cast, normal behaviour kept: the varchar case (binary
+                                           RelabelType, anti-join kept), plus the
+                                           existing "both sides are defined NOT
+                                           NULL" test at the top of the block
+  - multi-column and row-comparison:       included, because each exercises a
+                                           separate branch of the fix
+                                           (AND/OR of OpExprs; RowCompareExpr)
+  - correlated variant:                    not added to the regression test. It
+                                           uses the same branch as the
+                                           single-column case. It was verified
+                                           manually (Section 9).
+
+Hand-derived expected results (three-valued logic; the cast maps {0,1} to
+{NULL,'1'}):
+  NOT IN single-column        -> 0 rows   (a wrong anti-join would return ('5',1))
+  WHERE i <> 0                -> ('5',1)  (identical with and without the bug)
+  multi-column                -> 0 rows   (a wrong anti-join would return ('5',1))
+  NOT (t,k) > ANY             -> 0 rows   (a wrong anti-join would return ('1',1))
+
+[EXEC] Results of "make check" (full core suite, 239 tests):
+
+  Baseline: master 896246ea, unmodified C code, plus the test
+    - exit code 2: "# 1 of 239 tests failed.", "not ok 101 + subselect"
+    - regression.diffs contains only the new block:
+        * the three NULL-cast queries get Merge Anti Join, Merge Anti Join and
+          Nested Loop Anti Join plans instead of SubPlan filters;
+        * they return ('5',1), ('5',1) and ('1',1) instead of 0 rows.
+    - The non-NULL-cast query and the varchar plan match the expected output.
+    So the test fails for exactly the intended reason.
+
+  Patched: master 896246ea plus the fix plus the test
+    - exit code 0: "# All 239 tests passed."
+
+
+===============================================================================
+13. PROPOSED FIX
+===============================================================================
+
+File: src/backend/optimizer/plan/subselect.c (+41 lines, no deletions).
+This is the same C change as proposed earlier. It was re-extracted and
+reviewed in this verification; sha256 of the C-only diff:
+9bf0e9ed69b1b6ca690c70a67c848d3a8410879d6fe064fd591fb1afbdb9e656.
+
+  * Add a static helper sublink_inner_arg_is_param(). It returns true only if
+    the argument, after stripping any RelabelType nodes, is a Param with
+    paramkind PARAM_SUBLINK.
+  * In sublink_testexpr_is_not_nullable(), return false when the helper
+    rejects:
+      - lsecond(opexpr->args) in the single-OpExpr branch;
+      - lsecond(opexpr->args) of each member of the AND/OR branch;
+      - any element of rcexpr->rargs in the RowCompareExpr branch.
+  * Extend the function's header comment to explain the inner-side
+    requirement.
+
+Core of the change:
+
+  static bool
+  sublink_inner_arg_is_param(Node *arg)
+  {
+      while (arg && IsA(arg, RelabelType))
+          arg = (Node *) ((RelabelType *) arg)->arg;
+
+      return arg && IsA(arg, Param) &&
+          ((Param *) arg)->paramkind == PARAM_SUBLINK;
+  }
+
+  /* in each branch, next to the existing op_is_safe_index_member() check */
+  if (!sublink_inner_arg_is_param(lsecond(opexpr->args)))
+      return false;
+  ...
+  foreach_ptr(Node, rarg, rcexpr->rargs)
+  {
+      if (!sublink_inner_arg_is_param(rarg))
+          return false;
+  }
+
+Artifacts in bughunt/audit/verify-f1/patches/:
+  fix-subselect.c.diff         C change only
+  AUDIT-F1-fix-with-test.diff  C change + test (3 files, +164 lines)
+                               sha256 c435eb23a84839f5827f424624686062290e666cb89afa41b5551f5eaf32e2bd
+  AUDIT-F1-test-only.diff      test only (2 files, +123 lines)
+                               sha256 de47cbca7a7c6d983eb4f186bf121c404776da18f7b61d0de5b14f45a29c69cb
+
+Back-patch applicability [EXEC: git apply --check, nothing applied]:
+  * REL_19_STABLE tip 015f4c9f: applies cleanly.
+  * Tag REL_19_RC1: does not apply ("patch failed: subselect.c:93", context
+    in the static prototype list). This matters only for patching the RC1
+    snapshot itself.
+  * [UNVERIFIED] A patched REL_19_STABLE build was not compiled or tested.
+
+
+===============================================================================
+14. PATCH REVIEW AND LIMITATIONS
+===============================================================================
+
+Does it fix the root cause?
+  [SOURCE + EXEC] Yes. The missing proof obligation is the nullability of
+  the inner compared operand. The fix adds that check in all three
+  test-expression shapes the parser can produce (Section 11). All tested
+  variants become correct: single, multi-column, correlated, row comparison
+  and the unprivileged-role variant.
+
+Is it conservative (can it break SQL semantics)?
+  [SOURCE] The patch only adds "return false" paths before the conversion
+  happens. It can only prevent anti-joins that the unpatched code would have
+  formed, never create new ones. The fallback is the pre-19 hashed or plain
+  SubPlan evaluation, whose semantics are the reference used in this report.
+  [INTERP] It cannot introduce false positives (unsafe conversions). It can
+  only add false negatives (missed conversions).
+
+Parser-generated forms:
+  * RelabelType: accepted, because binary relabeling cannot turn a value into
+    NULL. [EXEC] text NOT IN (SELECT varchar) and int NOT IN (SELECT domain
+    over int) keep the anti-join.
+  * PARAM_SUBLINK: required. At this stage (before convert_testexpr, line
+    1459) the inner operands are PARAM_SUBLINK Params (verified in S4). A
+    correlated sub-select changes only which relations are referenced, not
+    the test expression shape. [EXEC] The correlated variant is fixed.
+  * Cross-type operators (int8 = int4, int4 = int8, timestamptz = date): no
+    coercion is inserted, so the anti-join is kept. [EXEC]
+  * Outer side: unchanged. A coercion there was already rejected by
+    expr_is_nonnullable(). [EXEC] int4 NOT IN (SELECT numeric) uses a SubPlan
+    on both builds.
+
+Unnecessary loss of optimization (false negatives):
+  [EXEC] Script v3, plan shape on baseline vs patched:
+    int4 NOT IN int4      (no coercion)          anti-join | anti-join
+    int8 NOT IN int4      (cross-type operator)  anti-join | anti-join
+    int4 NOT IN int8      (cross-type operator)  anti-join | anti-join
+    text NOT IN varchar   (RelabelType)          anti-join | anti-join
+    int4 NOT IN domain    (RelabelType)          anti-join | anti-join
+    timestamptz NOT IN date (cross-type op)      anti-join | anti-join
+    numeric NOT IN int4   (int4->numeric cast)   anti-join | SubPlan  <- lost
+    float8 NOT IN int4    (int4->float8 cast)    anti-join | SubPlan  <- lost
+    int4 NOT IN numeric   (outer-side cast)      SubPlan   | SubPlan
+  [EXEC] Master and 19rc1 have 69 implicit casts implemented by functions,
+  all strict functions in language "internal" (18.6: 65). They also have 3
+  implicit I/O casts and 53 implicit binary casts.
+  [UNVERIFIED] Whether every one of those 69 C functions never returns NULL
+  for non-NULL input was not audited function by function.
+  [SOURCE] I/O coercion (CoerceViaIO) and domain coercion (CoerceToDomain)
+  cannot turn a non-NULL value into NULL (Section 11), yet the patch rejects
+  them too. ArrayCoerceExpr never yields a NULL array from a non-NULL array.
+  [INTERP] These are performance regressions relative to 19rc1, not to any
+  released version: 18.x never converted NOT IN at all. Possible refinements
+  for maintainers to decide:
+    (a) also accept CoerceViaIO, CoerceToDomain and ArrayCoerceExpr;
+    (b) also accept implicit casts whose function is a known built-in;
+    (c) keep the simple conservative rule.
+  Relevant precedent [SOURCE, pgsql-hackers thread "Teach expr_is_nonnullable()
+  to handle more expression types", Oct 2026]: for a similar case, Robert Haas
+  preferred not to add catalog lookups to nullability checks, and Richard Guo
+  chose the simple conservative removal (commit f5635c2786).
+
+Coding conventions:
+  [SOURCE] The patch follows the surrounding conventions:
+    - a static prototype in the existing prototype list;
+    - a block comment before the helper;
+    - foreach_ptr as used nearby;
+    - IsA()/castNode-style checks;
+    - comment style matching the existing header.
+  pgindent was not run. [UNVERIFIED] whitespace/pgindent conformance.
+
+Interaction with an open patch:
+  [SOURCE] An open pgsql-hackers thread ("Prove a NOT IN's left-hand
+  expressions non-nullable from quals", Jun-Aug 2026, v2 posted) changes the
+  signature of sublink_testexpr_is_not_nullable(). If that lands first, this
+  fix will need a trivial rebase. It does not address the inner operand.
+
+Overall assessment [INTERP]:
+  Correct and safe for the bug. The open question is whether maintainers
+  accept the optimization loss for built-in non-binary casts or prefer
+  refinement (a) or (b). The patch should be presented as a proposal with
+  this trade-off stated.
+
+
+===============================================================================
+15. TEST ENVIRONMENT AND REPRODUCTION INSTRUCTIONS
+===============================================================================
+
+Environment [EXEC]:
+  OS      : Ubuntu 24.04.4 LTS under WSL2, kernel
+            6.18.33.2-microsoft-standard-WSL2, x86_64
+  Compiler: gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+  Python  : 3.12.3, psycopg 3.3.6 (only for the archive tools)
+  Configure (identical for all five builds):
+    --prefix=$HOME/audit/verify-f1/install/<build> --enable-debug
+    --enable-cassert --enable-tap-tests=no --with-libxml --without-icu
+    CFLAGS='-O1 -g -fno-omit-frame-pointer'
+  Build commands: make -j12 -s ; make install -s
+  Worktrees: ~/audit/src/{v-base,v-fix,v-r19tip,v-r19rc1,v-r186}, created
+    with "git worktree add --detach" from a clone of
+    https://github.com/postgres/postgres.git
+  Clusters: fresh "initdb -U postgres --no-locale -E UTF8 -A trust".
+    listen_addresses = '' (Unix socket in /tmp only).
+    Ports: v-base 5470, v-fix 5471, v-r19tip 5472, v-r19rc1 5473, v-r186 5474.
+    All planner settings at defaults except where a script sets and RESETs
+    them.
+  Isolation:
+    - The original team trees (~/pgfuzz/src/*) and earlier audit worktrees
+      were not modified; each has 0 tracked changes, verified at the end.
+    - Only v-base (regression test files) and v-fix (C change + test files)
+      carry changes.
+
+To reproduce (from ~/audit/verify-f1):
+  bash vcluster.sh <build> start
+      initdb on first use, then start
+  bash vrun.sh <build> sql/v1_reproducer_and_semantics.sql v1-run1
+      drops and recreates database vf_v1_run1, then runs
+      psql -h /tmp -p <port> -U postgres -d vf_v1_run1 -X -a -f <file>
+  bash repeat.sh <build> 1 2 3
+      v1 + v2, three runs, prints a summary
+  bash check.sh <worktree> <tag>
+      "make check" with exit code and summary
+  bash extra_checks.sh
+      isolation + contrib suites on v-fix
+
+Any PostgreSQL 19 or master server: psql -X -f sql/v1_reproducer_and_semantics.sql
+(must be a superuser), or sql/v5b_nonsuperuser.sql.
+
+
+===============================================================================
+16. TEST RESULTS AND EVIDENCE
+===============================================================================
+
+All logs are in bughunt/audit/verify-f1/logs/ and are listed with
+sha256 in bughunt/audit/verify-f1/SHA256SUMS.txt.
+
+Behavioural runs [EXEC]:
+  Script                                  Builds                    Runs        psql exit
+  v1 reproducer + semantics               all 5                     3 each      0
+  v2 plans/controls/variants              all 5                     3 each      0
+  v3 patch scope                          v-base, v-fix             1 each      0
+  v4 built-in implicit casts              v-base, v-r19rc1, v-r186  1 each      0
+  v5 enum (int->enum)                     v-base, v-fix, v-r186     1 each      0, query ERROR (invalid; see Sec. 7)
+  v5b unprivileged role                   v-base, v-fix, v-r19rc1,  3 each      0
+                                          v-r186
+  Logs: <build>-v1-runN.out, <build>-v2-runN.out, -v3-, -v4-, -v5-, -v5b-runN.out
+
+Regression and other suites [EXEC]:
+  Tree       Command                          Exit  Summary                         Log
+  v-base     make check (new SQL, old         2     1 of 239 failed (subselect;      check-v-base-pre-expected.*
+             expected)                              shows baseline output)
+  v-fix      make check (new SQL, old         2     1 of 239 failed (subselect;      check-v-fix-pre-expected.*
+             expected)                              source of the new expected)
+  v-base     make check (final)               2     1 of 239 failed; intended diff   check-v-base-final.*
+  v-fix      make check (final)               0     All 239 tests passed             check-v-fix-final.log
+  v-fix      make -C src/test/isolation check 0     All 134 tests passed             extra-v-fix.log
+  v-fix      make -k -C contrib check         0     48 suite summaries, all passed;  extra-v-fix-contrib-check.full
+                                                    191 "ok" lines, 0 "not ok";
+                                                    includes postgres_fdw and
+                                                    file_fdw
+
+Server-log scan [EXEC]: all five verification clusters show TRAP=0, PANIC=0,
+"terminated by signal"=0.
+
+Patched-binary identity [EXEC]: nm finds the symbol sublink_inner_arg_is_param
+in v-fix/bin/postgres (1) and not in v-base/bin/postgres (0).
+
+
+===============================================================================
+17. EXISTING BUG AND COMMIT HISTORY SEARCH
+===============================================================================
+
+Scope [EXEC; read-only web requests to www.postgresql.org, 2026-10-23]:
+
+  pgsql-bugs
+    Full subject index, 2026-05-01 to 2026-10-23 15:34 UTC: 1,957 messages
+    (dup/pgsql-bugs-index-refreshed.tsv). Subjects matching NOT IN /
+    anti-join / implicit cast / coercion / sublink / nullability terms:
+      BUG #19481, BUG #19734, BUG #19786, "DO NOT pull up a sublink when it
+      has no join condition", "type coercion of record types".
+    None concerns this mechanism:
+      - BUG #19734 concerns NOT IN with a value list and parser type
+        resolution for outer Vars.
+      - "DO NOT pull up a sublink ..." (Jul 2026, 4 msgs, read) is a
+        performance complaint about pulling up an EXISTS with no join
+        condition.
+      - "type coercion of record types" (Jul 2026, 5 msgs, read) is a
+        segfault in coerce_fn_result_column for SQL function results.
+    (dup/dupthreads2-output.txt)
+
+  pgsql-hackers
+    Subject index, 2026-02-01 to 2026-10-23 15:54 UTC: 24,860 messages
+    (dup/pgsql-hackers-index-refreshed.tsv). The feature's design thread
+    started 2026-02-03.
+    Coverage gap: the archive pages by day, 200 messages per page. On
+    2026-04-07 and 2026-10-23 only the first page could be indexed.
+    Threads read, with outcome:
+      - "Convert NOT IN sublinks to anti-joins when safe" (design, 23 msgs):
+        discusses operator NULL behaviour and operand nullability; no
+        discussion of casts or coercions on the inner side.
+      - "Wrong results: NOT IN to anti-join with an upper-level Var in the
+        sub-select's output" (Jul-Aug 2026): different hole, fixed by
+        0d99579320.
+      - "Prove a NOT IN's left-hand expressions non-nullable from quals"
+        (open): concerns the outer side only.
+      - "var_is_nonnullable() fails to handle invalid NOT NULL constraints":
+        fixed by 363af93bdd.
+      - "Bug: var_is_nonnullable() gives wrong results for old/new in
+        RETURNING": different mechanism.
+      - "Wrong results from an antijoin" (Oct 2026): PlaceHolderVar phrels
+        with NOT EXISTS; different mechanism.
+      - "Fold NOT IN / <> ALL expressions containing NULL to FALSE":
+        constant folding; different.
+      - "[PATCH] SAOP nullability analysis below NOT/BooleanTest": different.
+      - "Reduce LEFT/FULL JOIN to ANTI JOIN in more cases" and "Skip LEFT/ANTI
+        joins to a provably empty inner rel": different.
+      - "Teach expr_is_nonnullable() to handle more expression types": a
+        precedent of the same class (an operator returning NULL for non-null
+        inputs in IS DISTINCT FROM), fixed by f5635c2786; different code path.
+
+  Site search (all lists, 365 days)
+    Queries with 0 hits:
+      "NOT IN anti join implicit cast", "NOT IN antijoin cast NULL",
+      "NOT IN anti-join coercion", "convert NOT IN anti-join cast function
+      NULL", "NOT IN anti join user-defined cast".
+    "sublink_testexpr_is_not_nullable": 12 hits, all in the threads above.
+
+  Git
+    git log -L of sublink_testexpr_is_not_nullable shows no change since
+    383eb21ebf. Master had no newer commits at verification time. The local
+    clone is shallow (history from 2026-03-01); the introducing commit is
+    inside the window.
+
+Outcome:
+  No existing report, commit, regression test or patch covering this
+  mechanism was found.
+
+Limitations:
+  [UNVERIFIED] Not searched:
+    - the commitfest application;
+    - pgsql-committers as a separate list;
+    - pgsql-general and other lists beyond the site search;
+    - pgsql-hackers before 2026-02-01;
+    - private channels such as security@postgresql.org.
+  Novelty is therefore "no duplicate found in the stated scope", not proven.
+
+
+===============================================================================
+18. IMPACT, PRECONDITIONS, AND SEVERITY ASSESSMENT
+===============================================================================
+
+Impact [EXEC]: silent wrong query results. Rows are returned that NOT IN
+semantics exclude. No error, crash, assertion failure, data modification or
+corruption was observed.
+
+Preconditions (all required) [EXEC + SOURCE]:
+  1. PostgreSQL 19 or master; 18.6 and earlier are unaffected.
+  2. "expr NOT IN (subquery)", or NOT (row op ANY (subquery)), as a
+     top-level qual, so that the transformation fires.
+  3. Both the outer expression and the sub-select output column provably
+     non-nullable, e.g. through NOT NULL constraints.
+  4. Operator resolution applies an implicit cast to the sub-select side,
+     which needs a type mismatch with no direct operator.
+  5. That implicit cast returns NULL for a non-NULL value that actually
+     occurs in the sub-select.
+
+Precondition 5 is the decisive one, and it is unusual:
+  * [EXEC] None of the built-in implicit casts in the tested builds is a
+    plausible trigger. All 69 function-based ones are strict internal C
+    functions.
+    [UNVERIFIED] No function-by-function audit was done.
+  * [SOURCE] create_cast.sgml lines 138-149 recommends implicit casts only
+    for "information-preserving transformations" within a type category, and
+    calls cross-category casts such as text/int4 "best made explicit-only".
+    The reproducer's cast goes against this advice, though PostgreSQL accepts
+    it.
+  * [EXEC] No superuser is needed if the user owns the source or target type
+    (v5b).
+
+[INTERP] Practical likelihood: low. A user must deliberately create an
+implicit cast that maps a non-NULL value to NULL. Extensions that define such
+casts would also be affected; none was examined.
+
+Severity [INTERP]: low to moderate. It is a genuine correctness violation
+(wrong results without any error) in a release-candidate feature. It is
+narrow in practice because of precondition 5. Maintainers have treated a
+comparable "rare in practice, but nothing forbids it" case as a bug worth
+fixing (f5635c2786).
+
+Security: not classified as a security vulnerability. No evidence of
+privilege escalation, data disclosure or memory unsafety was found or
+sought. Any security relevance would need separate analysis.
+
+
+===============================================================================
+19. KNOWN LIMITATIONS AND UNVERIFIED CLAIMS
+===============================================================================
+
+  * TAP tests (src/test/*/t, including pg_upgrade) were not run: all builds
+    used --enable-tap-tests=no. "make check-world" was not run.
+  * The isolation and contrib suites were run only on the patched tree,
+    since there was no need to compare against baseline. Both passed.
+  * All verification builds are assert-enabled -O1 builds. No AFFECTED
+    (19 or master) non-assert -O2 production-style build was tested.
+    [INTERP] The faulty decision is made by ordinary conditionals (Section
+    11). The only Assert on that path (subselect.c line 1373,
+    "subLinkType == ANY_SUBLINK") is a sanity check that does not influence
+    the decision. A different result without assertions is therefore not
+    expected, but this was not demonstrated.
+  * Only x86_64 Linux (WSL2) with gcc 13.3 was tested.
+  * The patched REL_19_STABLE was not built. The patch only passed
+    "git apply --check" there.
+  * No performance measurements were taken for plans lost by the fix. Only
+    plan shapes were compared.
+  * 19 beta releases were not tested individually.
+  * The duplicate-search gaps are listed in Section 17.
+  * The default join method in the reproducer depends on statistics:
+      - without ANALYZE the earlier investigation saw a Merge Anti Join;
+      - with ANALYZE this verification sees a Hash Anti Join.
+    Both are anti-joins and both return the wrong row; this is not a
+    discrepancy.
+  * pgindent was not run on the patch.
+
+Earlier claims re-checked in this verification:
+  * Original reproducer valid as written: confirmed; no modification needed.
+  * "OFFSET 0 does not avoid the bug": confirmed (C3).
+  * "Fixed by the patch; make check 239/239": confirmed with fresh builds.
+  * "69 built-in implicit function casts": confirmed for master and 19rc1;
+    18.6 has 65.
+  * "Affects 19rc1": earlier this rested on the REL_19_STABLE tip, which only
+    reports "19rc1". It is now confirmed on the exact REL_19_RC1 tag build.
+
+
+===============================================================================
+20. RECOMMENDED NEXT STEPS
+===============================================================================
+
+  1. Human review of this report by the person who will file it. Nothing
+     has been sent upstream.
+  2. If filing, use the pgsql-bugs web form or the pgsql-bugs list. Give the
+     minimal reproducer and the unprivileged variant, and state the
+     precondition and the 18.6 / 19rc1 / master results plainly.
+  3. Offer the patch as a proposal. Highlight the optimization trade-off
+     (Section 14) and the refinements (a) and (b) for maintainers to choose.
+  4. Before or alongside submission:
+       - run pgindent on the patch;
+       - build and test the patch on REL_19_STABLE, since a fix before 19.0
+         GA would need back-patching to 19;
+       - optionally run check-world with TAP enabled.
+  5. Mention the related open thread "Prove a NOT IN's left-hand expressions
+     non-nullable from quals", which touches the same function.
+  6. Do not describe the issue as a security vulnerability.
+
+
+===============================================================================
+21. APPENDIX: RELEVANT COMMANDS, LOGS, AND SOURCE REFERENCES
+===============================================================================
+
+A. Key commands (all run as Linux user "bhuvi" inside WSL)
+
+  Builds:  bash ~/audit/verify-f1/build_all.sh
+           -> git worktree add --detach ~/audit/src/<build> <ref>
+           -> git -C ~/audit/src/v-fix apply patches/fix-subselect.c.diff
+           -> ./configure <flags in Section 15>; make -j12 -s; make install -s
+  Cluster: bash vcluster.sh <build> start
+  Runs:    bash repeat.sh <build> 1 2 3
+           bash vrun.sh <build> sql/<script>.sql <tag>
+  Tests:   bash check.sh v-base final ; bash check.sh v-fix final
+           bash extra_checks.sh
+  Source:  bash src_refs.sh  (line numbers, ancestry, git log -S / -L)
+  Search:  bash dupsearch2.sh ; bash dupsearch4.sh ; bash dupthreads.sh
+           (archive tools: archive-tools/*.py and verify-f1/paginate2.py)
+
+B. Evidence files (bughunt/audit/verify-f1/)
+
+  sql/v1_reproducer_and_semantics.sql   verbatim reproducer + S1-S6
+  sql/v2_plans_and_controls.sql         P1-P3, C1-C3, V1-V3, N1
+  sql/v3_patch_scope.sql                optimization-scope comparison
+  sql/v4_builtin_casts.sql              implicit cast inventory
+  sql/v5_nonsuperuser.sql               failed enum attempt (kept for transparency)
+  sql/v5b_nonsuperuser.sql              unprivileged-role reproducer
+  patches/                              C diff, test diff, combined diff,
+                                        regression block
+  logs/<build>-<script>-runN.out        exact psql output, with the psql
+                                        command line and exit code
+  logs/check-*.log / *.full / *.regression.diffs
+                                        make check results
+  logs/extra-v-fix*.                    isolation and contrib results
+  logs/src_refs.txt                     source-reference extraction output
+  dup/                                  archive indexes and search outputs
+  SHA256SUMS.txt                        checksums of every file above
+
+C. Source references (master 896246ea)
+
+  src/backend/optimizer/plan/subselect.c
+      1356       convert_ANY_sublink_to_join()
+      1383-1385  NOT IN gate
+      1459       convert_testexpr
+      1465       JOIN_ANTI
+      1501       sublink_testexpr_is_not_nullable()
+      1524/1544  op_is_safe_index_member checks
+      1527/1547  linitial() outer operand only
+      1562       rcexpr->largs only
+      1589       expr_is_nonnullable(HASHTABLE)
+  src/backend/optimizer/util/clauses.c
+      2177       query_outputs_are_not_nullable()
+      2225       RelabelType strip
+      2265       expr_is_nonnullable(CATALOG)
+      4851       var_is_nonnullable()
+      5007       expr_is_nonnullable()
+  src/backend/optimizer/prep/prepjointree.c
+      1004-1016  NOT (ANY SubLink) -> convert_ANY_sublink_to_join(..., true, ...)
+  src/backend/parser/parse_expr.c
+      1964-1986  PARAM_SUBLINK construction
+      2008-2012  make_row_comparison_op() call
+      2839       make_row_comparison_op()
+      2882       make_op() per column pair
+      2910-2911  single OpExpr
+      2970-2973  AND/OR forms
+      3009-3030  RowCompareExpr (coercions may be in rargs)
+  src/backend/parser/parse_oper.c
+      711        make_op()
+      771        args = (ltree, rtree)
+      813        make_fn_arguments()
+  src/include/nodes/primnodes.h
+      389-392    ParamKind (PARAM_SUBLINK = 2)
+      761-764    CoercionForm (COERCE_IMPLICIT_CAST = 2)
+  src/backend/utils/fmgr/fmgr.c
+      1551-1563  input function NULL check
+  src/backend/executor/execExprInterp.c
+      1379-1441  EEOP_IOCOERCE
+      4484-4509  domain checks
+  src/backend/utils/cache/lsyscache.c
+      978        op_is_safe_index_member()
+  doc/src/sgml/func/func-subquery.sgml
+      141-147, 158-172  IN / NOT IN null semantics
+  doc/src/sgml/ref/select.sgml
+      786-789    WHERE semantics
+  doc/src/sgml/ref/create_cast.sgml
+      138-149    guidance on implicit casts
+      165-169    privileges
+
+D. Commits
+
+  383eb21ebffe9ddd97dca03e529fa363580e7ccf  introduces the transformation (2026-03-12)
+  363af93bdd  var_is_nonnullable(): invalid NOT NULL constraints (follow-up fix)
+  0d99579320  nullability of a sub-select's upper-level Vars (follow-up fix)
+  31c002aa89  collect quals for outer-join reduction on demand (refactor)
+  f5635c2786  expr_is_nonnullable() and IS DISTINCT FROM (precedent)
+  896246ea10cb9d20f69d0442223ce5fa9b365636  master tested
+  015f4c9fc35f91a1ab46bafab05a3686cfe09d46  REL_19_STABLE tested
+  0b8bff042a997fe50fcd1c4c83b9ef1cc9ed8a89  REL_19_RC1 tag tested
+  724edf9bde9d356724ad384a2e196edc3c9f80f7  REL_18_6 tag tested
+
+-- end of report --

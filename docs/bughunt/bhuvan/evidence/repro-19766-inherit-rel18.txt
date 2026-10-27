@@ -1,0 +1,22 @@
+server: postgres (PostgreSQL) 18.6
+Q1 default        : ok
+Q2 default        : ok
+Q3 default        : ok
+--- plan of Q1 with default settings
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Gather
+   Workers Planned: 2
+   ->  Parallel Append
+         ->  Parallel Seq Scan on ic ip_2
+               Filter: (NOT (ANY (a = (SubPlan 1).col1)))
+               SubPlan 1
+                 ->  Materialize
+                       ->  Nested Loop
+                             ->  Seq Scan on s
+                             ->  Materialize
+                                   ->  Seq Scan on s s2
+         ->  Parallel Seq Scan on ip ip_1
+               Filter: (NOT (ANY (a = (SubPlan 1).col1)))
+(13 rows)
+

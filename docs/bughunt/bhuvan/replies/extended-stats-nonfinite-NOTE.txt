@@ -1,0 +1,75 @@
+STATUS: CANDIDATE HARDENING NOTE. NOT a confirmed original bug. NOT CVE-grade.
+Written 18 Oct 2026. Read this whole file before sending anything anywhere.
+
+WHAT THIS IS
+pg_restore_extended_stats() (master only, src/backend/statistics/
+extended_stats_funcs.c) stores NaN/Infinity in several statistics fields
+without a warning. The planner then estimates 1e100 rows for matching
+queries. Nothing crashes. Query results stay correct.
+
+WHAT THIS IS NOT
+- Not a memory-safety, privilege or data-exposure bug. No TRAP, crash or
+  assertion on an --enable-cassert build (master a39e53a7).
+- Not original. The same class is already under discussion upstream:
+  Subject: "pg_restore_attribute_stats() accepts non-finite values"
+  Author:  Ewan Young, pgsql-hackers, 2026-08-25
+  Thread:  https://www.postgresql.org/message-id/CAON2xHMSxnUqyiQF3LsEeC0d7jq2Y-w8qLT5kHqANMqpDONNnw@mail.gmail.com
+  Related: commit 7cb9060d (reltuples non-finite check).
+  That thread's patch (v3, commit bf75c5d on the hackorum fork) changes the
+  attribute-stats path only. I did not find it touching
+  extended_stats_funcs.c. I did not read the full text of every reply, so
+  re-check the thread before posting.
+- Not a CVE. CVEs are assigned by the PostgreSQL security team after a
+  private report to security@postgresql.org. A public post is not a CVE
+  filing. Do not describe this as one.
+
+WHAT I RAN (throwaway cluster, master a39e53a7, cassert, port 5440)
+Scripts and outputs are in C:\tmp : esi4.sql/.out (MCV), esi7.sql/.out
+(expressions). Summary:
+
+1. MCV (stats kind "mcv" on columns a,b), baseline rows=1000 after ANALYZE.
+   SELECT pg_restore_extended_stats(
+     'schemaname','public','relname','m',
+     'statistics_schemaname','public','statistics_name','ms',
+     'inherited', false,
+     'most_common_vals','{{0,0},{1,1}}'::text[],
+     'most_common_freqs','{NaN,0.3}'::float8[],
+     'most_common_base_freqs','{0.1,0.1}'::float8[]);
+   -> returns t, no WARNING.
+   EXPLAIN SELECT * FROM m WHERE a=0 AND b=0;  -> rows=1e100 (101 digits)
+   Same result for NaN in base_freqs and for Infinity in most_common_freqs.
+   pg_mcv_list_items() shows NaN / Infinity stored.
+
+2. Expressions ("exprs" jsonb), range statistics:
+   'exprs','[{"range_length_histogram":"{NaN,Infinity}",
+              "range_empty_frac":"NaN",
+              "range_bounds_histogram":"{\"[1,5)\",\"[1,5)\",\"[1,5)\"}"}]'
+   -> returns t, no WARNING; range @> / <@ / && estimates become 1e100 rows.
+
+CODE LOCATION
+- import_mcv() casts most_common_freqs / most_common_base_freqs straight to
+  float8* (check_mcvlist_array() checks only ndims, NULLs, length).
+- import_pg_statistic() parses expression values with float4in / array_in
+  and applies no finiteness check.
+
+POLICY CAVEAT (important)
+Upstream states these import functions do only superficial validation by
+design (commit ce207d2a790), and the planner clamps finite out-of-range
+values. So do NOT report finite-but-bogus values (negative ndistinct,
+degree 5.0, frequency 7). Only non-finite values are in scope, because
+CLAMP_PROBABILITY() cannot neutralise NaN.
+
+If you want to raise it anyway, the honest way is a REPLY on the existing
+hackers thread, not a new bug report and not a CVE request:
+  Subject: Re: pg_restore_attribute_stats() accepts non-finite values
+  Body:    "pg_restore_extended_stats() has the same gap: most_common_freqs
+           and most_common_base_freqs (import_mcv) and the exprs jsonb
+           float fields accept NaN/Infinity and the planner then plans
+           against 1e100 rows (repro below). Could the check be extended
+           to extended_stats_funcs.c?"  + the repro SQL above.
+
+NOT DONE / NOT VERIFIED
+- I did not search pgsql-bugs for a separate extended-stats report.
+- I did not verify behaviour on REL_18_STABLE (function does not exist there).
+- I did not write or run a patch.
+- Nothing has been sent to any list or to the security team.

@@ -1,0 +1,4 @@
+CREATE INDEX ON t0 (c1) WHERE (c2 IS NOT NULL);
+CREATE INDEX ON t3 ((COALESCE (c1, c1)));
+SELECT PERCENTILE_CONT (0.5) WITHIN GROUP (ORDER BY LEAST ((SELECT MIN (0.0::float8) FILTER (WHERE (a2.c0 IN ((CARDINALITY ('{a,b}'::text[]) % NULLIF (100, 0))))) FROM tl AS a2 WHERE COALESCE (TRUE, FALSE)), GREATEST (1.0::float8, (1.0 / 3)::float8))) AS c0, COALESCE (0.0::numeric, VARIANCE (a1.c0)) AS c1, MAX ('{1,2,3}'::int[]) OVER (PARTITION BY a1.c1 ORDER BY 100::bigint) AS c2 FROM tp AS a1 GROUP BY a1.c1, a1.c0;
+SELECT (FALSE AND ('0'::text LIKE ''::text)) AS c0, MAX ('2000-01-01 00:00:00+00'::timestamptz) AS c1 FROM tl AS a1, LATERAL (SELECT 10.0::numeric AS c0, '1970-01-01'::date AS c1) AS a2 GROUP BY a2.c0 UNION SELECT (COALESCE ('(,)'::int4range, '(,5]'::int4range) @> a4.c0) AS c0, TO_TIMESTAMP ((a3.c0 % 100000)) AS c1 FROM (v0 AS a3 LEFT OUTER JOIN tl AS a4 ON (a3.c0 = a4.c0));

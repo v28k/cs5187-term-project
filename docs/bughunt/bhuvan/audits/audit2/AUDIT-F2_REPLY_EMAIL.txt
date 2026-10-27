@@ -1,0 +1,55 @@
+UNSENT DRAFT — reply to the contributor who reproduced the bug and suggested
+the last_value() backward-scan test. Do not send without review. Nothing has
+been submitted. Prose wrapped at ~76 columns; SQL left unwrapped.
+=============================================================================
+
+To: <contributor / pgsql-bugs@lists.postgresql.org thread>
+Subject: Re: first_value()/nth_value() with IGNORE NULLS loop forever (EXCLUDE
+ GROUP/TIES, frame past partition end, no ORDER BY)
+
+Hi,
+
+Thanks for reproducing this on master and 19rc1 and for confirming that the
+patch makes the failing cases return immediately. Good catch on the
+backward-scan case too — I've added that test to the patch.
+
+The updated patch adds a fourth regression query:
+
+    SELECT x,
+           last_value(x) IGNORE NULLS OVER w
+    FROM (VALUES (1), (2), (3)) v(x)
+    WINDOW w AS (ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES)
+    ORDER BY x;
+
+With no ORDER BY every row is a peer, so EXCLUDE TIES leaves only the current
+row in the frame and last_value() returns each row's own value (1, 2, 3).
+Because last_value() scans backward from the frame tail, it starts at a row
+after the current row for every row except the last; this would catch a later
+change to row_is_in_frame() that returns -1 for every position after the
+current row instead of 0.
+
+With the updated patch on current master (126976a8ff) and REL_19_STABLE
+(fc189eb750), make check passes 239/239 on both, and the new expected output
+matches the array_agg(x) FILTER (WHERE x IS NOT NULL) oracle. The production
+change is unchanged, and the patch still applies cleanly to both branches with
+git apply.
+
+The updated patch is attached. I'm happy to rework it (for example, to fix
+row_is_in_frame() itself rather than its caller) if you'd prefer.
+
+Thanks,
+<your name>
+
+-----------------------------------------------------------------------------
+ATTACHMENT NOTE (not part of the message body)
+
+Attach: AUDIT-F2_REGRESSION_TEST.patch   (text/x-patch; ~8 KB)
+  - src/backend/executor/nodeWindowAgg.c  (+15)
+  - src/test/regress/sql/window.sql       (+30)
+  - src/test/regress/expected/window.out  (+56)
+The file begins with an explanatory header; "git apply" skips it. It applies
+cleanly to origin/master (126976a8ff) and origin/REL_19_STABLE (fc189eb750).
+
+Before sending: fill in <your name> and the recipient/thread; send from the
+account that owns the report. The original bug-report draft remains in
+AUDIT-F2_EMAIL.txt.
