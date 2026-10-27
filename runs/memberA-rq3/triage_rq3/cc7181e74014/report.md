@@ -2,14 +2,14 @@
 
 * Oracle: **assertion**, signature `cc7181e74014`
 * Reproduced: 3/3 on 20devel
-* Reduced: 2 -> 1 statements, 193 -> 53 tokens
+* Reduced: 2 -> 1 statements, 193 -> 52 tokens
 * Verdict: TODO: real | duplicate | false_positive | not_a_bug | flaky
 
 ## Reproducer
 
 ```sql
 -- pgfuzz triage of cc7181e74014: assertion via assertion
-SELECT FROM (JSON_TABLE (CASE WHEN ( (500, 10::bigint) <= ROW (2, NULL::bigint)) THEN '{"k": 0, "a": [3, 4, 5]}'::jsonb ELSE '{"k": 0, "a": [3, 4, 5]}'::jsonb END, '$[*]' COLUMNS (c0 int PATH '$.k')) AS a1 JOIN t4 AS a2 ON TRUE);
+SELECT FROM (JSON_TABLE (CASE WHEN ( (500, 10::bigint) <= (10, 1::bigint)) THEN '{"k": 0, "a": [3, 4, 5]}'::jsonb ELSE '{"k": 0, "a": [3, 4, 5]}'::jsonb END, '$[*]' COLUMNS (c0 int PATH '$.k')) AS a1 JOIN tp AS a2 ON TRUE);
 ```
 
 ## Assertion
