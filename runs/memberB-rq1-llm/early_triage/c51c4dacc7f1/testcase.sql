@@ -1,0 +1,6 @@
+-- pgfuzz failure c51c4dacc7f1 (internal_error, signature strength: message)
+-- test case 6850 from grammar
+-- SQLSTATE XX000: no relation entry for relid 1
+-- failing statement: #2
+SELECT CASE LENGTH ('abc'::text) WHEN LOWER (RANGE_INTERSECT_AGG ('[1,10)'::int4range)) THEN '_'::text WHEN ARRAY_LENGTH ((SELECT ARRAY_AGG (a2.c0 ORDER BY a2.c0) FROM t4 AS a2 WHERE FALSE), 1) THEN STRING_AGG (a1.c0, ',' ORDER BY a1.c0) ELSE a1.c0 END AS c0, '2024-02-29'::date AS c1 FROM UNNEST (ARRAY['1'::text]) AS a1 (c0) GROUP BY a1.c0;
+WITH RECURSIVE rc(c0) AS (SELECT 1 UNION SELECT (r.c0 * 7) % 10 FROM rc AS r) CYCLE c0 SET cy USING pth SELECT JSONB_AGG (ARRAY[(-1)] ORDER BY ARRAY[(-1)] DESC) AS c0, (SUBSTR (CONCAT (STRING_AGG (DISTINCT a3.c1, ','), COUNT (*)), (-10)) COLLATE "C") AS c1, NTH_VALUE (MIN ('0'::interval), 2) OVER (ORDER BY 7 NULLS FIRST) AS c2 FROM t2 AS a1, LATERAL (SELECT a1.c1 AS c0, COALESCE (MAX (a2.c2), TO_CHAR (a1.c2, 'YYYY-MM-DD HH24:MI')) AS c1 FROM t4 AS a2) AS a3 WHERE COALESCE ((7 = ANY (ARRAY_CAT (CASE WHEN GREATEST (TRUE, FALSE) THEN ARRAY_POSITIONS (ARRAY[(500 / NULLIF ((-1), 0)), (16 % NULLIF ((-4), 0)), LENGTH (a3.c1)], (7 + 2)) ELSE ARRAY[CARDINALITY (a1.c3)] END, '{}'::int[]))), (a3.c1 IN (a3.c1))) GROUP BY GROUPING SETS ((a3.c0), ());

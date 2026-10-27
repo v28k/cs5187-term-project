@@ -1,0 +1,7 @@
+-- pgfuzz failure cde9712bc8db (assertion, signature strength: stack)
+-- test case 4047 from grammar
+-- SQLSTATE -: consuming input failed: server closed the connection unexpectedly
+-- failing statement: #1
+UPDATE t1 AS a1 SET c2 = (SELECT a1.c2 FROM t3 AS a2, JSON_TABLE ((JSONB_BUILD_OBJECT ('k', COALESCE ('11'::bigint, 1::bigint), 'a', JSONB_BUILD_ARRAY (0.5::float8, (ROW ((0.5::numeric - '18.142857142857142'::numeric), ARRAY[1, 2, 3]) <= ROW (10.0::numeric, ARRAY_POSITIONS ('{NULL}'::int[], a1.c0))))) #- '{a,0}'), '$[*]' COLUMNS (c0 int PATH '$.k', c1 text PATH '$')) AS a3 WHERE a2.c1 ORDER BY 1 LIMIT 1) WHERE TRUE RETURNING CASE WHEN (a1.c1 BETWEEN '37'::int AND '37'::int) THEN JSONB_TYPEOF ('{}'::jsonb) ELSE (LEFT (LEAST ('A'::text, GREATEST (GREATEST ('A'::text, '99'::text), '9'::text)), 1) || LEAST (SUBSTR (LOWER (SUBSTR (LOWER ('0'::text), '30'::int)), 0), NULLIF (SUBSTR (CONCAT (TRUE, 0.0::numeric), a1.c0), '16x'::text))) END AS c0;
+INSERT INTO tl AS a1 (c1) SELECT NULLIF (CASE WHEN (SELECT BOOL_OR ((a4.c1 = ANY (ARRAY_CAT ('{1,2,3,4}'::int[], '{}'::int[])))) FROM t1 AS a4) THEN UPPER (STRING_AGG ('0'::text, ',' ORDER BY '0'::text)) ELSE '%'::text END, ARRAY_TO_STRING ('{""}'::text[], ',')) AS c0 FROM (SELECT (-1) AS c0 FROM t0 AS a2 GROUP BY GROUPING SETS ((a2.c2), ()) EXCEPT ALL SELECT (-1) AS c0) AS a3 WHERE TRUE GROUP BY a3.c0 ON CONFLICT DO NOTHING;
+SELECT DISTINCT '{"k": 2, "a": [0]}'::jsonb AS c0 FROM v0 AS a1, GENERATE_SERIES (1, 3) AS a2 (c0) WHERE ((SELECT MIN (a3.c1) FROM ti AS a3) !~ '[0-9]{2}');
