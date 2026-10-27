@@ -1,0 +1,66 @@
+To: pgsql-bugs@lists.postgresql.org
+Subject: Assertion failure in dependencies_clauselist_selectivity with two clauses on the same statistics expression
+
+PostgreSQL version: 18.6 (built --enable-cassert); also master 126976a8
+Operating system: Ubuntu 24.04, x86_64
+
+With functional-dependency statistics on an expression, a WHERE clause
+containing two different clauses that reference the same expression crashes
+an assert-enabled server during planning:
+
+    CREATE TABLE dt (a int, b int);
+    INSERT INTO dt SELECT x % 10, x % 10 FROM generate_series(1, 1000) x;
+    CREATE STATISTICS dt_deps (dependencies) ON a, (b + 1) FROM dt;
+    ANALYZE dt;
+    EXPLAIN SELECT * FROM dt WHERE a = 1 AND (b + 1) = 2 AND (b + 1) IN (2, 3);
+
+    TRAP: failed Assert("AttrNumberIsForUserDefinedAttr(list_attnums[i]) ||
+          !bms_is_member(attnum, clauses_attnums)"),
+          File: "dependencies.c", Line: 1504
+
+The same crash happens with two identical BooleanTest clauses and statistics
+on an expression such as (c IS TRUE):
+
+    CREATE TABLE dt2 (a int, c bool);
+    INSERT INTO dt2 SELECT x % 10, x % 10 < 5 FROM generate_series(1, 1000) x;
+    CREATE STATISTICS dt2_deps (dependencies) ON a, (c IS TRUE) FROM dt2;
+    ANALYZE dt2;
+    EXPLAIN SELECT * FROM dt2 WHERE a = 1 AND (c IS TRUE) AND (c IS TRUE);
+
+The columns must be correlated so that ANALYZE stores at least one
+dependency. A release (non-assert) build plans the query normally (no wrong
+result, no crash), so this is assertion-only.
+
+Root cause: dependencies_clauselist_selectivity() deliberately assigns a
+duplicate expression the same (negative) attnum as its first occurrence
+("If the expression is duplicate, use the same attnum"), and
+clauselist_apply_dependencies() explicitly collects *all* clauses with the
+same attnum and estimates them together. The assertion a few lines later,
+which claims "expressions are unique", contradicts both -- it holds for
+unique_exprs[], not for the clause list. Plain columns are exempted by the
+AttrNumberIsForUserDefinedAttr() half of the assertion, which is why only
+the expression branch fires.
+
+Fix: the attached patch removes the incorrect assertion (nothing downstream
+relies on it), documents that several clauses may share an attnum, and adds
+a regression test to stats_ext.sql. Patched master: make check and
+installcheck-parallel pass 239/239; without the patch the new test crashes
+the assert-enabled server.
+
+Versions: master 126976a8 and 18.6 (both cassert) crash 3/3 on fresh
+databases. The code was added in PostgreSQL 14 by commit a4d75c86bf
+("Extended statistics on expressions"), so 14-17 are expected to be affected
+as well.
+
+The same assertion text appears once before, in a 2024 pgsql-hackers
+backtrace in the "POC, WIP: OR-clause support for indexes" thread
+(https://www.mail-archive.com/pgsql-hackers@lists.postgresql.org/msg174242.html),
+where it was hit while testing an unpublished patch; it was not recognised
+as a bug in released code and the assertion was never changed.
+
+Found with a fuzzer for extended statistics (a mutation of BUG #19789 and
+#19772), then reduced by hand to the scripts above.
+
+Attachments:
+  - C-01-dependencies-duplicate-expression-assert.patch   (fix + regression test)
+  - C-01-dependencies-duplicate-expression-assert.sql     (reproducer)
