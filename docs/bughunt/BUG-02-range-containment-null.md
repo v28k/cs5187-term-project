@@ -1,6 +1,6 @@
 # BUG-02: range containment with a NULL element returns true/false instead of NULL
 
-Status: **found, reproduced on 18.6 and master, root-caused, patch written. NOT YET FILED.**
+Status: **filed 23 Oct 2026 by Venu Kummari as BUG #19793** (patch sent as a reply). Found, reproduced on 18.6 and master, root-caused, patch written.
 Found 23 Oct 2026 by the new metamorphic oracle (`expr:scalar_sub` rewrite), in
 the first 150 test cases it ever ran.
 

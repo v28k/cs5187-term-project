@@ -19,13 +19,13 @@ reproduce each, and their upstream status. Part of CS-5187 project A3
 | Bug | Found by | Upstream | Status |
 |---|---|---|---|
 | BUG-01 JSON_TABLE collation | grammar fuzzer | **BUG #19768** | filed 16 Oct, awaiting committer reply |
-| BUG-02 range containment NULL | metamorphic oracle `expr:scalar_sub` | — | root-caused + patch, not yet filed |
+| BUG-02 range containment NULL | metamorphic oracle `expr:scalar_sub` | **BUG #19793** | filed 23 Oct (Venu), patch sent |
 | BUG #19766 shm_toc_insert assert | grammar fuzzer | **#19766** | reply drafted (Bhuvan) |
 | extended-stats non-finite MCV | manual test + code reading | pgsql-hackers | patch submitted (Bhuvan) |
-| B-01 FULL JOIN NOT NULL folding | hunter B `fz2.py` | — | patch written, ready to file |
-| C-01 duplicate-expression assert | hunter C fuzzers | — | patch written, ready to file |
-| AUDIT-F1 NOT IN anti-join cast | audit + probes + fuzzers | — | confirmed + patch + test |
-| AUDIT-F2 IGNORE NULLS hang | audit2 session | — | see report |
+| B-01 FULL JOIN NOT NULL folding | hunter B `fz2.py` | — | patch written, NOT filed (see hackers thread 7400) |
+| C-01 duplicate-expression assert | hunter C fuzzers | — | patch written, NOT filed (assertion-only) |
+| AUDIT-F1 NOT IN anti-join cast | audit + probes + fuzzers | pgsql-bugs | filed 23 Oct (Bhuvan) |
+| AUDIT-F2 IGNORE NULLS hang | audit2 session | pgsql-bugs | filed 23 Oct (Bhuvan); Ishii replied 24 Oct |
 | Candidate 2 crash-recovery | grammar fuzzer (seen once) | **#17731** | known, not ours |
 
 ---
@@ -70,7 +70,7 @@ reproduce each, and their upstream status. Part of CS-5187 project A3
 
 ---
 
-## Found, root-caused, not yet filed
+## Found + root-caused (BUG-02 → #19793; B-01/C-01 still unfiled)
 
 ### 4. BUG-02 — range containment with a NULL element returns true/false instead of NULL
 - **Found by:** the new metamorphic oracle (`expr:scalar_sub` rewrite), 23 Oct 2026,
@@ -86,7 +86,8 @@ reproduce each, and their upstream status. Part of CS-5187 project A3
   FROM (VALUES (NULL::int), (1)) v(c);
   -- NULL row shows  t | f | t  (expected all NULL)
   ```
-- **Status:** root-caused, patch written, **not yet filed**.
+- **Status:** **filed 23 Oct 2026 by Venu Kummari as BUG #19793**; patch sent as a reply.
+  - Thread: https://www.postgresql.org/message-id/19793-16d3a1bf33dff0fb@postgresql.org
 - **Report:** `../BUG-02-range-containment-null.md`.
 - **Patches:** `patches/v1-0001-range-containment-null-master.patch`,
   `patches/v1-0001-range-containment-null-REL_17_18.patch`.
@@ -94,12 +95,12 @@ reproduce each, and their upstream status. Part of CS-5187 project A3
 
 ### 5. B-01 — FULL JOIN NOT NULL folding (PG19 regression)
 - **Found by:** hunter B differential fuzzer (`fz2.py`), master vs 18.6.
-- **Status:** patch written, ready to file.
+- **Status:** patch written, **not filed** (same root cause is an open pgsql-hackers item, commitfest 7400).
 - **Report:** `../new/B-01-full-join-notnull-folding.md`, `../../bugprogress/B-01-*`.
 
 ### 6. C-01 — dependencies duplicate-expression assertion
 - **Found by:** hunter C differential fuzzers.
-- **Status:** patch written, ready to file.
+- **Status:** patch written, **not filed** (assertion-only; distinct from #19789/#19772).
 - **Report:** `../new/C-01-dependencies-duplicate-expression-assert.md`,
   `../../bugprogress/C-01-*`.
 
@@ -111,13 +112,15 @@ reproduce each, and their upstream status. Part of CS-5187 project A3
 - **Found by:** manual audit + probes + fuzzers (jtfuzz/ixfuzz/ptfuzz/hashcheck/jsoneq/intervalrt).
 - **What it is:** a wrong-result regression from commit `383eb21ebf`; present in 19rc1
   and master, absent in 18.6.
-- **Status:** confirmed new bug; patch + regression test.
+- **Status:** **filed 23 Oct 2026 by Bhuvan** on pgsql-bugs; patch + test.
+  - Thread: https://www.postgresql.org/message-id/PN0P287MB090375874C6D5433282EC9DFA7642@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM
 - **Report:** `audits/POSTGRESQL_BUG_AUDIT.md`, `audits/AUDIT-F1_FINAL_REPORT.txt`.
 - **Reproduce:** `psql -X -f audits/AUDIT-F1-reproducer.sql`.
 
 ### 8. AUDIT-F2 — IGNORE NULLS frame-scan hang
 - **Found by:** audit2 session.
-- **Status:** see `audits/audit2/AUDIT-F2_*`.
+- **Status:** **filed 23 Oct 2026 by Bhuvan** on pgsql-bugs; committer Ishii replied 24 Oct.
+  - Thread: https://www.postgresql.org/message-id/PN0P287MB09038F3BD9921EBACF5646F6A7632@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM
 
 ---
 
@@ -135,13 +138,13 @@ reproduce each, and their upstream status. Part of CS-5187 project A3
 | Bug | Upstream ID | Status |
 |---|---|---|
 | BUG-01 | #19768 | filed, awaiting committer reply |
-| BUG-02 | — | not filed |
+| BUG-02 | #19793 | filed 23 Oct (Venu), patch sent |
 | BUG #19766 | #19766 | reply drafted |
 | extended-stats | (hackers thread) | patch submitted |
-| B-01 | — | ready to file |
-| C-01 | — | ready to file |
-| AUDIT-F1 | — | confirmed, patch + test |
-| AUDIT-F2 | — | see report |
+| B-01 | — | NOT filed (hackers thread 7400) |
+| C-01 | — | NOT filed (assertion-only) |
+| AUDIT-F1 | pgsql-bugs | filed 23 Oct (Bhuvan) |
+| AUDIT-F2 | pgsql-bugs | filed 23 Oct (Bhuvan); Ishii replied |
 | Candidate 2 | #17731 | known |
 
 Every claim above comes from a real run; the evidence files back the
