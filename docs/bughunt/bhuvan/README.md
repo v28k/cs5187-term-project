@@ -20,10 +20,10 @@ reproduce each, and their upstream status. Part of CS-5187 project A3
 |---|---|---|---|
 | BUG-01 JSON_TABLE collation | grammar fuzzer | **BUG #19768** | filed 16 Oct, awaiting committer reply |
 | BUG-02 range containment NULL | metamorphic oracle `expr:scalar_sub` | **BUG #19793** | filed 23 Oct (Venu), patch sent |
-| BUG #19766 shm_toc_insert assert | grammar fuzzer | **#19766** | reply drafted (Bhuvan) |
+| BUG #19766 shm_toc_insert assert | grammar fuzzer | **#19766** | reply sent (Bhuvan) |
 | extended-stats non-finite MCV | manual test + code reading | pgsql-hackers | patch submitted (Bhuvan) |
-| B-01 FULL JOIN NOT NULL folding | hunter B `fz2.py` | — | patch written, NOT filed (see hackers thread 7400) |
-| C-01 duplicate-expression assert | hunter C fuzzers | — | patch written, NOT filed (assertion-only) |
+| B-01 FULL JOIN NOT NULL folding | hunter B `fz2.py` | — | skipped (root cause in progress: hackers thread 7400) |
+| C-01 duplicate-expression assert | hunter C fuzzers | pgsql-bugs | filed 27 Oct (Bhuvan), awaiting bug number |
 | AUDIT-F1 NOT IN anti-join cast | audit + probes + fuzzers | pgsql-bugs | filed 23 Oct (Bhuvan) |
 | AUDIT-F2 IGNORE NULLS hang | audit2 session | pgsql-bugs | filed 23 Oct (Bhuvan); Ishii replied 24 Oct |
 | Candidate 2 crash-recovery | grammar fuzzer (seen once) | **#17731** | known, not ours |
@@ -95,12 +95,12 @@ reproduce each, and their upstream status. Part of CS-5187 project A3
 
 ### 5. B-01 — FULL JOIN NOT NULL folding (PG19 regression)
 - **Found by:** hunter B differential fuzzer (`fz2.py`), master vs 18.6.
-- **Status:** patch written, **not filed** (same root cause is an open pgsql-hackers item, commitfest 7400).
+- **Status:** skipped — same root cause is an open pgsql-hackers item (commitfest 7400, in progress).
 - **Report:** `../new/B-01-full-join-notnull-folding.md`, `../../bugprogress/B-01-*`.
 
 ### 6. C-01 — dependencies duplicate-expression assertion
 - **Found by:** hunter C differential fuzzers.
-- **Status:** patch written, **not filed** (assertion-only; distinct from #19789/#19772).
+- **Status:** **filed 27 Oct 2026 by Bhuvan** (assertion-only; distinct from #19789/#19772).
 - **Report:** `../new/C-01-dependencies-duplicate-expression-assert.md`,
   `../../bugprogress/C-01-*`.
 
@@ -139,10 +139,10 @@ reproduce each, and their upstream status. Part of CS-5187 project A3
 |---|---|---|
 | BUG-01 | #19768 | filed, awaiting committer reply |
 | BUG-02 | #19793 | filed 23 Oct (Venu), patch sent |
-| BUG #19766 | #19766 | reply drafted |
+| BUG #19766 | #19766 | reply sent |
 | extended-stats | (hackers thread) | patch submitted |
-| B-01 | — | NOT filed (hackers thread 7400) |
-| C-01 | — | NOT filed (assertion-only) |
+| B-01 | — | skipped (hackers thread 7400) |
+| C-01 | pgsql-bugs | filed 27 Oct (Bhuvan) |
 | AUDIT-F1 | pgsql-bugs | filed 23 Oct (Bhuvan) |
 | AUDIT-F2 | pgsql-bugs | filed 23 Oct (Bhuvan); Ishii replied |
 | Candidate 2 | #17731 | known |
