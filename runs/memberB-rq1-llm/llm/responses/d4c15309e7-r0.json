@@ -1,0 +1,30 @@
+{
+ "model": "gemini-3-flash-preview",
+ "requested_model": "gemini-3-flash-preview",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 14088,
+  "output_tokens": 12278,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "The commit addresses an issue where LATERAL subqueries containing lateral references hidden inside join alias Vars (such as whole-row references to a join) were incorrectly pulled up by the optimizer. This happened because pull_up_simple_subquery() re-checked pull-up safety before flattening these alias Vars, causing lateral dependencies to be missed. The fix ensures that flattening occurs before the safety re-check for both the target list and the jointree quals of lateral subqueries. The grammar is extended to allow aliasing join constructs and referencing these aliases as whole-row variables in expressions like IS NULL or text casts, which triggers the logic for join alias Var flattening.",
+  "grammar_fragment": "from_item : <1> joined AS @derived_alias ; expr<bool> : <0.2> \"(\" @derived_alias IS NOT?0.5 NULL \")\" ; expr<text> : <0.2> \"(\" @derived_alias \"::text\" \")\" ;",
+  "seeds": [
+   "SELECT t0.c0, ss.res FROM t0, LATERAL (SELECT (j IS NULL) as res FROM (t1 LEFT JOIN t2 ON t1.c0 = t2.c0) j) ss; SELECT t0.c1, ss.val FROM t0, LATERAL (SELECT 1 AS val FROM (t1 LEFT JOIN t2 ON t1.c0 = t0.c0) j WHERE j IS NOT NULL) ss;",
+   "SELECT t1.c0, sub.txt FROM t1 LEFT JOIN LATERAL (SELECT j::text AS txt FROM (t0 LEFT JOIN t3 ON t0.c0 = t3.c0) j WHERE length(j::text) > 5) sub ON true;"
+  ],
+  "features": [
+   "LATERAL",
+   "Outer Join",
+   "Whole-row reference",
+   "Subquery pull-up"
+  ],
+  "rewrites": []
+ },
+ "t": 1793105803.6327837
+}

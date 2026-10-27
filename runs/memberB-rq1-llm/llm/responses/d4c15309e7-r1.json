@@ -1,0 +1,30 @@
+{
+ "model": "gemini-3-flash-preview",
+ "requested_model": "gemini-3-flash-preview",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 3037,
+  "output_tokens": 11615,
+  "cache_read_input_tokens": 11859,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "The commit ensures that join alias Vars are flattened in a subquery's targetlist and jointree quals before re-checking for pull-up safety. This is particularly important for LATERAL subqueries because join alias Vars (like a whole-row reference to a join) might hide lateral references that only become visible after flattening. The grammar is extended to allow aliasing join results and using those aliases as whole-row references (e.g., 'ja IS NULL' or 'ja::text') within expressions, which forces the optimizer to handle these join alias Vars during the subquery pull-up process.",
+  "grammar_fragment": "from_item : <1> joined AS \"ja\" ;\nexpr<bool> : <0.5> \"(ja IS\" NOT?0.5 \"NULL)\" ;\nexpr<text> : <0.5> \"(ja::text)\" ;",
+  "seeds": [
+   "SELECT a1.c0, ss.x FROM t0 AS a1, LATERAL (SELECT (ja IS NULL) AS x FROM (t1 AS a2 LEFT JOIN t2 AS a3 ON false) AS ja) ss;",
+   "SELECT a1.c0, a2.c1, ss.y FROM t0 AS a1, t1 AS a2 LEFT JOIN LATERAL (SELECT 1 AS y FROM (t2 AS a3 LEFT JOIN t3 AS a4 ON a3.c0 = a1.c0) AS ja WHERE ja::text IS NOT NULL) ss ON true WHERE a1.c0 = 1;"
+  ],
+  "features": [
+   "LATERAL",
+   "Outer Join",
+   "Whole-row reference",
+   "Subquery pull-up"
+  ],
+  "rewrites": []
+ },
+ "t": 1793105970.8536747
+}

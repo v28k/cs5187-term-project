@@ -1,0 +1,23 @@
+{
+ "commit": "d8ce0050a6cff3efefa5fce8abe3c6df7bd492ce",
+ "rewrites": [
+  {
+   "name": "nullif_null_id",
+   "type": "text",
+   "template": "NULLIF({e}, NULL::text)",
+   "why": "NULLIF with a constant NULL second argument reduces to the first argument; the commit ensures typmod and collation are preserved during this reduction."
+  },
+  {
+   "name": "case_true_id",
+   "type": "int",
+   "template": "CASE WHEN true THEN {e} ELSE 0 END",
+   "why": "A CASE expression with a constant TRUE condition reduces to the result of the THEN branch."
+  },
+  {
+   "name": "coalesce_self_id",
+   "type": "text",
+   "template": "COALESCE({e}, {e})",
+   "why": "COALESCE with two identical arguments reduces to the first; this checks if the reduction logic correctly handles metadata when simplification occurs."
+  }
+ ]
+}

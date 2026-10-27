@@ -1,0 +1,52 @@
+{
+ "model": "gemini-3-flash-preview",
+ "requested_model": "gemini-3-flash-preview",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 13822,
+  "output_tokens": 5784,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "The commit ensures that when eval_const_expressions simplifies COALESCE, CASE, or NULLIF expressions to a single input argument, it correctly preserves the original expression's typmod and collation using RelabelType. This is specifically triggered when COALESCE has a leading NOT NULL argument, CASE has a constant condition, or NULLIF has a constant NULL second argument. The grammar fragment introduces alternatives that favor these constant or NOT NULL inputs combined with explicit COLLATE clauses. These constructs are frequently used in collation-sensitive contexts like GROUP BY or ORDER BY, where a failure to preserve collation would lead to incorrect results or plan-time errors.",
+  "grammar_fragment": "expr<text> : <0.5> ( expr<text> COLLATE collation ) | <0.5> COALESCE \"(\" @col(text) \",\" ( expr<text> COLLATE collation ) \")\" | <0.5> NULLIF \"(\" expr<text> \",\" ( \"NULL::text\" COLLATE collation ) \")\" ; collation : '\"C\"' | '\"POSIX\"' ; expr<T> : <0.5> CASE WHEN \"true\" THEN expr<T> ELSE ( expr<T> ) END | <0.5> CASE WHEN \"false\" THEN expr<T> ELSE expr<T> END ;",
+  "seeds": [
+   "CREATE TABLE t_simpl (a text NOT NULL, b text); INSERT INTO t_simpl VALUES ('foo'), ('FOO'); SELECT count(*) FROM (SELECT COALESCE(a, b COLLATE \"C\") FROM t_simpl GROUP BY 1) q;",
+   "CREATE TABLE t_simpl_case (a text NOT NULL); INSERT INTO t_simpl_case VALUES ('abc'), ('ABC'); SELECT count(*) FROM (SELECT CASE WHEN true THEN a ELSE 'x' COLLATE \"C\" END FROM t_simpl_case GROUP BY 1) q;",
+   "SELECT count(*) FROM (SELECT NULLIF(c1, NULL::text COLLATE \"POSIX\") FROM t0 GROUP BY 1) q;"
+  ],
+  "features": [
+   "COALESCE",
+   "CASE",
+   "NULLIF",
+   "Collation",
+   "Constant Folding",
+   "RelabelType"
+  ],
+  "rewrites": [
+   {
+    "name": "nullif_null_id",
+    "type": "text",
+    "template": "NULLIF({e}, NULL::text)",
+    "why": "NULLIF with a constant NULL second argument reduces to the first argument; the commit ensures typmod and collation are preserved during this reduction."
+   },
+   {
+    "name": "case_true_id",
+    "type": "int",
+    "template": "CASE WHEN true THEN {e} ELSE 0 END",
+    "why": "A CASE expression with a constant TRUE condition reduces to the result of the THEN branch."
+   },
+   {
+    "name": "coalesce_self_id",
+    "type": "text",
+    "template": "COALESCE({e}, {e})",
+    "why": "COALESCE with two identical arguments reduces to the first; this checks if the reduction logic correctly handles metadata when simplification occurs."
+   }
+  ]
+ },
+ "t": 1793104778.3478694
+}

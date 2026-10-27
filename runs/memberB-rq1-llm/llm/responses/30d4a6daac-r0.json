@@ -1,0 +1,31 @@
+{
+ "model": "gemini-3.6-flash",
+ "requested_model": "gemini-3.5-flash",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 6162,
+  "output_tokens": 1913,
+  "cache_read_input_tokens": 7883,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "Commit 30d4a6daac8b updates how PostgreSQL parses XML data in CONTENT mode by switching from xmlParseBalancedChunkMemory to xmlParseInNodeContext with XML_PARSE_NOBLANKS enabled. This affects xml_parse, xmlparse, xmlserialize, xml_is_document, xml_doctype_in_content, and wellformed_xml when processing XML in CONTENT mode or validating DOCUMENT/CONTENT well-formedness. The grammar changes introduce constructs for XMLPARSE in CONTENT/DOCUMENT modes, XMLSERIALIZE formatting, and expressions involving the IS DOCUMENT predicate and XML content validation functions. These reach the updated libxml2 parsing paths and error checks in src/backend/utils/adt/xml.c.",
+  "grammar_fragment": "expr<text>\n  : <0.5> XMLSERIALIZE \"(\" (DOCUMENT | CONTENT) XMLPARSE \"(\" (DOCUMENT | CONTENT) expr<text> xml_space?0.4 \")\" AS \"text\" INDENT?0.4 \")\"\n  | <0.3> \"(\" XMLPARSE \"(\" CONTENT expr<text> \")\" \"::\" \"text\" \")\"\n  ;\n\nxml_space : PRESERVE WHITESPACE | STRIP WHITESPACE ;\n\nexpr<bool>\n  : <0.4> \"(\" \"(\" expr<text> \"::xml\" \")\" IS NOT?0.3 DOCUMENT \")\"\n  | <0.3> \"(\" XML_IS_WELLFORMED_CONTENT \"(\" expr<text> \")\" \")\"\n  | <0.3> \"(\" XML_IS_WELLFORMED_DOCUMENT \"(\" expr<text> \")\" \")\"\n  ;\n",
+  "seeds": [
+   "SELECT XMLPARSE(CONTENT '<?xml version=\"1.0\"?>' || chr(65279) || 'abc') IS DOCUMENT;",
+   "SELECT XMLSERIALIZE(CONTENT XMLPARSE(CONTENT '<a>1</a><b>2</b>') AS text INDENT);",
+   "SELECT c1, XML_IS_WELLFORMED_CONTENT(c1), (c1::xml) IS DOCUMENT FROM t0 WHERE c1 IS NOT NULL;"
+  ],
+  "features": [
+   "xmlparse",
+   "xmlserialize",
+   "is_document",
+   "xml_is_wellformed"
+  ],
+  "rewrites": []
+ },
+ "t": 1793099660.563612
+}

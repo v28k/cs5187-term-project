@@ -1,0 +1,8 @@
+SELECT s.*
+FROM (VALUES (1)) AS v(z)
+LEFT JOIN (
+  SELECT 123456 AS c, t3.c0 AS x
+  FROM t3
+  WHERE NOT EXISTS (SELECT 1 FROM t0 WHERE t0.c0 = t3.c0)
+) s ON true
+WHERE s.x = s.c;

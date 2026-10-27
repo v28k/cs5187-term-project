@@ -1,0 +1,46 @@
+{
+ "model": "gemini-3-flash-preview",
+ "requested_model": "gemini-3-flash-preview",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 15041,
+  "output_tokens": 8725,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "The commit addresses a bug in eval_const_expressions() where simplifying CASE, COALESCE, or NULLIF expressions to a single argument failed to preserve the original expression's collation and typmod. This occurs when CASE has a constant condition, COALESCE has a leading non-nullable argument (like a literal), or NULLIF has a constant NULL second argument. Without an explicit applyRelabelType() call, subsequent grouping or ordering operations might use the wrong collation, potentially leading to wrong results or plan-time errors. The proposed grammar fragment adds specialized alternatives to create these patterns (e.g., CASE with 'true', COALESCE with literals) combined with explicit COLLATE clauses to exercise the fix.",
+  "grammar_fragment": "expr<T> : <0.5> CASE WHEN \"true\" THEN expr<T> ELSE expr<T> END ; expr<text> : <0.5> COALESCE \"(\" @lit(text) \",\" ( @lit(text) COLLATE '\"C\"' ) \")\" | <0.5> NULLIF \"(\" expr<text> \",\" ( \"NULL::text\" COLLATE '\"POSIX\"' ) \")\" ;",
+  "seeds": [
+   "CREATE TABLE t_simp (c text NOT NULL); INSERT INTO t_simp VALUES ('a'), ('A'); SELECT count(*) FROM (SELECT COALESCE(c, 'x' COLLATE \"C\") FROM t_simp GROUP BY 1) q;",
+   "SELECT count(*) FROM (SELECT CASE WHEN true THEN c1 ELSE 'x' COLLATE \"POSIX\" END FROM t0 GROUP BY 1) q;",
+   "SELECT NULLIF(c1, NULL::text COLLATE \"C\") FROM t0 GROUP BY 1;"
+  ],
+  "features": [
+   "COALESCE",
+   "CASE",
+   "NULLIF",
+   "Collation",
+   "Constant Folding",
+   "RelabelType"
+  ],
+  "rewrites": [
+   {
+    "name": "case_true_metamorphic",
+    "type": "int",
+    "template": "CASE WHEN true THEN {e} ELSE 0 END",
+    "why": "CASE with a constant TRUE condition simplifies to its branch, which must preserve its typmod and collation."
+   },
+   {
+    "name": "nullif_null_metamorphic",
+    "type": "text",
+    "template": "NULLIF({e}, NULL::text COLLATE \"C\")",
+    "why": "NULLIF with a constant NULL second argument reduces to the first argument while preserving collation metadata."
+   }
+  ]
+ },
+ "t": 1793104878.374108
+}

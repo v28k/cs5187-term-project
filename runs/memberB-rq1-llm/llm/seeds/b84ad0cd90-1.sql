@@ -1,0 +1,5 @@
+SET LOCAL from_collapse_limit = 4;
+SELECT count(*) FROM t1 LEFT JOIN t2 ON true,
+  LATERAL (SELECT t2.c0 OFFSET 0) s1 JOIN t3 ON s1.c0 = t3.c0,
+  LATERAL (SELECT t3.c0 OFFSET 0) s2
+WHERE s2.c0 > t1.c0;

@@ -1,0 +1,17 @@
+{
+ "commit": "d8ce0050a6cff3efefa5fce8abe3c6df7bd492ce",
+ "rewrites": [
+  {
+   "name": "case_true_const_reduction",
+   "type": "int",
+   "template": "CASE WHEN true THEN {e} ELSE 0 END",
+   "why": "CASE with a constant TRUE condition reduces to the THEN-branch; the commit ensures typmod and collation are preserved."
+  },
+  {
+   "name": "nullif_null_reduction",
+   "type": "text",
+   "template": "NULLIF({e}, NULL::text COLLATE \"POSIX\")",
+   "why": "NULLIF with a constant NULL second argument reduces to the first argument; must preserve the explicit POSIX collation."
+  }
+ ]
+}

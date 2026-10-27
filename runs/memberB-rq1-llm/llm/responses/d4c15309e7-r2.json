@@ -1,0 +1,30 @@
+{
+ "model": "gemini-3-flash-preview",
+ "requested_model": "gemini-3-flash-preview",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 15659,
+  "output_tokens": 14514,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "The commit addresses an issue where LATERAL subqueries containing Join Alias Vars (Vars referencing an aliased join result) were incorrectly pulled up by the optimizer. This happened because lateral references could be hidden within these join aliases, and they weren't flattened until after the pull-up safety check was performed. The grammar is extended to allow aliased join expressions in the FROM clause, creating Join Alias Vars. When such a join is inside a LATERAL subquery and its condition references an outer relation, the fuzzer can now reach and test the newly added flattening logic in pull_up_simple_subquery and its re-check process.",
+  "grammar_fragment": "joined : <1> \"(\" from_item join_kind from_item ON \"(\" @join_eq AND expr<bool> \")\" \")\" AS @derived_alias ;",
+  "seeds": [
+   "SELECT a1.c0, ss.v FROM t1 AS a1, LATERAL (SELECT ja.c3 AS v FROM (t0 AS a2 LEFT JOIN t1 AS a3 ON a2.c0 = a1.c0) AS ja) ss;",
+   "SELECT a1.c0, a2.c1, ss.y FROM t0 AS a1, t1 AS a2 LEFT JOIN LATERAL (SELECT 1 AS y FROM (t2 AS a3 JOIN t3 AS a4 ON a3.c0 = a4.c0) AS ja WHERE ja.c5 = a1.c1) ss ON true;"
+  ],
+  "features": [
+   "LATERAL",
+   "Outer Join",
+   "Subquery pull-up",
+   "Join Alias Var"
+  ],
+  "rewrites": []
+ },
+ "t": 1793106082.682684
+}

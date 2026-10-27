@@ -1,0 +1,30 @@
+{
+ "model": "gemini-3-flash-preview",
+ "requested_model": "gemini-3-flash-preview",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 15324,
+  "output_tokens": 16556,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "The commit fixes an internal parser failure when a JoinAliasVar (created by aliasing a join) is nulled by an outer join and then referenced in a query with aggregation or grouping. This error happened in parseCheckAggregates() because the parser attempted to flatten the whole-row join Var without having a root PlannerInfo, which is impossible for nulled vars that would require PlaceHolderVars. The fix is to leave such Vars unexpanded during parsing. To reach the fix, we need a nested join that is aliased, placed on the nullable side of an outer join, and then referenced as a whole-row Var in a context that triggers parseCheckAggregates (aggregates, GROUP BY, or HAVING).",
+  "grammar_fragment": "expr<bigint> : <0.2 ?agg_ok> \"(\" SELECT COUNT \"(\" \"j\" \")\" FROM @table(t1) LEFT JOIN \"(\" @table(t2) JOIN @table(t3) ON @join_eq \")\" AS \"j\" ON @join_eq \")\" ;\nexpr<bool> : <0.2 ?agg_ok> EXISTS \"(\" SELECT \"1\" FROM @table(t1) LEFT JOIN \"(\" @table(t2) JOIN @table(t3) ON @join_eq \")\" AS \"j\" ON @join_eq GROUP BY \"j\" \")\" ;",
+  "seeds": [
+   "SELECT a1.c0, count(j) FROM t1 AS a1 LEFT JOIN (t2 AS a2 JOIN t3 AS a3 ON a2.c0 = a3.c0) AS j ON a1.c0 = a2.c0 GROUP BY a1.c0;",
+   "SELECT j, count(*) FROM t1 AS a1 LEFT JOIN (t2 AS a2 JOIN t3 AS a3 ON a2.c0 = a3.c0) AS j ON a1.c0 = a2.c0 GROUP BY j;",
+   "SELECT 1 FROM t1 AS a1 LEFT JOIN (t2 AS a2 JOIN t3 AS a3 ON a2.c0 = a3.c0) AS j ON a1.c0 = a2.c0 GROUP BY a1.c0 HAVING count(j) > 0;"
+  ],
+  "features": [
+   "JOIN",
+   "AGGREGATES",
+   "GROUP BY"
+  ],
+  "rewrites": []
+ },
+ "t": 1793105699.5914097
+}

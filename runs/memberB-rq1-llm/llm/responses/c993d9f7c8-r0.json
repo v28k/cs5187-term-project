@@ -1,0 +1,30 @@
+{
+ "model": "gemini-3-flash-preview",
+ "requested_model": "gemini-3-flash-preview",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 13683,
+  "output_tokens": 5641,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "The commit modifies ri_FastPathCheck in ri_triggers.c to call ExecCheckXactReadOnly before locking a referenced row for foreign key validation. This ensures that read-only transactions are prevented from performing row locks on non-temporary tables during fast-path referential integrity checks, matching the existing behavior of the SPI-based check path. This logic is triggered when a foreign key constraint is validated within a transaction that has been switched to READ ONLY mode after data modification occurred, which is typical when using DEFERRABLE INITIALLY DEFERRED constraints.",
+  "grammar_fragment": "new_col : <0.5> @new_col(int) \"REFERENCES\" @table(t1) \"(\" \"c0\" \")\" fk_timing ;\nfk_timing : \"DEFERRABLE INITIALLY DEFERRED\" | \"DEFERRABLE INITIALLY IMMEDIATE\" ;\ncreate_table : <0.5> \"CREATE TEMP TABLE\" @new_table \"(\" new_col{1,3/\",\"} \")\" \";\" @fill ;\nstmt : <0.2> deferred_fk_ro_block ;\ndeferred_fk_ro_block @scope : \"BEGIN\" \";\" (insert_stmt | update_stmt) \";\" \"SET TRANSACTION READ ONLY\" \";\" \"COMMIT\" ;",
+  "seeds": [
+   "CREATE TABLE pk1 (id int PRIMARY KEY); INSERT INTO pk1 VALUES (1); CREATE TABLE fk1 (id int REFERENCES pk1 DEFERRABLE INITIALLY DEFERRED); BEGIN; INSERT INTO fk1 VALUES (1); SET TRANSACTION READ ONLY; COMMIT;",
+   "CREATE TEMP TABLE pk_tmp (id int PRIMARY KEY); INSERT INTO pk_tmp VALUES (1); CREATE TEMP TABLE fk_tmp (id int REFERENCES pk_tmp DEFERRABLE INITIALLY DEFERRED); BEGIN; INSERT INTO fk_tmp VALUES (1); SET TRANSACTION READ ONLY; COMMIT;",
+   "CREATE TABLE pk2 (id int PRIMARY KEY); INSERT INTO pk2 VALUES (1); CREATE TABLE fk2 (id int REFERENCES pk2 DEFERRABLE INITIALLY DEFERRED); INSERT INTO fk2 VALUES (1); BEGIN; UPDATE fk2 SET id = 1 WHERE id = 1; SET TRANSACTION READ ONLY; COMMIT;"
+  ],
+  "features": [
+   "Foreign Keys",
+   "Deferred Constraints",
+   "Read-Only Transactions"
+  ],
+  "rewrites": []
+ },
+ "t": 1793105312.3973238
+}

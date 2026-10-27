@@ -1,0 +1,30 @@
+{
+ "model": "gemini-3-flash-preview",
+ "requested_model": "gemini-3-flash-preview",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 14893,
+  "output_tokens": 8649,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "The commit updates ri_LockPKTuple in ri_triggers.c to use the snapshot's command ID instead of the current one when locking tuples for foreign key checks. This change addresses a scenario where side-effecting code (like a custom operator's equality function) runs during an index scan, advancing the command counter and causing the RI lock to fail on 'invisible' tuples. The grammar fragment enables the generation of FOREIGN KEY constraints via both CREATE TABLE and ALTER TABLE statements. These constraints, when coupled with DML, ensure that the fast-path row-locking logic in ri_triggers.c is exercised. Seeds specifically replicate the side-effecting operator class scenario that triggered the original bug.",
+  "grammar_fragment": "new_col : <1> @new_col(int) REFERENCES \"t1\" \"(\" \"c0\" \")\" ; alter_table : <1> ALTER TABLE @target(plain) ADD FOREIGN KEY \"(\" @target_col(int) \")\" REFERENCES \"t1\" \"(\" \"c0\" \")\" ;",
+  "seeds": [
+   "BEGIN; CREATE TABLE pk_cid (id int PRIMARY KEY, v int DEFAULT 0); CREATE FUNCTION eq_cid(int, int) RETURNS bool LANGUAGE plpgsql AS 'BEGIN UPDATE pk_cid SET v = v + 1 WHERE id OPERATOR(pg_catalog.=) $1; RETURN $1 OPERATOR(pg_catalog.=) $2; END'; CREATE OPERATOR === (LEFTARG = int, RIGHTARG = int, FUNCTION = eq_cid); CREATE OPERATOR CLASS cid_ops FOR TYPE int USING btree AS OPERATOR 1 <, OPERATOR 2 <=, OPERATOR 3 ===, OPERATOR 4 >=, OPERATOR 5 >, FUNCTION 1 btint4cmp(int, int); CREATE UNIQUE INDEX ON pk_cid (id cid_ops); INSERT INTO pk_cid VALUES (1); CREATE TABLE fk_cid (a int REFERENCES pk_cid (id)); INSERT INTO fk_cid VALUES (1); ROLLBACK;",
+   "INSERT INTO t1 (c0, c1) VALUES (10, 20); CREATE TABLE t_fk (a int REFERENCES t1(c0)); INSERT INTO t_fk VALUES (10);"
+  ],
+  "features": [
+   "FOREIGN KEY",
+   "Custom Operators",
+   "RI Triggers",
+   "Row Locking"
+  ],
+  "rewrites": []
+ },
+ "t": 1793105157.042978
+}

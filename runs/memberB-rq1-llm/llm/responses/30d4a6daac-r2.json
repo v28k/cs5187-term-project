@@ -1,0 +1,30 @@
+{
+ "model": "gemini-3.6-flash",
+ "requested_model": "gemini-3.5-flash",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 15953,
+  "output_tokens": 2800,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "Commit 30d4a6daac8b updates how PostgreSQL parses XML data in CONTENT mode by switching from xmlParseBalancedChunkMemory to xmlParseInNodeContext with XML_PARSE_NOBLANKS enabled. This affects xml_parse, xmlparse, xmlserialize, and xml_is_document when processing XML in CONTENT mode or validating DOCUMENT/CONTENT well-formedness. The fragment adds grammar rules for XMLPARSE in CONTENT and DOCUMENT modes, XMLSERIALIZE formatting with INDENT, and expressions using the IS DOCUMENT predicate on XML values.",
+  "grammar_fragment": "expr<text>\n  : <0.5> XMLSERIALIZE \"(\" (DOCUMENT | CONTENT) XMLPARSE \"(\" (DOCUMENT | CONTENT) xml_text_expr xml_space?0.4 \")\" AS \"text\" INDENT?0.4 \")\"\n  | <0.3> \"(\" XMLPARSE \"(\" CONTENT xml_text_expr \")\" \"::\" \"text\" \")\"\n  ;\n\nxml_space : PRESERVE WHITESPACE | STRIP WHITESPACE ;\n\nxml_text_expr\n  : <3> CONCAT \"(\" \"'<a>'\" \",\" expr<text> \",\" \"'</a>'\" \")\"\n  | <2> \"(\" \"'<?xml version=''1.0''?>'\" \"||\" \"(\" \"chr(65279)\" \"||\" \"'abc'\" \")\" \")\"\n  | <1> \"'<a>1</a><b>2</b>'\"\n  ;\n\nexpr<bool>\n  : <0.5> \"(\" \"(\" XMLPARSE \"(\" CONTENT xml_text_expr \")\" \")\" IS NOT?0.3 DOCUMENT \")\"\n  | <0.4> \"(\" \"(\" expr<text> \"::\" \"xml\" \")\" IS NOT?0.3 DOCUMENT \")\"\n  ;\n",
+  "seeds": [
+   "SELECT XMLSERIALIZE(CONTENT XMLPARSE(CONTENT '<?xml version=\"1.0\"?>' || chr(65279) || 'abc') AS text INDENT);",
+   "SELECT (XMLPARSE(CONTENT CONCAT('<a>', c1, '</a>'))) IS DOCUMENT FROM t0 WHERE c1 IS NOT NULL;",
+   "SELECT XMLSERIALIZE(DOCUMENT XMLPARSE(DOCUMENT CONCAT('<a>', c1, '</a>')) AS text INDENT) FROM t0 WHERE c1 IS NOT NULL;"
+  ],
+  "features": [
+   "xmlparse",
+   "xmlserialize",
+   "is_document"
+  ],
+  "rewrites": []
+ },
+ "t": 1793099881.908838
+}

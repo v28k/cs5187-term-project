@@ -1,0 +1,33 @@
+{
+ "model": "gemini-3.8-flash",
+ "requested_model": "gemini-3.7-flash",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 14922,
+  "output_tokens": 2831,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "Commit 6b3f8857aa moved the invocation of qp_callback in query_planner() from inside the join removal / self-join elimination restart loop to after it. Previously, self-join elimination restarted query_planner after qp_callback had already set Aggref.aggpresorted flags via adjust_group_pathkeys_for_groupagg, which were not reset on restart. The single changed line in planmain.c is already executed by query_planner on every query that invokes planner callbacks, which the baseline grammar already covers at 100% diff-coverage.",
+  "grammar_fragment": "",
+  "seeds": [
+   "SELECT count(DISTINCT a1.c1) AS dp, count(DISTINCT a1.c0) AS dq, sum(DISTINCT a2.c1) AS sq FROM t1 a1 JOIN t1 a2 ON a1.c0 = a2.c0;",
+   "SELECT a1.c1, count(DISTINCT a1.c0), sum(DISTINCT a2.c1) FROM t1 a1 JOIN t1 a2 ON a1.c0 = a2.c0 GROUP BY a1.c1 ORDER BY a1.c1;",
+   "EXPLAIN (COSTS OFF) SELECT count(DISTINCT a1.c1), sum(DISTINCT a2.c1) FROM t1 a1 JOIN t1 a2 ON a1.c0 = a2.c0;",
+   "SELECT count(DISTINCT a1.c1), count(DISTINCT a2.c1), sum(DISTINCT a3.c1) FROM t1 a1 JOIN t1 a2 ON a1.c0 = a2.c0 JOIN t1 a3 ON a1.c0 = a3.c0;"
+  ],
+  "features": [
+   "self-join elimination",
+   "aggpresorted",
+   "distinct aggregates",
+   "pathkeys",
+   "query_planner"
+  ],
+  "rewrites": []
+ },
+ "t": 1793103646.5450149
+}

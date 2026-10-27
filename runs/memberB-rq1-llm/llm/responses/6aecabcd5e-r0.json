@@ -1,0 +1,31 @@
+{
+ "model": "gemini-3.6-flash",
+ "requested_model": "gemini-3.5-flash",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 1981,
+  "output_tokens": 2707,
+  "cache_read_input_tokens": 13554,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "This commit changes foreign key (RI) checking logic in ri_triggers.c to direct FK checks that require an implicit cast function through SPI rather than the RI fast path. The fast path continues to handle binary-compatible types, cross-type operators, and domains, while ri_check_fastpath_index checks pg_cast eligibility and caches the decision. Reaching these changed code paths requires creating foreign key constraints between columns of coercible types (e.g. int referencing bigint, or custom implicit casts) and performing INSERT or UPDATE operations that trigger foreign key validation.",
+  "grammar_fragment": "alter_table @scope\n  : <1> ALTER TABLE @target(plain) ADD FOREIGN KEY \"(\" @target_col(int) \")\" REFERENCES \"t1\" \"(\" \"c0\" \")\"\n  | <1> ALTER TABLE @target(plain) ADD FOREIGN KEY \"(\" @target_col(bigint) \")\" REFERENCES \"t1\" \"(\" \"c0\" \")\"\n  | <0.5> ALTER TABLE @target(plain) ADD FOREIGN KEY \"(\" @target_col(numeric) \")\" REFERENCES \"t2\" \"(\" \"c0\" \")\"\n  ;",
+  "seeds": [
+   "CREATE TABLE pk_cast_t (id bigint PRIMARY KEY); INSERT INTO pk_cast_t VALUES (1), (2); CREATE TABLE fk_cast_t (a int REFERENCES pk_cast_t(id)); INSERT INTO fk_cast_t VALUES (1), (2);",
+   "ALTER TABLE t0 ADD FOREIGN KEY (c0) REFERENCES t1(c0); INSERT INTO t0 (c0, c1, c2) VALUES (1, 'test', 1.0);",
+   "CREATE DOMAIN my_int AS int; CREATE TABLE pk_dom (id my_int PRIMARY KEY); INSERT INTO pk_dom VALUES (10); CREATE TABLE fk_dom (a int REFERENCES pk_dom(id)); INSERT INTO fk_dom VALUES (10);"
+  ],
+  "features": [
+   "foreign_keys",
+   "alter_table_add_fk",
+   "ri_triggers",
+   "cross_type_fk"
+  ],
+  "rewrites": []
+ },
+ "t": 1793099965.7989123
+}

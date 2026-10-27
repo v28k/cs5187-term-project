@@ -1,0 +1,47 @@
+{
+ "model": "gemini-3-flash-preview",
+ "requested_model": "gemini-3-flash-preview",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 16037,
+  "output_tokens": 5371,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "The commit fixes an issue in eval_const_expressions_mutator where simplifying CASE, COALESCE, or NULLIF expressions to a single argument failed to preserve the original expression's collation and typmod. This reduction occurs when a CASE has a constant condition, a COALESCE has a leading non-nullable argument (like a literal), or a NULLIF has a constant NULL second argument. The fix uses applyRelabelType to wrap the replacement expression, ensuring that operations like GROUP BY or ORDER BY, which rely on exprCollation(), continue to see the correct metadata. The grammar fragment targets these paths by adding alternatives for COALESCE with leading literals, NULLIF with constant NULLs, and CASE with constant 'true' conditions, all paired with explicit COLLATE clauses to provide specific collation metadata that must be preserved.",
+  "grammar_fragment": "expr<T> : <0.5> CASE WHEN \"true\" THEN expr<T> ELSE expr<T> END ;\nexpr<text> : <0.5> COALESCE \"(\" @lit(text) \",\" ( expr<text> COLLATE \"POSIX\" ) \")\"\n           | <0.5> NULLIF \"(\" expr<text> \",\" ( \"NULL::text\" COLLATE \"POSIX\" ) \")\" ;",
+  "seeds": [
+   "SELECT count(*) FROM (SELECT COALESCE('foo'::text, c1 COLLATE \"POSIX\") FROM t0 GROUP BY 1) q;",
+   "SELECT count(*) FROM (SELECT CASE WHEN true THEN c1 ELSE 'bar' COLLATE \"POSIX\" END FROM t0 GROUP BY 1) q;",
+   "SELECT NULLIF(c1, NULL::text COLLATE \"POSIX\") FROM t0 ORDER BY 1;",
+   "CREATE TABLE t_simpl (a text NOT NULL, b text);\nINSERT INTO t_simpl VALUES ('foo'), ('FOO');\nSELECT count(*) FROM (SELECT COALESCE(a, b COLLATE \"POSIX\") FROM t_simpl GROUP BY 1) q;"
+  ],
+  "features": [
+   "COALESCE",
+   "CASE",
+   "NULLIF",
+   "Collation",
+   "Constant Folding",
+   "RelabelType"
+  ],
+  "rewrites": [
+   {
+    "name": "case_true_const_reduction",
+    "type": "int",
+    "template": "CASE WHEN true THEN {e} ELSE 0 END",
+    "why": "CASE with a constant TRUE condition reduces to the THEN-branch; the commit ensures typmod and collation are preserved."
+   },
+   {
+    "name": "nullif_null_reduction",
+    "type": "text",
+    "template": "NULLIF({e}, NULL::text COLLATE \"POSIX\")",
+    "why": "NULLIF with a constant NULL second argument reduces to the first argument; must preserve the explicit POSIX collation."
+   }
+  ]
+ },
+ "t": 1793104957.9194806
+}

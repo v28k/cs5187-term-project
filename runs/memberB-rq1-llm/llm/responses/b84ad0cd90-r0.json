@@ -1,0 +1,29 @@
+{
+ "model": "gemini-3.6-flash",
+ "requested_model": "gemini-3.5-flash",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 14408,
+  "output_tokens": 3848,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "This commit fixes a bug in PostgreSQL's join planner where join_is_legal() failed to reject illegal join orders containing invalid lateral references. When a join depends on lateral references, join_is_legal() checks that referenced relations can still be joined from the outside, but it previously overlooked lateral references traversing outer joins or relations inside sub-joinlists (e.g. when from_collapse_limit prevents flattening). To reach the modified code in join_is_legal() and make_rel_from_joinlist(), the grammar fragment adds chained LATERAL queries in multi-relation FROM clauses alongside controls for from_collapse_limit and join_collapse_limit.",
+  "grammar_fragment": "from_clause\n  : <1.5> FROM from_item \",\" LATERAL lateral_derived \",\" LATERAL lateral_derived\n  ;\n\nset_stmt\n  : <1> SET LOCAL (\"from_collapse_limit\" | \"join_collapse_limit\") \"=\" (\"1\" | \"2\" | \"4\" | \"8\")\n  ;",
+  "seeds": [
+   "EXPLAIN (COSTS OFF)\nSELECT 1 FROM t1 LEFT JOIN t2 ON true,\n  LATERAL (SELECT t2.c0 OFFSET 0) s1 LEFT JOIN t3 ON s1.c0 = t3.c0,\n  LATERAL (SELECT t3.c0 OFFSET 0) s2\nWHERE s2.c0 > t1.c0;",
+   "SET LOCAL from_collapse_limit = 4;\nSELECT count(*) FROM t1 LEFT JOIN t2 ON true,\n  LATERAL (SELECT t2.c0 OFFSET 0) s1 JOIN t3 ON s1.c0 = t3.c0,\n  LATERAL (SELECT t3.c0 OFFSET 0) s2\nWHERE s2.c0 > t1.c0;"
+  ],
+  "features": [
+   "lateral_join",
+   "join_legality",
+   "from_collapse_limit"
+  ],
+  "rewrites": []
+ },
+ "t": 1793100286.1149726
+}
