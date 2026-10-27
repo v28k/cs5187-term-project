@@ -7,7 +7,7 @@ after the campaign.
 | signature | oracle | arms | verdict |
 |---|---|---|---|
 | `cde9712bc8db` | assertion `list_length(rcexpr->inputcollids) == nopers`, execExpr.c:2078, under `ExecInitTableFuncScan` | grammar_mm, grammar_mm_flat | **duplicate of BUG-01** (JSON_TABLE collations), already `real` in `triage/verdicts.yaml` |
-| `c51c4dacc7f1` | internal error `XX000 no relation entry for relid 1` | grammar | **new candidate, looks real**; not in known_bugs, verdicts, bughunt docs or upstream master log (checked up to 700b422af, 2026-10-27) |
+| `c51c4dacc7f1` | internal error `XX000 no relation entry for relid 1` | grammar | **real, but duplicate of upstream BUG #19784** (reported 2026-10-21 by Alperen Keles; Tom Lane patch 2026-10-22, not committed yet); fixed by the local #19784 patched build |
 
 ## c51c4dacc7f1: MIN/MAX index optimization + pushed-down `= ANY(<function>)`
 
@@ -47,3 +47,21 @@ tokens), `c51c4dacc7f1/upstream_report.txt` (template), original
 Next: confirm on latest master after B3, find the failing `find_base_rel()` call
 with a backtrace (`\set VERBOSITY verbose` gives the source location), search
 pgsql-bugs, then add the verdict to `triage/verdicts.yaml` (team).
+
+## Update: duplicate of BUG #19784 (checked 27 Oct)
+
+* pgsql-bugs **BUG #19784** (2026-10-21, Alperen Keles, 18.6): "no relation entry for
+  relid 1" when costing `= ANY (<array expr over max(col)>)` in a MinMaxAggPath; lists
+  our exact shape (aggregate in a FROM subquery, qual pushed down from the outer WHERE).
+  Cause per the report: `preprocess_minmax_aggregates()` costs the tlist/HAVING before
+  baserels exist; `estimate_array_length()` -> `examine_variable()` -> `find_base_rel()`.
+  First bad commit per the reporter: 9391f7152 (estimate_array_length uses statistics).
+  Tom Lane posted a patch (2026-10-22), Shihao Zhong a follow-up (2026-10-23); no commit yet.
+  Mirror: https://github.com/BharatDBPG/BharatDBMS-PG/issues/7857
+* The team already tracks it: bugprogress/C-progress.md item U4.
+* `~/pgfuzz/install/p19784` (master 126976a8f + Tom's selfuncs.c patch): our reduced
+  query returns 1 row, the report's repro returns f, and the original fuzzer test case
+  runs without error. So c51c4dacc7f1 is the same bug.
+
+Verdict for triage/verdicts.yaml: `duplicate` (real bug, upstream BUG #19784, found
+independently by the grammar arm).
