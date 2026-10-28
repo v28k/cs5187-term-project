@@ -16,7 +16,7 @@ today's subjects for "MERGE" / "parallel_safe", in case someone sent it in the l
 
 ---
 
-## N1
+## N1  (filed: BUG #19802, 28 Oct 2026)
 
 | Form field | Value |
 |---|---|
