@@ -59,7 +59,7 @@ above is the hand-reduced test case.
 
 ---
 
-## N2
+## N2  (filed: BUG #19803, 28 Oct 2026)
 
 | Form field | Value |
 |---|---|

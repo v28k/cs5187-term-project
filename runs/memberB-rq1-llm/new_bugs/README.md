@@ -3,12 +3,12 @@
 Checked 28 Oct 2026. Neither appears in `known_bugs/`, `triage/verdicts.yaml`,
 `docs/bughunt/`, `bugprogress/`, the pgsql-bugs / pgsql-hackers archives (web
 search) or the upstream commit log, and both still fail on **today's upstream
-master `4848fd675`** (built with `--enable-cassert`). Status: **new; N1 filed as BUG #19802 (28 Oct 2026), N2 being filed**. A search cannot rule out a report sent in the last few
+master `4848fd675`** (built with `--enable-cassert`). Status: **new; N1 filed as BUG #19802, N2 filed as BUG #19803 (both 28 Oct 2026)**. A search cannot rule out a report sent in the last few
 days or a private patch, so check the pgsql-bugs list once more before filing.
 
 | | N1: MERGE `SubPlan found with no parent plan` | N2: Parallel Append assertion |
 |---|---|---|
-| upstream report | **BUG #19802** (filed 28 Oct 2026 by Gowtham) | not filed yet |
+| upstream report | **BUG #19802** (filed 28 Oct 2026 by Gowtham) | **BUG #19803** (filed 28 Oct 2026 by Gowtham) |
 | fuzzer signature | `3dc78dd95f41` (internal_error) | `8a4e039bb76f` (assertion, via metamorphic tlp_where) |
 | found by arm | `grammar` (trial 2) | `llm_frag` (trial 2), i.e. the LLM-fragment arm (RQ4) |
 | upstream master 4848fd675 (cassert) | ERROR | crash (TRAP, pathnode.c:1439) |
@@ -65,7 +65,7 @@ partitioned table + correlated subquery in max()) has a different trigger and wa
 ## For the paper / RQ2 / RQ4
 
 * Suggested verdicts for `triage/verdicts.yaml` (team decides): `3dc78dd95f41`
-  real (new, BUG #19802), `8a4e039bb76f` real (new, pending report).
+  real (new, BUG #19802), `8a4e039bb76f` real (new, BUG #19803).
 * N2 was found by the **LLM-fragment arm** through a metamorphic (TLP) rewrite.
 * Other candidates of this run: BUG-01 (JSON_TABLE collations, ~12 signatures),
   upstream BUG #19784 (`c51c4dacc7f1`), upstream BUG #19772 (`84e36fe21cff`);
