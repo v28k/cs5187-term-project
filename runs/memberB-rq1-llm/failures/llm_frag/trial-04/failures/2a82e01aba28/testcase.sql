@@ -1,0 +1,6 @@
+-- pgfuzz failure 2a82e01aba28 (wrong_result, signature strength: diff)
+-- test case 4118 from grammar
+-- SQLSTATE -: metamorphic check rls failed: 1 rows vs 1 rows
+-- failing statement: #2
+SELECT CASE WHEN (JSONB_PATH_QUERY_FIRST (JSONB_STRIP_NULLS ('{"k": 0, "a": [3, 4, 5]}'::jsonb), '$.a.size()') <@ '{"k": 1, "a": [1, 2]}'::jsonb) THEN COALESCE ((-1), MIN (WIDTH_BUCKET (((10.0::numeric % 100) * (ROUND (1.5::numeric, 0) % 100)), 0.0, 100.0, 10)) OVER (PARTITION BY 1000::bigint ORDER BY ARRAY['x'::text, NULL::text])) ELSE 10 END AS c0, ARRAY_AGG (a1.c5 ORDER BY a1.c5 DESC) AS c1, (LEFT (SUBSTR (STRING_AGG (DISTINCT a1.c5, ','), 2, 1), 1) || 'x%'::text) AS c2, (SELECT COUNT (7) FROM ti AS a4 WHERE (NOT EXISTS (SELECT a5.c0 AS c0 FROM t0 AS a5))) AS c3 FROM (t3 AS a1 CROSS JOIN JSON_TABLE ('{}'::jsonb, '$.a[*]' COLUMNS (c0 FOR ORDINALITY, c1 int PATH '$')) AS a2) WHERE (JSONB_TYPEOF ('{"k": 2, "a": [0]}'::jsonb) IN (SELECT MD5 ('189'::text) AS c0 FROM t0 AS a3 GROUP BY ROLLUP (a3.c0, a3.c2))) GROUP BY ROLLUP (a1.c1, a1.c2, a1.c3);
+VALUES ((SQRT (ABS ((SELECT SUM (10.0::float8) FROM t4 AS a1 WHERE FALSE))) + (0)::float8), (10 + LENGTH (''::text)), (SELECT JSONB_AGG ((SELECT SUM (a3.c0) FROM t1 AS a3 WHERE TRUE) ORDER BY (SELECT SUM (a3.c0) FROM t1 AS a3 WHERE TRUE)) FROM t3 AS a2));

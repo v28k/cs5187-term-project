@@ -1,0 +1,7 @@
+-- pgfuzz failure 4b8b72f7a937 (assertion, signature strength: stack)
+-- test case 54976 from grammar
+-- SQLSTATE -: consuming input failed: server closed the connection unexpectedly
+-- failing statement: #3
+CREATE TABLE n1 AS SELECT CASE WHEN (FALSE OR (('{NULL,1}'::int[])[1] IS NOT DISTINCT FROM '60'::int)) THEN CASE WHEN TRUE THEN COALESCE ('ß'::text, (' '::text || 'c'::text)) ELSE 'ß'::text END ELSE LOWER (''::text) END AS c0, (SELECT SUM (CASE WHEN (0.5::numeric = 1.5::numeric) THEN CASE CBRT ('33'::float8) WHEN 0.0::float8 THEN (100.0::numeric + 0.000000001::numeric) WHEN 0.5::float8 THEN 0.0::numeric ELSE ((100.0::numeric % 100) * (NULLIF ('4.2857142857142857'::numeric, 42.5::numeric) % 100)) END ELSE 100.0::numeric END) FROM tp AS a3 WHERE NULL::boolean) AS c1 FROM (v0 AS a1 LEFT JOIN t3 AS a2 ON ((a1.c0 = a2.c0) AND a2.c1));
+ANALYZE n1;
+SELECT a1.c2 AS c0, LPAD ((JSON_QUERY (JSON_ARRAY ('15.4285714285714286'::numeric, '4.50'::numeric RETURNING jsonb), '$.a[*]' WITH WRAPPER) ->> 'k'), 5, '*') AS c1 FROM (t0 AS a1 JOIN JSON_TABLE (JSON_ARRAY ((ROW (33, ((500)::numeric / NULLIF (COALESCE (1.5::numeric, 42.5::numeric), 0))) <= ROW (LENGTH ('abc'::text), GREATEST ('1.1428571428571428'::numeric, CASE WHEN FALSE THEN 2.25::numeric ELSE (- '0.14285714285714285714'::numeric) END))), (JUSTIFY_HOURS ('00:00:00.000001'::interval) = (('2024-02-29 12:34:56+00'::timestamptz - '1999-12-31 23:59:59.999999+05:30'::timestamptz) * (-1))) RETURNING jsonb), '$[*]' COLUMNS (c0 int PATH '$.k', c1 text PATH '$')) AS a2 ON (a1.c0 = a2.c0));

@@ -1,0 +1,5 @@
+-- pgfuzz failure 8a4e039bb76f (assertion, signature strength: stack)
+-- test case 23207 from grammar
+-- SQLSTATE -: server connection lost while running metamorphic check tlp_where
+-- failing statement: #1
+WITH cte1 AS (SELECT ((100::bigint % 1000) << 1) AS c0 FROM ti AS a1 WHERE ('[1,10)'::int4range <= '[1,10)'::int4range)), cte2 AS MATERIALIZED (SELECT SUM (((10.0::numeric % 100) * (2.25::numeric % 100))) OVER (PARTITION BY 1.5::numeric, 0 ORDER BY '7 days'::interval NULLS LAST, 3) AS c0 FROM (SELECT '2024-01-01 00:00:00+00'::timestamptz AS c0, '16.333333333333332'::float8 AS c1 FROM t3 AS a2 WHERE a2.c1) AS a3 WHERE (''::text IS JSON)) SELECT (JSONB_BUILD_OBJECT ('k', 100, 'a', JSONB_BUILD_ARRAY ('0x'::text, '50'::float8)) - 'k') AS c0 FROM (SELECT '{}'::text[] AS c0 FROM cte1 AS a4) AS a5 UNION ALL SELECT JSONB_INSERT (JSONB_BUILD_OBJECT ('k', '%'::text, 'a', JSONB_BUILD_ARRAY ('{NULL}'::text[], a7.c0)), '{a,0}', '{"k": 1, "a": [1, 2]}'::jsonb) AS c0 FROM (SELECT 'é'::text AS c0, 10 AS c1, '3'::bigint AS c2 FROM cte2 AS a6) AS a7;

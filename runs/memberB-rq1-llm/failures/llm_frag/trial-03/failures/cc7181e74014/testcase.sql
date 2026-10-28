@@ -1,0 +1,6 @@
+-- pgfuzz failure cc7181e74014 (assertion, signature strength: stack)
+-- test case 33954 from grammar
+-- SQLSTATE -: consuming input failed: server closed the connection unexpectedly
+-- failing statement: #2
+WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 100) SELECT '27'::bigint AS c0 FROM (ti AS a1 LEFT JOIN t1 AS a2 ON (a1.c0 = a2.c0)) WHERE (a1.c1 IN (SELECT '\\'::text AS c0 FROM rc AS a3 WHERE (0.5::numeric IS DISTINCT FROM 1.5::numeric))) GROUP BY GROUPING SETS ((a2.c1), (a1.c0), ()) INTERSECT ALL SELECT 1000::bigint AS c0 FROM v0 AS a4;
+WITH cte1 AS (SELECT (CASE WHEN TRUE THEN '{"k": -1, "a": [1, 2, 3]}'::jsonb ELSE a1.c2 END ? 'a') AS c0 FROM (t1 AS a1 LEFT JOIN v0 AS a2 ON (a1.c0 = a2.c0)) WHERE ((EXISTS (SELECT (FALSE IS UNKNOWN) AS c0 FROM t2 AS a3)) OR TRUE)) SELECT 'c4ca4238a0b923820dcc509a6f75849b'::text AS c0 FROM (JSON_TABLE (TO_JSONB ((ROW ('2024-01-01 00:00:00+00'::timestamptz, '1 year 2 mons 3 days 04:05:06.789'::interval) <= ROW ('2024-01-06 15:00:00+00'::timestamptz, '70:00:00'::interval))), '$.a[*]' COLUMNS (c0 FOR ORDINALITY, c1 int PATH '$')) AS a4 FULL JOIN v0 AS a5 ON (a4.c0 = a5.c0)) WHERE (a4.c0 NOT IN (a4.c1, a5.c0)) UNION ALL SELECT '\\'::text AS c0 FROM t3 AS a6 WHERE a6.c1 ORDER BY 1 DESC NULLS FIRST;

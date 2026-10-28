@@ -1,0 +1,126 @@
+{
+ "signature": "c5a5ed497011",
+ "source": "results/rq1/llm_seeds/trial-00/failures/c5a5ed497011",
+ "outcome": "wrong_result",
+ "oracle": "plan-variant",
+ "reproduced": "3/3",
+ "original": {
+  "statements": 3,
+  "culprit_tokens": 220
+ },
+ "tree_reduction": {
+  "tokens_after": 64,
+  "runs": 90,
+  "replays": 107
+ },
+ "reduced": {
+  "statements": 1,
+  "culprit_tokens": 15
+ },
+ "runs": 495,
+ "seconds": 1.8,
+ "observed": {
+  "query": {
+   "columns": [
+    "corr"
+   ],
+   "rows": [
+    [
+     null
+    ]
+   ],
+   "row_count": 1
+  }
+ },
+ "localization": {
+  "default": {
+   "query": {
+    "hash": "c859c0da21e874b580844090",
+    "rows": 1
+   }
+  },
+  "reference": null,
+  "variants": {
+   "nestloop_only": {
+    "changes_answer": false
+   },
+   "hashjoin_only": {
+    "changes_answer": false
+   },
+   "mergejoin_only": {
+    "changes_answer": false
+   },
+   "no_hashagg": {
+    "changes_answer": false
+   },
+   "no_sort_opt": {
+    "changes_answer": false
+   },
+   "index_scans": {
+    "changes_answer": false
+   },
+   "seq_scans": {
+    "changes_answer": false
+   },
+   "no_memoize_material": {
+    "changes_answer": false
+   },
+   "parallel": {
+    "changes_answer": true
+   },
+   "partitionwise": {
+    "changes_answer": true
+   },
+   "no_partition_pruning": {
+    "changes_answer": false
+   },
+   "geqo": {
+    "changes_answer": false
+   },
+   "no_join_reorder": {
+    "changes_answer": false
+   },
+   "tiny_work_mem": {
+    "changes_answer": false
+   },
+   "no_reordering": {
+    "changes_answer": false
+   },
+   "no_self_join_elim": {
+    "changes_answer": false
+   },
+   "no_eager_agg": {
+    "changes_answer": false
+   },
+   "jit": {
+    "changes_answer": false
+   }
+  },
+  "verdict": {
+   "kind": "planner",
+   "variants": [
+    "parallel",
+    "partitionwise"
+   ],
+   "settings": [
+    "debug_parallel_query",
+    "enable_partitionwise_aggregate",
+    "enable_partitionwise_join",
+    "max_parallel_workers_per_gather",
+    "min_parallel_index_scan_size",
+    "min_parallel_table_scan_size",
+    "parallel_leader_participation",
+    "parallel_setup_cost",
+    "parallel_tuple_cost"
+   ],
+   "suspects": {
+    "debug_parallel_query": "executor/execParallel.c, nodeGather.c",
+    "enable_partitionwise_aggregate": "optimizer/plan/planner.c (partitionwise aggregate)",
+    "enable_partitionwise_join": "optimizer/path/joinrels.c (partitionwise join)"
+   },
+   "summary": "the answer depends on planner settings: parallel, partitionwise; the code paths these switch are the first suspects"
+  }
+ },
+ "test_server": "20devel",
+ "verdict": "TODO: real | duplicate | false_positive | not_a_bug | flaky"
+}

@@ -1,0 +1,5 @@
+-- pgfuzz failure cc7181e74014 (assertion, signature strength: stack)
+-- test case 36101 from grammar
+-- SQLSTATE -: consuming input failed: server closed the connection unexpectedly
+-- failing statement: #1
+SELECT CASE WHEN COALESCE (COALESCE ((FALSE AND FALSE), ('{1,2,3,4}'::int[] BETWEEN SYMMETRIC ARRAY[1] AND '{}'::int[])), CASE WHEN CASE '{1,2,3}'::int[] WHEN '{1,2,3}'::int[] THEN FALSE WHEN '{}'::int[] THEN TRUE ELSE TRUE END THEN LEAST (COALESCE (COALESCE (TRUE, TRUE), TRUE), FALSE) ELSE TRUE END) THEN '12'::bigint ELSE 100::bigint END AS c0 FROM (v0 AS a1 JOIN (t3 AS a2 CROSS JOIN JSON_TABLE (CASE WHEN (CASE WHEN (ROW ('_'::text, '1.7142857142857143'::numeric) < ROW ('x%'::text, '1.7142857142857143'::numeric)) THEN FALSE ELSE COALESCE (FALSE, TRUE) END AND CASE WHEN ('[3,)'::int4range @> 10) THEN NULL::boolean ELSE TRUE END) THEN '{"k": 0, "a": [3, 4, 5]}'::jsonb ELSE CASE WHEN TRUE THEN '{"k": 2, "a": [0]}'::jsonb ELSE '{}'::jsonb END END, '$[*]' COLUMNS (c0 int PATH '$.k', c1 text PATH '$')) AS a3) ON ((a1.c0 = a3.c0) AND TRUE)) WHERE a2.c1 OFFSET 2;

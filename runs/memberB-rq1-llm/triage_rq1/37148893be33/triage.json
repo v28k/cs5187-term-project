@@ -1,0 +1,125 @@
+{
+ "signature": "37148893be33",
+ "source": "results/rq1/grammar_mm/trial-04/failures/37148893be33",
+ "outcome": "wrong_result",
+ "oracle": "plan-variant",
+ "reproduced": "3/3",
+ "original": {
+  "statements": 1,
+  "culprit_tokens": 519
+ },
+ "tree_reduction": {
+  "tokens_after": 88,
+  "runs": 24,
+  "replays": 36
+ },
+ "reduced": {
+  "statements": 1,
+  "culprit_tokens": 52
+ },
+ "runs": 429,
+ "seconds": 0.8,
+ "observed": {
+  "query": {
+   "columns": [
+    "mode"
+   ],
+   "rows": [
+    [
+     "00:00:00"
+    ]
+   ],
+   "row_count": 1
+  }
+ },
+ "localization": {
+  "default": {
+   "query": {
+    "hash": "1cd110b32d7a2cd4ae0caaa9",
+    "rows": 1
+   }
+  },
+  "reference": null,
+  "variants": {
+   "nestloop_only": {
+    "changes_answer": true
+   },
+   "hashjoin_only": {
+    "changes_answer": false
+   },
+   "mergejoin_only": {
+    "changes_answer": true
+   },
+   "no_hashagg": {
+    "changes_answer": false
+   },
+   "no_sort_opt": {
+    "changes_answer": false
+   },
+   "index_scans": {
+    "changes_answer": true
+   },
+   "seq_scans": {
+    "changes_answer": false
+   },
+   "no_memoize_material": {
+    "changes_answer": false
+   },
+   "parallel": {
+    "changes_answer": false
+   },
+   "partitionwise": {
+    "changes_answer": false
+   },
+   "no_partition_pruning": {
+    "changes_answer": false
+   },
+   "geqo": {
+    "changes_answer": false
+   },
+   "no_join_reorder": {
+    "changes_answer": false
+   },
+   "tiny_work_mem": {
+    "changes_answer": false
+   },
+   "no_reordering": {
+    "changes_answer": false
+   },
+   "no_self_join_elim": {
+    "changes_answer": false
+   },
+   "no_eager_agg": {
+    "changes_answer": false
+   },
+   "jit": {
+    "changes_answer": false
+   }
+  },
+  "verdict": {
+   "kind": "planner",
+   "variants": [
+    "nestloop_only",
+    "mergejoin_only",
+    "index_scans"
+   ],
+   "settings": [
+    "enable_bitmapscan",
+    "enable_hashjoin",
+    "enable_mergejoin",
+    "enable_nestloop",
+    "enable_seqscan"
+   ],
+   "suspects": {
+    "enable_bitmapscan": "executor/nodeBitmapHeapscan.c, optimizer/path/indxpath.c",
+    "enable_hashjoin": "executor/nodeHashjoin.c, optimizer/path/joinpath.c",
+    "enable_mergejoin": "executor/nodeMergejoin.c, optimizer/path/joinpath.c",
+    "enable_nestloop": "executor/nodeNestloop.c, optimizer/path/joinpath.c",
+    "enable_seqscan": "optimizer/path/indxpath.c, executor/nodeIndexscan.c"
+   },
+   "summary": "the answer depends on planner settings: nestloop_only, mergejoin_only, index_scans; the code paths these switch are the first suspects"
+  }
+ },
+ "test_server": "20devel",
+ "verdict": "TODO: real | duplicate | false_positive | not_a_bug | flaky"
+}

@@ -1,0 +1,47 @@
+Subject: returns a wrong result -- <one line: the feature involved>
+
+PostgreSQL version: 20devel (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script returns a wrong result.
+
+ERROR:  result differs under plan variant partitionwise: 30 rows by default, 30 rows with variant
+
+Script
+------
+
+-- pgfuzz triage of c5a5ed497011: wrong_result via plan-variant
+-- default plan:
+(SELECT CORR (1.0 / 3,1.0 / 3) FROM tl);
+-- plan variant partitionwise (must return the same rows):
+SET enable_partitionwise_join = 'on';
+SET enable_partitionwise_aggregate = 'on';
+(SELECT CORR (1.0 / 3,1.0 / 3) FROM tl);
+RESET enable_partitionwise_join;
+RESET enable_partitionwise_aggregate;
+
+Actual output
+-------------
+
+query:
+    NULL
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+Analysis
+--------
+
+The answer depends on planner settings: parallel, partitionwise; the code paths these switch are the first suspects.
+  debug_parallel_query: executor/execParallel.c, nodeGather.c
+  enable_partitionwise_aggregate: optimizer/plan/planner.c (partitionwise aggregate)
+  enable_partitionwise_join: optimizer/path/joinrels.c (partitionwise join)
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.

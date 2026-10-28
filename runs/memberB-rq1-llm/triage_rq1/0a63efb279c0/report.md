@@ -1,0 +1,25 @@
+# wrong_result: result differs under plan variant no_hashagg: 1 rows by default, 1 rows with variant
+
+* Oracle: **plan-variant**, signature `0a63efb279c0`
+* Reproduced: 0/3 on ?
+* Reduced: 1 -> ? statements, 557 -> ? tokens
+* Verdict: flaky
+
+## Reproducer
+
+```sql
+-- pgfuzz triage of 0a63efb279c0: wrong_result via plan-variant
+-- default plan:
+SELECT ((CASE WHEN (('2024-01-01 00:00:00+00'::timestamptz - '175:00:00'::interval) <> '2000-01-01 00:00:00+00'::timestamptz) THEN CASE WHEN FALSE THEN ARRAY[1, 2, 3] ELSE ARRAY[33, GREATEST ('7'::int, 10)] END ELSE COALESCE ('{NULL,1}'::int[], LEAST ('{}'::int[], '{1,2,3,4}'::int[])) END = (SELECT MAX ('{1,2,3}'::int[]) FROM tp AS a9 WHERE FALSE)) AND (SELECT BOOL_AND (CASE WHEN TRUE THEN ('{1,2,3,4}'::int[] IS NOT NULL) ELSE (NOT (TRUE AND TRUE)) END) FROM tp AS a10 WHERE TRUE)) AS c0, MODE () WITHIN GROUP (ORDER BY ((COALESCE (JUSTIFY_HOURS (a3.c3), a3.c3) - a3.c3) * 1)) AS c1, MODE () WITHIN GROUP (ORDER BY COALESCE (LEAST (CBRT ((SQRT (ABS ('60'::float8)) + CASE (a1.n - 10::bigint) WHEN a1.n THEN '67.66666666666667'::float8 WHEN NULL::bigint THEN '60'::float8 ELSE CASE '\\'::text WHEN a2.c1 THEN NULL::float8 WHEN ''::text THEN 0.5::float8 ELSE ('-2.5'::float8 + 1.0::float8) END END)), ('-Infinity'::float8 + 10.0::float8)), LEAST ((1.0 / 3)::float8, (-0.0)::float8))) AS c2, 'M'::text AS c3 FROM ((v0 AS a1 FULL JOIN tp AS a2 ON (a1.c0 = a2.c0)) JOIN t3 AS a3 ON (a1.c0 = a3.c0)) WHERE GREATEST ((((SELECT MAX (a4.c1) FROM tp AS a4 WHERE a3.c1) LIKE 'A_C%'::text) AND CASE WHEN ((a3.c0 = a3.c0) AND a3.c1) THEN (a3.c1 AND TRUE) ELSE (NOT EXISTS (SELECT '15.4285714285714286'::numeric AS c0, CASE (-42) WHEN a2.c0 THEN '{}'::jsonb WHEN a1.c0 THEN ('{"k": 1, "a": [1, 2]}'::jsonb #> '{a,0}') ELSE '{"k": 0, "a": [3, 4, 5]}'::jsonb END AS c1 FROM v0 AS a5 GROUP BY ROLLUP (a5.n))) END), (NOT ((CASE '23'::int WHEN (a2.c0 + a1.c0) THEN a1.n WHEN a3.c0 THEN a1.n ELSE (10::bigint - a1.n) END - '27'::bigint) = ANY (SELECT a1.n AS c0 FROM ti AS a6 UNION ALL SELECT a1.n AS c0 FROM ti AS a7, (VALUES (1, 'a'::text), (2, NULL::text), (NULL::int, 'c'::text)) AS a8 (c0, c1) WHERE TRUE))));
+-- plan variant no_hashagg (must return the same rows):
+SET enable_hashagg = 'off';
+SELECT ((CASE WHEN (('2024-01-01 00:00:00+00'::timestamptz - '175:00:00'::interval) <> '2000-01-01 00:00:00+00'::timestamptz) THEN CASE WHEN FALSE THEN ARRAY[1, 2, 3] ELSE ARRAY[33, GREATEST ('7'::int, 10)] END ELSE COALESCE ('{NULL,1}'::int[], LEAST ('{}'::int[], '{1,2,3,4}'::int[])) END = (SELECT MAX ('{1,2,3}'::int[]) FROM tp AS a9 WHERE FALSE)) AND (SELECT BOOL_AND (CASE WHEN TRUE THEN ('{1,2,3,4}'::int[] IS NOT NULL) ELSE (NOT (TRUE AND TRUE)) END) FROM tp AS a10 WHERE TRUE)) AS c0, MODE () WITHIN GROUP (ORDER BY ((COALESCE (JUSTIFY_HOURS (a3.c3), a3.c3) - a3.c3) * 1)) AS c1, MODE () WITHIN GROUP (ORDER BY COALESCE (LEAST (CBRT ((SQRT (ABS ('60'::float8)) + CASE (a1.n - 10::bigint) WHEN a1.n THEN '67.66666666666667'::float8 WHEN NULL::bigint THEN '60'::float8 ELSE CASE '\\'::text WHEN a2.c1 THEN NULL::float8 WHEN ''::text THEN 0.5::float8 ELSE ('-2.5'::float8 + 1.0::float8) END END)), ('-Infinity'::float8 + 10.0::float8)), LEAST ((1.0 / 3)::float8, (-0.0)::float8))) AS c2, 'M'::text AS c3 FROM ((v0 AS a1 FULL JOIN tp AS a2 ON (a1.c0 = a2.c0)) JOIN t3 AS a3 ON (a1.c0 = a3.c0)) WHERE GREATEST ((((SELECT MAX (a4.c1) FROM tp AS a4 WHERE a3.c1) LIKE 'A_C%'::text) AND CASE WHEN ((a3.c0 = a3.c0) AND a3.c1) THEN (a3.c1 AND TRUE) ELSE (NOT EXISTS (SELECT '15.4285714285714286'::numeric AS c0, CASE (-42) WHEN a2.c0 THEN '{}'::jsonb WHEN a1.c0 THEN ('{"k": 1, "a": [1, 2]}'::jsonb #> '{a,0}') ELSE '{"k": 0, "a": [3, 4, 5]}'::jsonb END AS c1 FROM v0 AS a5 GROUP BY ROLLUP (a5.n))) END), (NOT ((CASE '23'::int WHEN (a2.c0 + a1.c0) THEN a1.n WHEN a3.c0 THEN a1.n ELSE (10::bigint - a1.n) END - '27'::bigint) = ANY (SELECT a1.n AS c0 FROM ti AS a6 UNION ALL SELECT a1.n AS c0 FROM ti AS a7, (VALUES (1, 'a'::text), (2, NULL::text), (NULL::int, 'c'::text)) AS a8 (c0, c1) WHERE TRUE))));
+RESET enable_hashagg;
+```
+
+## Before filing
+
+1. Decide which side is right (SQL standard / documentation) and say why.
+2. Search pgsql-bugs and pgsql-hackers for the message / function names.
+3. Check the newest master and the latest release; bisect with scripts/bisect_pg.sh.
+4. Record the verdict in triage/verdicts.yaml (it feeds the precision table).

@@ -1,0 +1,49 @@
+Subject: returns a wrong result -- <one line: the feature involved>
+
+PostgreSQL version: 20devel (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script returns a wrong result.
+
+ERROR:  result differs under plan variant nestloop_only: 1 rows by default, 1 rows with variant
+
+Script
+------
+
+-- pgfuzz triage of ffdfcbe7d92d: wrong_result via plan-variant
+-- default plan:
+SELECT MODE () WITHIN GROUP (ORDER BY ( (JUSTIFY_HOURS (a3.c3)) - a3.c3 * 1)) FROM (t4 a1 JOIN t4 AS a2 ON (a1.c0 = a2.c1) JOIN t3 AS a3 ON (a1.c0 = a3.c0));
+-- plan variant nestloop_only (must return the same rows):
+SET enable_hashjoin = 'off';
+SET enable_mergejoin = 'off';
+SELECT MODE () WITHIN GROUP (ORDER BY ( (JUSTIFY_HOURS (a3.c3)) - a3.c3 * 1)) FROM (t4 a1 JOIN t4 AS a2 ON (a1.c0 = a2.c1) JOIN t3 AS a3 ON (a1.c0 = a3.c0));
+RESET enable_hashjoin;
+RESET enable_mergejoin;
+
+Actual output
+-------------
+
+query:
+    27 days -648:00:00
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+Analysis
+--------
+
+The answer depends on planner settings: nestloop_only, mergejoin_only, index_scans; the code paths these switch are the first suspects.
+  enable_bitmapscan: executor/nodeBitmapHeapscan.c, optimizer/path/indxpath.c
+  enable_hashjoin: executor/nodeHashjoin.c, optimizer/path/joinpath.c
+  enable_mergejoin: executor/nodeMergejoin.c, optimizer/path/joinpath.c
+  enable_nestloop: executor/nodeNestloop.c, optimizer/path/joinpath.c
+  enable_seqscan: optimizer/path/indxpath.c, executor/nodeIndexscan.c
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.

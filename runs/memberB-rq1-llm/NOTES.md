@@ -36,3 +36,19 @@ rounds, 7/7 rewrites accepted, mean validity 0.365, 34 lines coverage gain.
 ## B3
 `configs/rq1.yaml` has `output_dir: ../results` relative to `src/configs`, so the
 campaign writes to `src/results/rq1` (not `results/rq1`); B4 uses that path.
+
+Final: **35/35 trials with stop_reason `budget_seconds`** (7 arms x 5 trials x 1 h,
+`-j 4`, same machine). Two incidents, neither affects the finished trials:
+
+* **cov-2 crash recovery failed (27 Oct 21:43).** A BUG-01 assertion crashed a
+  backend; the restart failed with `FATAL: could not create file "base/5/499854":
+  File exists` and the server shut down. 14 trials assigned to worker 2 then
+  failed at connect (`stop_reason: error`). The cluster was re-initialised at
+  ~23:06 (broken one kept as `~/pgfuzz/data/cov-2.broken-*`) and a watchdog
+  (`logs/B3_watchdog.txt`) restarted servers when down (once more, 23:50, a plain
+  restart worked). After the first pass the same `pgfuzz run` command re-ran
+  exactly the 14 failed trials (the runner re-runs trials whose summary has
+  `stop_reason: error`). Re-run trials used the same per-trial seeds.
+* **Laptop suspended ~03:00-10:30 (28 Oct).** WSL froze and resumed; the trial
+  clock is monotonic, so each trial still got 3600 s of fuzzing. The resume pass
+  ended 13:33. Wall-clock timestamps in the log therefore have a gap.

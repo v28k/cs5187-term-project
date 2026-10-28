@@ -1,0 +1,2 @@
+-- pgfuzz triage of 3dc78dd95f41: internal_error via internal_error
+MERGE INTO tp a1 USING (SELECT TRUE AS c1 LIMIT 1) AS a2 ON (c0 IS NULL) WHEN MATCHED THEN UPDATE SET c1 = NULLIF (a1.c1, CONCAT ((SELECT NULL WHERE a2.c1))) WHEN NOT MATCHED THEN INSERT (c0, c1) VALUES ( 1, 'x%');

@@ -1,0 +1,85 @@
+Subject: fails an assertion -- <one line: the feature involved>
+
+PostgreSQL version: 20devel (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script fails an assertion.
+
+TRAP: failed Assert("!parallel_aware || pathnode->path.parallel_safe"), File: "pathnode.c", Line: 1437
+
+Script
+------
+
+-- pgfuzz triage of 8a4e039bb76f: assertion via metamorphic:tlp_where
+-- the two queries below must return the same rows (as a multiset):
+WITH cte1 AS (SELECT ((100::bigint % 1000) << 1) AS c0 FROM ti AS a1), cte2 AS MATERIALIZED (SELECT SUM (((10.0::numeric % 100) * (2.25::numeric % 100))) OVER (PARTITION BY 1.5::numeric, 0 ORDER BY '7 days'::interval NULLS LAST, 3) AS c0 FROM (SELECT '2024-01-01 00:00:00+00'::timestamptz AS c0, '16.333333333333332'::float8 AS c1 FROM t3 AS a2 WHERE a2.c1) AS a3 WHERE (''::text IS JSON)) SELECT (JSONB_BUILD_OBJECT ('k', 100, 'a', JSONB_BUILD_ARRAY ('0x'::text, '50'::float8)) - 'k') AS c0 FROM (SELECT '{}'::text[] AS c0 FROM cte1 AS a4) AS a5 UNION ALL SELECT JSONB_INSERT (JSONB_BUILD_OBJECT ('k', '%'::text, 'a', JSONB_BUILD_ARRAY ('{NULL}'::text[], a7.c0)), '{a,0}', '{"k": 1, "a": [1, 2]}'::jsonb) AS c0 FROM (SELECT 'é'::text AS c0, 10 AS c1, '3'::bigint AS c2 FROM cte2 AS a6) AS a7;
+WITH cte1 AS (((SELECT ((100::bigint % 1000) << 1) AS c0 FROM ti AS a1 WHERE (('[1,10)'::int4range <= '[1,10)'::int4range))) UNION ALL (SELECT ((100::bigint % 1000) << 1) AS c0 FROM ti AS a1 WHERE NOT (('[1,10)'::int4range <= '[1,10)'::int4range))) UNION ALL (SELECT ((100::bigint % 1000) << 1) AS c0 FROM ti AS a1 WHERE (('[1,10)'::int4range <= '[1,10)'::int4range)) IS NULL))), cte2 AS MATERIALIZED (SELECT SUM (((10.0::numeric % 100) * (2.25::numeric % 100))) OVER (PARTITION BY 1.5::numeric, 0 ORDER BY '7 days'::interval NULLS LAST, 3) AS c0 FROM (SELECT '2024-01-01 00:00:00+00'::timestamptz AS c0, '16.333333333333332'::float8 AS c1 FROM t3 AS a2 WHERE a2.c1) AS a3 WHERE (''::text IS JSON)) SELECT (JSONB_BUILD_OBJECT ('k', 100, 'a', JSONB_BUILD_ARRAY ('0x'::text, '50'::float8)) - 'k') AS c0 FROM (SELECT '{}'::text[] AS c0 FROM cte1 AS a4) AS a5 UNION ALL SELECT JSONB_INSERT (JSONB_BUILD_OBJECT ('k', '%'::text, 'a', JSONB_BUILD_ARRAY ('{NULL}'::text[], a7.c0)), '{a,0}', '{"k": 1, "a": [1, 2]}'::jsonb) AS c0 FROM (SELECT 'é'::text AS c0, 10 AS c1, '3'::bigint AS c2 FROM cte2 AS a6) AS a7;
+
+Actual output
+-------------
+
+lhs:
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    {"a": ["0x", 50]}
+    ... (46 rows)
+
+rhs:
+    ERROR: None consuming input failed: server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+Backtrace (top frames)
+----------------------
+
+ExceptionalCondition
+create_append_path
+add_paths_to_append_rel
+make_one_rel
+query_planner
+subquery_planner
+standard_planner
+planner
+pg_plan_query
+pg_plan_queries
+PostgresMain
+postmaster_child_launch
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.
