@@ -1,4 +1,34 @@
 \section{Results so far}
+
+\subsection{Final campaigns (29 Oct): RQ1--RQ4}
+Single source: \file{docs/RESULTS\_ANALYSIS.md}. 5 trials $\times$ 1 h per arm;
+RQ1/RQ2/RQ4 on one laptop, RQ3 on another. The LLM was Gemini Flash, not Claude.
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+Arm & Valid & Lines & Features & Plan shapes & Tests \\
+\midrule
+Random & 26.0\% & 22.2\% & 23 & 43 & 1{,}074k \\
+Grammar & 99.3\% & 36.7\% & 101 & 20{,}279 & 71k \\
+Grammar+Oracles & 96.3\% & 36.2\% & 101 & 34{,}313 & 59k \\
++LLM (both) & 95.3\% & 35.7\% & 106 & 26{,}375 & 47k \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+  \item \textbf{RQ1.} Grammar vs random: $\hat A_{12}=1.00$, $p=0.008$. Oracles: no
+    line gain ($p=0.42$), plan shapes $\times1.7$ ($\hat A_{12}=0.84$, $p=0.095$).
+    LLM: +5 features ($p=0.004$), no coverage gain.
+  \item \textbf{RQ2.} 93 candidates: 7 real, 15 duplicates, 37 false positives,
+    28 flaky, 6 open. New bugs \#19802 (confirmed, patch) and \#19803 (confirmed,
+    fixed on master); rediscovered \#19800, \#19772, \#19784, \#19771. Four new
+    false-positive classes were fixed \emph{after} the runs and not re-measured.
+  \item \textbf{RQ3.} Best arm found 2 of 20 benchmark bugs; no wrong-result bug
+    by any arm. The benchmark does not show an oracle advantage.
+  \item \textbf{RQ4.} 4 of 10 commits accepted; the gate accepted one rewrite
+    that changed the collation (now rejected). 0 USD.
+\end{itemize}
+The older smoke results below are kept as development history.
+
 \label{sec:results}
 
 \begin{warnbox}[What is and is not a result yet]

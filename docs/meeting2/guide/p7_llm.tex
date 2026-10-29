@@ -62,9 +62,11 @@ is trusted: a gate on the real server decides.
 
 \paragraph{The client} (\file{client.py}) has two modes. \texttt{api} calls
 Claude through the Anthropic SDK. \texttt{manual} writes the prompt to
-\file{prompts/<key>.md} and stops; a team member pastes it into Claude, saves
-the JSON answer to \file{responses/<key>.json} and runs again -- no API key
-needed. In both modes an existing response file is \emph{replayed}: reruns are
+\file{prompts/<key>.md} and stops; an answer is saved to
+\file{responses/<key>.json} and the run continues -- no API key needed.
+\textbf{The reported campaigns used manual mode with a script that sent each
+prompt to Google Gemini Flash models (free tier), because no Claude key was
+available;} the tool itself is unchanged. In both modes an existing response file is \emph{replayed}: reruns are
 free and bit-for-bit reproducible, so the paper's numbers can be regenerated.
 Token usage is stored with every response.
 
@@ -149,15 +151,13 @@ broken by \pg.)
     (Training-data leakage of older public commits cannot be excluded; it is
     a threat to validity, discussed in the paper.)
   \item \textbf{Cost.} Prices in \file{client.py}; the cached system prompt is
-    read at a tenth of the input price. One round is about \$0.10; 30 commits
-    with repair rounds about \$5--10 (estimate, to be replaced by the ledger
-    total).
+    read at a tenth of the input price. Measured in the final run (Gemini
+    Flash, free tier): 25 rounds, 328k input / 171k output tokens, 0 USD.
   \item \textbf{Status.} The pipeline is tested end to end with a live gate
     (it accepted a valid fragment, 251/251 statements valid, and rejected an
-    invalid one with the server's own error message). The real extension run
-    over $\approx$30 commits is Phase~1 of the execution plan; the RQ3 smoke
-    ``+LLM'' arm ran \emph{without} fragments, so its result equals
-    Grammar+Oracles, as expected.
+    invalid one with the server's own error message). The real run covered 10 of
+    25 mined commits (daily quota): 4 accepted, 16 of 25 rounds rejected on
+    validity; results in the Results chapter.
 \end{itemize}
 
 \subsection{RQ4: what we will report}

@@ -31,7 +31,7 @@ RQ4 what the LLM adds and costs.
 \paragraph{Where we are (24 Oct).}
 \begin{itemize}
   \item Every item of the meeting-1 plan is implemented and tested on a real
-    \pg master server (details: \file{docs/PLAN_COVERAGE.md}); 138 unit tests pass;
+    \pg master server (details: \file{docs/PLAN_COVERAGE.md}); 148 unit tests pass;
     about 10{,}500 lines of Python plus a 628-line grammar.
   \item \textbf{Two previously unknown \pg bugs found}, root-caused, with
     patches and regression tests: \textbf{BUG-01} (JSON\_TABLE collation:
@@ -77,23 +77,23 @@ RQ4 what the LLM adds and costs.
 Subject & \pg master \texttt{26bd08fb} (16 Oct 2026), \texttt{--enable-cassert}; release reference 18.6 \\
 Grammar & 78 rules, 108 variants, 421 alternatives, 13 SQL types, 628 lines (\file{src/grammar/postgres.pgg}) \\
 Schema & 9 relations: plain, partitioned (\texttt{tp}, \texttt{tl}), inheritance (\texttt{ti}), view (\texttt{v0}), generated columns, B-tree/GIN/GiST/BRIN indexes \\
-Code & $\approx$10{,}500 lines of Python (\file{src/pgfuzz}), 138 unit tests passing \\
+Code & $\approx$10{,}500 lines of Python (\file{src/pgfuzz}), 148 unit tests passing \\
 Grammar validity, meeting 1 & 83.4\% $\rightarrow$ 83.1\% $\rightarrow$ 88.4\% $\rightarrow$ 100\% (966/966) over four tuning rounds \\
 Grammar validity now & 99.5--99.7\% of statements run without error on master \\
 Throughput (one worker) & $\approx$17--23 grammar test cases per second with all oracles on (3{,}166 in 180 s full system; 5{,}516 in 240 s plain grammar) \\
 Plan variants & 18 planner configurations (Section~\ref{sec:variants}) \\
 Metamorphic check kinds & 12 (TLP-WHERE, TLP-HAVING, TLP-aggregate, NoREC, expression, predicate, NOT NULL, ORDER BY drop, CTE, table fence, RLS, CERT) \\
-Real bugs found & 2 previously unknown (BUG-01, BUG-02), both with patches \\
+Real bugs found & 4 previously unknown (BUG-01, BUG-02, \#19802, \#19803); two confirmed by committers, \#19803 fixed on master \\
 Benchmark & 23 reverted fixes (31 Jul--16 Oct 2026); 20 observable: 8 wrong results, 5 internal errors, 4 assertions, 2 missing errors, 1 wrong error \\
 Crash-only visibility & 9 of 20 observable benchmark bugs \\
 RQ3 smoke (15 min/arm) & Grammar+Oracles and +LLM found \texttt{rb-dfcf6fa7} at $\approx$160 s; Random and plain Grammar found none \\
-Precision ledger & 18 candidates: 3 real, 13 false positives / intended changes (all from 6 classes now fixed), 2 flaky \\
+Precision ledger & 93 candidates: 7 real, 15 duplicates, 37 false positives (10 classes, all fixed), 28 flaky, 6 open; precision 0.16 (0.37 with duplicates) \\
 Tree reduction & 116 $\rightarrow$ \textbf{79} tokens on a real BUG-01 case \\
 Data profile & predicates selecting 5--95\% of rows: 29.3\% $\rightarrow$ \textbf{58.6\%} \\
 Bandit weights & 419 $\rightarrow$ 533 distinct plan shapes per 1{,}000 test cases, same validity \\
 New rewrites & 798 live checks of the new kinds, 0 false positives \\
 RLS / CERT & 532 / 58 live checks, 0 false positives \\
-LLM prompt & $\approx$9{,}000-token system prompt, cached; $\approx$\$0.10 per round; \$5--10 for 30 commits (estimate) \\
+LLM & Gemini Flash (no Claude key); 10 commits, 4 accepted, 25 rounds, 0 USD; +5 features, no coverage gain \\
 Experiment design & RQ1: 7 arms $\times$ 5 trials $\times$ 1 h; RQ3: 4 arms $\times$ 5 trials $\times$ 1 h; 4 workers in parallel \\
 Statistics & medians, IQR, 95\% bootstrap CI, Mann--Whitney U, Vargha--Delaney $\hat A_{12}$ \\
 \bottomrule
