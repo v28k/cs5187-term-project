@@ -71,3 +71,13 @@ partitioned table + correlated subquery in max()) has a different trigger and wa
   upstream BUG #19784 (`c51c4dacc7f1`), upstream BUG #19772 (`84e36fe21cff`);
   the plan-variant / RLS wrong results inspected so far order by NULL / use
   `MODE()` with ties (order not defined), i.e. likely false positives.
+
+## Upstream follow-up
+
+* **BUG #19802 (N1), 29 Oct 2026:** Tender Wang confirmed it on pgsql-bugs. Cause:
+  `ExecInitPartitionInfo()` builds the partition-specific MERGE UPDATE projection with
+  `ExecBuildUpdateProjection(..., NULL)`, so a SubPlan in the UPDATE target list has
+  no parent PlanState (`ExecInitMerge()` and the ON CONFLICT path pass `&mtstate->ps`).
+  Patch posted: pass `&mtstate->ps` there. We applied the same one-line change to
+  master 4848fd675: the reproducer succeeds, a MERGE taking the UPDATE path with the
+  subquery updates correctly, and `make check` passes (239/239).
