@@ -1,0 +1,150 @@
+diff --git a/src/backend/optimizer/plan/subselect.c b/src/backend/optimizer/plan/subselect.c
+index 1b66906ad1..234a532574 100644
+--- a/src/backend/optimizer/plan/subselect.c
++++ b/src/backend/optimizer/plan/subselect.c
+@@ -93,6 +93,7 @@ static bool contain_outer_selfref_walker(Node *node, Index *depth);
+ static void inline_cte(PlannerInfo *root, CommonTableExpr *cte);
+ static bool inline_cte_walker(Node *node, inline_cte_walker_context *context);
+ static bool sublink_testexpr_is_not_nullable(PlannerInfo *root, SubLink *sublink);
++static bool sublink_inner_arg_is_param(Node *arg);
+ static int	add_antijoin_rte(Query *parse);
+ static bool simplify_EXISTS_query(PlannerInfo *root, Query *query);
+ static Query *convert_EXISTS_to_ANY(PlannerInfo *root, Query *subselect,
+@@ -1494,6 +1495,13 @@ convert_ANY_sublink_to_join(PlannerInfo *root, SubLink *sublink,
+  * multi-column ordering checks.  In all cases, we validate the operators and
+  * the outer expressions.
+  *
++ * We must also check the inner side of each comparison.  The caller verifies
++ * that the sub-select's output columns cannot be NULL, but the parser may
++ * have wrapped the corresponding Param in a coercion to the operator's input
++ * type, and a cast function can return NULL for a non-null input.  So we
++ * insist that each inner argument be the bare Param, possibly under a
++ * binary-compatible RelabelType.
++ *
+  * It is acceptable for this check not to be exhaustive.  We can err on the
+  * side of conservatism: if we're not sure, it's okay to return FALSE.
+  */
+@@ -1524,6 +1532,10 @@ sublink_testexpr_is_not_nullable(PlannerInfo *root, SubLink *sublink)
+ 		if (!op_is_safe_index_member(opexpr->opno))
+ 			return false;
+ 
++		/* the inner argument must not be able to go NULL; see above */
++		if (!sublink_inner_arg_is_param(lsecond(opexpr->args)))
++			return false;
++
+ 		outer_exprs = lappend(outer_exprs, linitial(opexpr->args));
+ 	}
+ 	else if (is_andclause(testexpr) || is_orclause(testexpr))
+@@ -1544,6 +1556,10 @@ sublink_testexpr_is_not_nullable(PlannerInfo *root, SubLink *sublink)
+ 			if (!op_is_safe_index_member(opexpr->opno))
+ 				return false;
+ 
++			/* the inner argument must not be able to go NULL */
++			if (!sublink_inner_arg_is_param(lsecond(opexpr->args)))
++				return false;
++
+ 			outer_exprs = lappend(outer_exprs, linitial(opexpr->args));
+ 		}
+ 	}
+@@ -1559,6 +1575,13 @@ sublink_testexpr_is_not_nullable(PlannerInfo *root, SubLink *sublink)
+ 				return false;
+ 		}
+ 
++		/* the inner arguments must not be able to go NULL */
++		foreach_ptr(Node, rarg, rcexpr->rargs)
++		{
++			if (!sublink_inner_arg_is_param(rarg))
++				return false;
++		}
++
+ 		outer_exprs = list_concat(outer_exprs, rcexpr->largs);
+ 	}
+ 	else
+@@ -1600,6 +1623,24 @@ sublink_testexpr_is_not_nullable(PlannerInfo *root, SubLink *sublink)
+ 	return true;
+ }
+ 
++/*
++ * sublink_inner_arg_is_param: is this inner argument of an ANY_SUBLINK's
++ * comparison just the sublink's output Param, possibly binary-relabeled?
++ *
++ * Helper for sublink_testexpr_is_not_nullable.  Anything else (such as an
++ * implicit coercion applied by the parser) could turn a non-null sub-select
++ * output into NULL.
++ */
++static bool
++sublink_inner_arg_is_param(Node *arg)
++{
++	while (arg && IsA(arg, RelabelType))
++		arg = (Node *) ((RelabelType *) arg)->arg;
++
++	return arg && IsA(arg, Param) &&
++		((Param *) arg)->paramkind == PARAM_SUBLINK;
++}
++
+ /*
+  * convert_EXISTS_sublink_to_join: try to convert an EXISTS SubLink to a join
+  *
+diff --git a/src/test/regress/expected/subselect.out b/src/test/regress/expected/subselect.out
+index 6379bd6ca3..f686fd0d27 100644
+--- a/src/test/regress/expected/subselect.out
++++ b/src/test/regress/expected/subselect.out
+@@ -4074,4 +4074,31 @@ WHERE COALESCE(t1.id, -1) NOT IN
+ ----+-----
+ (0 rows)
+ 
++-- No ANTI JOIN: the sub-select's output is coerced to the operator's input
++-- type by a cast function, which can return NULL for a non-null input
++CREATE FUNCTION int4_to_text_nullzero(int4) RETURNS text
++    AS $$ SELECT CASE WHEN $1 = 0 THEN NULL ELSE format('%s', $1) END $$
++    LANGUAGE sql IMMUTABLE STRICT;
++CREATE CAST (int4 AS text) WITH FUNCTION int4_to_text_nullzero(int4) AS IMPLICIT;
++CREATE TEMP TABLE not_null_text_tab (t text NOT NULL);
++INSERT INTO not_null_text_tab VALUES ('1');
++INSERT INTO not_null_tab VALUES (0, 0);
++EXPLAIN (COSTS OFF)
++SELECT * FROM not_null_text_tab
++WHERE t NOT IN (SELECT id FROM not_null_tab);
++                           QUERY PLAN                            
++-----------------------------------------------------------------
++ Seq Scan on not_null_text_tab
++   Filter: (NOT (ANY (t = ((hashed SubPlan any_1).col1)::text)))
++   SubPlan any_1
++     ->  Seq Scan on not_null_tab
++(4 rows)
++
++-- NOT IN with a NULL comparison result should return no rows
++SELECT * FROM not_null_text_tab
++WHERE t NOT IN (SELECT id FROM not_null_tab);
++ t 
++---
++(0 rows)
++
+ ROLLBACK;
+diff --git a/src/test/regress/sql/subselect.sql b/src/test/regress/sql/subselect.sql
+index c6cd275367..81cd47fe8f 100644
+--- a/src/test/regress/sql/subselect.sql
++++ b/src/test/regress/sql/subselect.sql
+@@ -1789,4 +1789,22 @@ SELECT * FROM null_tab t1
+ WHERE COALESCE(t1.id, -1) NOT IN
+     (SELECT t1.val FROM not_null_tab t2 WHERE t2.val IS NOT NULL);
+ 
++-- No ANTI JOIN: the sub-select's output is coerced to the operator's input
++-- type by a cast function, which can return NULL for a non-null input
++CREATE FUNCTION int4_to_text_nullzero(int4) RETURNS text
++    AS $$ SELECT CASE WHEN $1 = 0 THEN NULL ELSE format('%s', $1) END $$
++    LANGUAGE sql IMMUTABLE STRICT;
++CREATE CAST (int4 AS text) WITH FUNCTION int4_to_text_nullzero(int4) AS IMPLICIT;
++CREATE TEMP TABLE not_null_text_tab (t text NOT NULL);
++INSERT INTO not_null_text_tab VALUES ('1');
++INSERT INTO not_null_tab VALUES (0, 0);
++
++EXPLAIN (COSTS OFF)
++SELECT * FROM not_null_text_tab
++WHERE t NOT IN (SELECT id FROM not_null_tab);
++
++-- NOT IN with a NULL comparison result should return no rows
++SELECT * FROM not_null_text_tab
++WHERE t NOT IN (SELECT id FROM not_null_tab);
++
+ ROLLBACK;

@@ -1,0 +1,7 @@
+-- pgfuzz failure 4fedb431a765 (internal_error, signature strength: message)
+-- test case 2626 from grammar
+-- SQLSTATE XX000: could not find pathkey item to sort
+-- failing statement: #3
+SET LOCAL cpu_tuple_cost = '10';
+CREATE INDEX ON t0 USING HASH (c2);
+WITH cte1 AS (SELECT SUBSTR (a1.c2, 1) AS c0, a1.c1 AS c1 FROM t4 AS a1 WHERE (SELECT BOOL_AND (TRUE) FROM t0 AS a2)) SELECT (SELECT MIN (10) FROM cte1 AS a4 WHERE (a4.c0 BETWEEN 'c4ca4238a0b923820dcc509a6f75849b'::text AND 'a'::text)) AS c0, (a3.c0 % NULLIF (500, 0)) AS c1, (INITCAP (JSONB_TYPEOF (JSONB_AGG (TRUE ORDER BY TRUE))) || '%'::text) AS c2 FROM t0 AS a3 GROUP BY CUBE (a3.c2, a3.c0) UNION (SELECT a5.c0 AS c0, 0 AS c1, LEAST (a5.c1, a5.c1) AS c2 FROM tp AS a5 INTERSECT ALL (SELECT 3 AS c0, (- a6.c1) AS c1, a6.c0 AS c2 FROM cte1 AS a6, JSONB_ARRAY_ELEMENTS (JSONB_BUILD_ARRAY ((16 < (-1)), '2024-02-29'::date)) AS a7 (c0) WHERE FALSE UNION (SELECT a8.c0 AS c0, (-9) AS c1, ('{"k": 2, "a": [0]}'::jsonb ->> (-1)) AS c2 FROM t4 AS a8 WHERE TRUE GROUP BY a8.c0, a8.c3 HAVING (CASE a8.c0 WHEN (-1) THEN '{"k": 0, "a": [3, 4, 5]}'::jsonb WHEN ((a8.c0 % 100) * (a8.c0 % 100)) THEN NULLIF ('{"k": -1, "a": [1, 2, 3]}'::jsonb, '{"k": -1, "a": [1, 2, 3]}'::jsonb) ELSE COALESCE ('{"k": 0, "a": [3, 4, 5]}'::jsonb, '{"k": 1, "a": [1, 2]}'::jsonb) END > JSONB_BUILD_ARRAY ('ß'::text, CASE WHEN FALSE THEN a8.c0 ELSE a8.c0 END)) EXCEPT ALL (SELECT 5 AS c0, (-13) AS c1, NULL::text AS c2 FROM t3 AS a9 GROUP BY a9.c1 EXCEPT ALL SELECT 7 AS c0, (-3) AS c1, '_'::text AS c2))));

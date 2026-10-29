@@ -1,0 +1,7 @@
+-- pgfuzz failure 8a0e13634ebf (wrong_result, signature strength: diff)
+-- test case 25748 from grammar
+-- SQLSTATE -: result differs under plan variant no_self_join_elim: 101 rows by default, 101 rows with variant
+-- failing statement: #3
+INSERT INTO t1 AS a1 (c0, c3) VALUES (COALESCE (30, 0), '[3,)'::int4range) ON CONFLICT DO NOTHING;
+CREATE VIEW n1 AS SELECT CONCAT_WS ('-', 42.5::numeric, ('1999-12-31 23:59:59.999999+05:30'::timestamptz - '1999-12-31 23:59:59.999999+05:30'::timestamptz)) AS c0 FROM t0 AS a1 WHERE ('[1,10)'::int4range <> '(,)'::int4range) UNION SELECT 'ß'::text AS c0 FROM t4 AS a2 GROUP BY a2.c1;
+SELECT CASE JSONB_AGG (LEAST (a2.c1, a2.c1) ORDER BY LEAST (a2.c1, a2.c1)) WHEN LEAST (COALESCE (JSONB_PATH_QUERY_FIRST ('{"k": 1, "a": [1, 2]}'::jsonb, '$.k'), CASE WHEN TRUE THEN a1.c2 ELSE a1.c2 END), JSON_OBJECT ('k' VALUE CONCAT (POSITION (CASE WHEN (a1.c2 <= '{"k": 0, "a": [3, 4, 5]}'::jsonb) THEN '{"k": 1}'::text ELSE UPPER (('A'::text || '_'::text)) END IN '0'::text), '{NULL,1}'::int[]) RETURNING jsonb)) THEN '{"k": 0, "a": [3, 4, 5]}'::jsonb WHEN a2.c2 THEN a1.c2 ELSE a2.c2 END AS c0, MAX ('abc'::text) OVER (ORDER BY 'NaN'::text) AS c1, '0'::interval AS c2, 4 AS c3 FROM (t1 AS a1 JOIN t1 AS a2 USING (c0)) WHERE ((a2.c0 >= 1) AND ((POSITION (('%'::text COLLATE "C") IN '[1,10)'::text) + WIDTH_BUCKET ((0.0::numeric / NULLIF (100.0::numeric, 0)), 0.0, 100.0, 10)) < 44)) GROUP BY ROLLUP (a1.c2, a2.c2);

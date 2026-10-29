@@ -1,0 +1,125 @@
+nohup: ignoring input
+server: postgres (PostgreSQL) 20devel   failure: a612860ff94b
+default settings                 : ok
+parallel variant                 : CRASH  TRAP: failed Assert("toc->toc_entry[i].key != key")  via ExecAggInitializeDSM
+parallel + work_mem 64kB         : CRASH  TRAP: failed Assert("toc->toc_entry[i].key != key")  via ExecAggInitializeDSM
+parallel + cpu_tuple_cost 10     : CRASH  TRAP: failed Assert("toc->toc_entry[i].key != key")  via ExecSortInitializeDSM
+parallel + both                  : CRASH  TRAP: failed Assert("toc->toc_entry[i].key != key")  via ExecSortInitializeDSM
+work_mem 64kB + cpu_tuple_cost 10: CRASH  TRAP: failed Assert("toc->toc_entry[i].key != key")  via ExecSortInitializeDSM
+--- plan under the parallel variant (EXPLAIN without ANALYZE)
+               ->  Gather Merge
+                     ->  Sort
+                           Sort Key: a1.c1 NULLS FIRST, (jsonb_typeof(JSON_QUERY(jsonb_strip_nulls((jsonb_build_object('k', '{"a": [0], "k": 2}'::jsonb, 'a', jsonb_build_array(a1.c0, a1.c0)) #- '{a,0}'::text[]), false), '$."a".size()' RETURNING jsonb WITH CONDITIONAL WRAPPER KEEP QUOTES)))
+                                 ->  Parallel Append
+                                       ->  Seq Scan on ti_child a1_2
+                                             Filter: ((true = ANY (ARRAY[true, (NOT (ANY (2 = (hashed SubPlan any_1).col1)))])) OR (c0 > c0))
+                                             SubPlan any_1
+                                               ->  HashAggregate
+                                                     ->  Append
+                                                                 ->  HashAggregate
+                                                                       ->  Seq Scan on t0
+                                                           ->  Seq Scan on t1 a7
+                                       ->  Seq Scan on ti a1_1
+                                             Filter: ((true = ANY (ARRAY[true, (NOT (ANY (2 = (hashed SubPlan any_1).col1)))])) OR (c0 > c0))
+               ->  Materialize
+                           ->  MixedAggregate
+                                 ->  Gather
+                                             ->  Parallel Append
+                                                   ->  Seq Scan on tp_high a3_2
+                                                   ->  Seq Scan on tp_low a3_1
+                                                   ->  Seq Scan on tp_def a3_3
+                                             ->  Materialize
+                                                   ->  Seq Scan on t0 a2
+server: postgres (PostgreSQL) 18.6   failure: a612860ff94b
+default settings                 : ok
+parallel variant                 : ok
+parallel + work_mem 64kB         : ok
+parallel + cpu_tuple_cost 10     : ok
+parallel + both                  : ok
+work_mem 64kB + cpu_tuple_cost 10: ok
+--- plan under the parallel variant (EXPLAIN without ANALYZE)
+               ->  Gather Merge
+                     ->  Sort
+                           Sort Key: a1.c1 NULLS FIRST, (jsonb_typeof(JSON_QUERY(jsonb_strip_nulls((jsonb_build_object('k', '{"a": [0], "k": 2}'::jsonb, 'a', jsonb_build_array(a1.c0, a1.c0)) #- '{a,0}'::text[]), false), '$."a".size()' RETURNING jsonb WITH CONDITIONAL WRAPPER KEEP QUOTES)))
+                                 ->  Parallel Append
+                                       ->  Seq Scan on ti_child a1_2
+                                             Filter: ((true = ANY (ARRAY[true, (NOT (ANY (2 = (hashed SubPlan 1).col1)))])) OR (c0 > c0))
+                                             SubPlan 1
+                                               ->  HashAggregate
+                                                     ->  Append
+                                                                 ->  HashAggregate
+                                                                       ->  Seq Scan on t0
+                                                           ->  Seq Scan on t1 a7
+                                       ->  Seq Scan on ti a1_1
+                                             Filter: ((true = ANY (ARRAY[true, (NOT (ANY (2 = (hashed SubPlan 1).col1)))])) OR (c0 > c0))
+               ->  Materialize
+                           ->  MixedAggregate
+                                 ->  Gather
+                                             ->  Parallel Append
+                                                   ->  Seq Scan on tp_high a3_2
+                                                   ->  Seq Scan on tp_low a3_1
+                                                   ->  Seq Scan on tp_def a3_3
+                                             ->  Materialize
+                                                   ->  Seq Scan on t0 a2
+server: postgres (PostgreSQL) 20devel   failure: 41601cda1d7c
+default settings                 : ok
+parallel variant                 : CRASH  TRAP: failed Assert("toc->toc_entry[i].key != key")  via ExecAggInitializeDSM
+parallel + work_mem 64kB         : CRASH  TRAP: failed Assert("toc->toc_entry[i].key != key")  via ExecAggInitializeDSM
+parallel + cpu_tuple_cost 10     : CRASH  TRAP: failed Assert("toc->toc_entry[i].key != key")  via ExecSortInitializeDSM
+parallel + both                  : CRASH  TRAP: failed Assert("toc->toc_entry[i].key != key")  via ExecSortInitializeDSM
+work_mem 64kB + cpu_tuple_cost 10: CRASH  TRAP: failed Assert("toc->toc_entry[i].key != key")  via ExecSortInitializeDSM
+--- plan under the parallel variant (EXPLAIN without ANALYZE)
+               ->  Gather Merge
+                     ->  Sort
+                           Sort Key: a1.c1 NULLS FIRST, (jsonb_typeof(JSON_QUERY(jsonb_strip_nulls((jsonb_build_object('k', '{"a": [0], "k": 2}'::jsonb, 'a', jsonb_build_array(a1.c0, a1.c0)) #- '{a,0}'::text[]), false), '$."a".size()' RETURNING jsonb WITH CONDITIONAL WRAPPER KEEP QUOTES)))
+                                 ->  Parallel Append
+                                       ->  Seq Scan on ti_child a1_2
+                                             Filter: ((true = ANY (ARRAY[true, (NOT (ANY (2 = (hashed SubPlan any_1).col1)))])) OR (c0 > c0))
+                                             SubPlan any_1
+                                               ->  HashAggregate
+                                                     ->  Append
+                                                                 ->  HashAggregate
+                                                                       ->  Seq Scan on t0
+                                                           ->  Seq Scan on t1 a7
+                                       ->  Seq Scan on ti a1_1
+                                             Filter: ((true = ANY (ARRAY[true, (NOT (ANY (2 = (hashed SubPlan any_1).col1)))])) OR (c0 > c0))
+               ->  Materialize
+                           ->  MixedAggregate
+                                 ->  Gather
+                                             ->  Parallel Append
+                                                   ->  Seq Scan on tp_high a3_2
+                                                   ->  Seq Scan on tp_low a3_1
+                                                   ->  Seq Scan on tp_def a3_3
+                                             ->  Materialize
+                                                   ->  Seq Scan on t0 a2
+server: postgres (PostgreSQL) 18.6   failure: 41601cda1d7c
+default settings                 : ok
+parallel variant                 : ok
+parallel + work_mem 64kB         : ok
+parallel + cpu_tuple_cost 10     : ok
+parallel + both                  : ok
+work_mem 64kB + cpu_tuple_cost 10: ok
+--- plan under the parallel variant (EXPLAIN without ANALYZE)
+               ->  Gather Merge
+                     ->  Sort
+                           Sort Key: a1.c1 NULLS FIRST, (jsonb_typeof(JSON_QUERY(jsonb_strip_nulls((jsonb_build_object('k', '{"a": [0], "k": 2}'::jsonb, 'a', jsonb_build_array(a1.c0, a1.c0)) #- '{a,0}'::text[]), false), '$."a".size()' RETURNING jsonb WITH CONDITIONAL WRAPPER KEEP QUOTES)))
+                                 ->  Parallel Append
+                                       ->  Seq Scan on ti_child a1_2
+                                             Filter: ((true = ANY (ARRAY[true, (NOT (ANY (2 = (hashed SubPlan 1).col1)))])) OR (c0 > c0))
+                                             SubPlan 1
+                                               ->  HashAggregate
+                                                     ->  Append
+                                                                 ->  HashAggregate
+                                                                       ->  Seq Scan on t0
+                                                           ->  Seq Scan on t1 a7
+                                       ->  Seq Scan on ti a1_1
+                                             Filter: ((true = ANY (ARRAY[true, (NOT (ANY (2 = (hashed SubPlan 1).col1)))])) OR (c0 > c0))
+               ->  Materialize
+                           ->  MixedAggregate
+                                 ->  Gather
+                                             ->  Parallel Append
+                                                   ->  Seq Scan on tp_high a3_2
+                                                   ->  Seq Scan on tp_low a3_1
+                                                   ->  Seq Scan on tp_def a3_3
+                                             ->  Materialize
+                                                   ->  Seq Scan on t0 a2

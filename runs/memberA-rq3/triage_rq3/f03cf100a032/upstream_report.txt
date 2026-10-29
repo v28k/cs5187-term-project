@@ -1,0 +1,31 @@
+Subject: returns a wrong result -- <one line: the feature involved>
+
+PostgreSQL version: ? (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script returns a wrong result.
+
+ERROR:  result differs under plan variant no_eager_agg: 0 rows by default, 80 rows with variant
+
+Script
+------
+
+-- pgfuzz triage of f03cf100a032: wrong_result via plan-variant
+-- default plan:
+SELECT * FROM tl LIM;
+-- plan variant no_eager_agg (must return the same rows):
+SET enable_eager_aggregate = 'off';
+SELECT * FROM tl LIM;
+RESET enable_eager_aggregate;
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.

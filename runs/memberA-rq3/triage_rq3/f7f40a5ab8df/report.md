@@ -1,0 +1,22 @@
+# wrong_result: result differs under plan variant xversion: 0 rows by default, 1 rows with variant
+
+* Oracle: **cross-version**, signature `f7f40a5ab8df`
+* Reproduced: 0/3 on ?
+* Reduced: 3 -> ? statements, 85 -> ? tokens
+* Verdict: flaky
+
+## Reproducer
+
+```sql
+-- pgfuzz triage of f7f40a5ab8df: wrong_result via cross-version
+DELETE FROM tl AS a1 WHERE (CASE WHEN (a1.c1 SIMILAR TO '%(a|b)%') THEN CASE WHEN FALSE THEN '{"k": -1, "a": [1, 2, 3]}'::jsonb ELSE (LEAST ('{"k": 1, "a": [1, 2]}'::jsonb, '{"k": 0, "a": [3, 4, 5]}'::jsonb) -> 1) END ELSE LEAST (COALESCE (JSON_ARRAY ((COALESCE (GREATEST (('abc'::text <= CONCAT_WS ('-', a1.c1, '1999-12-31 23:59:59.999999+05:30'::timestamptz)), FALSE), TRUE) AND (TO_CHAR ('2024-01-01 00:00:00+00'::timestamptz, 'YYYY-MM-DD HH24:MI') BETWEEN a1.c1 AND LOWER ('NaN'::text))), TRUE RETURNING jsonb), CASE WHEN FALSE THEN '{"k": 0, "a": [3, 4, 5]}'::jsonb ELSE '{"k": 2, "a": [0]}'::jsonb END), '{"k": 2, "a": [0]}'::jsonb) END <@ '{"k": 2, "a": [0]}'::jsonb);
+DELETE FROM t0 AS a1 USING t4 AS a2 WHERE (((SELECT MAX (ARRAY[1]) FROM t2 AS a3, LATERAL (SELECT '1 year 2 mons 3 days 04:05:06.789'::interval AS c0 ORDER BY 1 LIMIT 2) AS a4))[1 : 2] @> LEAST (ARRAY_POSITIONS (ARRAY[1], 1), COALESCE ((SELECT MIN (a5.c4) FROM t3 AS a5 WHERE CASE a1.c0 WHEN a2.c0 THEN TRUE WHEN a2.c1 THEN FALSE ELSE a5.c1 END), (SELECT MIN ('{NULL,1}'::int[]) FROM t0 AS a6, UNNEST (NULLIF ('{a,b}'::text[], LEAST (COALESCE ('{a,b}'::text[], ARRAY['1'::text]), ARRAY['x'::text, NULL::text]))) AS a7 (c0)))));
+SELECT DISTINCT ''::text AS c0, JSONB_TYPEOF ((LEAST ((SELECT JSONB_AGG (a3.c1 ORDER BY a3.c1) FROM ti AS a3 WHERE TRUE), a2.c0) #> '{k}')) AS c1 FROM t0 AS a1, JSONB_ARRAY_ELEMENTS (JSONB_BUILD_ARRAY (LOWER ('[1,10)'::int4range), GREATEST (TO_JSONB ('{a,b,c,d}'::text[]), '{"k": -1, "a": [1, 2, 3]}'::jsonb))) AS a2 (c0) ORDER BY 1;
+```
+
+## Before filing
+
+1. Decide which side is right (SQL standard / documentation) and say why.
+2. Search pgsql-bugs and pgsql-hackers for the message / function names.
+3. Check the newest master and the latest release; bisect with scripts/bisect_pg.sh.
+4. Record the verdict in triage/verdicts.yaml (it feeds the precision table).

@@ -1,0 +1,26 @@
+Subject: raises an internal error (XX000) -- <one line: the feature involved>
+
+PostgreSQL version: 20devel (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script raises an internal error (XX000).
+
+ERROR:  no relation entry for relid 1
+
+Script
+------
+
+-- pgfuzz triage of c51c4dacc7f1: internal_error via internal_error
+WITH rc(c0) AS (SELECT 1) SELECT '7 days' FROM LATERAL (SELECT COALESCE (MAX (c2)) AS c1 FROM t4 AS a2) AS a3 WHERE COALESCE (7 = ANY (ARRAY_CAT (CASE WHEN TRUE THEN ARRAY_POSITIONS (ARRAY[LENGTH (c1)], 21) ELSE ARRAY[1] END, '{}')));
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.

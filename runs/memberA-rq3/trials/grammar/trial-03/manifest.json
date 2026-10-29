@@ -1,0 +1,145 @@
+{
+  "v": 1,
+  "experiment": "rq3",
+  "config": "grammar",
+  "label": "Grammar",
+  "trial": 3,
+  "seed": 5706107060304896394,
+  "worker": 1,
+  "budget": {
+    "seconds": 3600.0,
+    "testcases": null
+  },
+  "generator": {
+    "plugin": "pgfuzz.grammar.generator:GrammarGenerator",
+    "params": {
+      "grammar": "/home/bhuvi/cs5187-term-project/src/configs/../grammar/postgres.pgg",
+      "schema": "/home/bhuvi/cs5187-term-project/src/configs/../corpus/schema.yaml",
+      "mm_prob": 0.0,
+      "plan_guidance": false
+    },
+    "name": "grammar",
+    "grammar": "/home/bhuvi/cs5187-term-project/src/configs/../grammar/postgres.pgg",
+    "schema": "/home/bhuvi/cs5187-term-project/src/configs/../corpus/schema.yaml",
+    "grammar_sha1": "3cee8ebea4f7",
+    "mutate_prob": 0.5,
+    "max_depth": 14,
+    "setup_prob": 0.5,
+    "queries": [
+      1,
+      2
+    ],
+    "mm_prob": 0.0,
+    "mm_per_query": 1,
+    "bandit": 0.0,
+    "grammar_stats": {
+      "rules": 78,
+      "variants": 108,
+      "alternatives": 421,
+      "types": 13
+    }
+  },
+  "executor": {
+    "plugin": "pgfuzz.reference.xversion_executor:CrossVersionExecutor",
+    "params": {
+      "test": {
+        "dsn": "host=127.0.0.1 port=5441 dbname=postgres user=postgres",
+        "isolation": "savepoint",
+        "statement_timeout_ms": 3000,
+        "setup_sql": [
+          "/home/bhuvi/cs5187-term-project/src/configs/../corpus/schema.sql",
+          "/home/bhuvi/cs5187-term-project/src/configs/../corpus/rls.sql"
+        ],
+        "reset_sql": [
+          "/home/bhuvi/cs5187-term-project/src/configs/../corpus/schema.sql",
+          "/home/bhuvi/cs5187-term-project/src/configs/../corpus/rls.sql"
+        ],
+        "server_log": "/home/bhuvi/pgfuzz/data/rq3-1/postgresql.log",
+        "differential": {
+          "per_query": 2
+        },
+        "metamorphic": true,
+        "plan_shapes": {
+          "every": 1
+        }
+      },
+      "reference": {
+        "dsn": "host=127.0.0.1 port=5435 dbname=ref_1 user=postgres",
+        "create_database": true,
+        "statement_timeout_ms": 3000
+      },
+      "prelude_sql": [
+        "ALTER TABLE t2 ALTER COLUMN c0 RESTART WITH 31"
+      ]
+    },
+    "name": "xversion",
+    "test": {
+      "name": "postgres",
+      "isolation": "savepoint",
+      "statement_timeout_ms": 3000,
+      "server_log": "/home/bhuvi/pgfuzz/data/rq3-1/postgresql.log",
+      "coverage": false,
+      "differential": true,
+      "metamorphic": true,
+      "plan_shapes_every": 1,
+      "diff_per_query": 2,
+      "server_version": "20devel",
+      "version": "PostgreSQL 20devel on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit",
+      "debug_assertions": "on",
+      "data_checksums": "on",
+      "plan_variants": [
+        "geqo",
+        "hashjoin_only",
+        "index_scans",
+        "mergejoin_only",
+        "nestloop_only",
+        "no_eager_agg",
+        "no_hashagg",
+        "no_join_reorder",
+        "no_memoize_material",
+        "no_partition_pruning",
+        "no_reordering",
+        "no_self_join_elim",
+        "no_sort_opt",
+        "parallel",
+        "partitionwise",
+        "seq_scans",
+        "tiny_work_mem"
+      ],
+      "plan_variants_dropped": [
+        "jit"
+      ]
+    },
+    "reference": {
+      "name": "postgres",
+      "isolation": "savepoint",
+      "statement_timeout_ms": 3000,
+      "server_log": null,
+      "coverage": false,
+      "differential": false,
+      "metamorphic": false,
+      "plan_shapes_every": 0,
+      "diff_per_query": null,
+      "server_version": "18.6",
+      "version": "PostgreSQL 18.6 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit",
+      "debug_assertions": "off",
+      "data_checksums": "on",
+      "warning": "server built without --enable-cassert: assertion failures cannot be observed"
+    }
+  },
+  "known_bugs": {
+    "catalog": "/home/bhuvi/cs5187-term-project/src/bench/reinjected/bugs.yaml",
+    "entries": 23
+  },
+  "coverage_interval_s": 600.0,
+  "snapshot_interval_s": 30.0,
+  "started_at": "2026-10-26T17:23:11+00:00",
+  "env": {
+    "pgfuzz": "0.1.0",
+    "python": "3.12.3",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "git_commit": "9fab1a7fb653ab7ea8b8cf8c49cadd82bdab0ac0-dirty"
+  }
+}

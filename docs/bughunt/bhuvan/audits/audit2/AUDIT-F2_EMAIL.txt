@@ -1,0 +1,148 @@
+UNSENT DRAFT — do not send without review. Nothing has been submitted.
+Submit either through https://www.postgresql.org/account/submitbug/ or by
+plain-text email to the address below, attaching the patch (see the end).
+Prose is wrapped at ~76 columns for a plain-text list; the SQL examples are
+left unwrapped so they can be copied and run as-is.
+=============================================================================
+
+To: pgsql-bugs@lists.postgresql.org
+Subject: first_value()/nth_value() with IGNORE NULLS loop forever (EXCLUDE
+ GROUP/TIES, frame past partition end, no ORDER BY)
+
+Hello,
+
+A window function call with IGNORE NULLS never terminates, and the backend
+does not respond to query cancellation, when all of the following hold:
+
+  - the function scans the frame forward: first_value() or nth_value();
+  - the window has no ORDER BY;
+  - the frame end is UNBOUNDED FOLLOWING, or a ROWS offset past the end of
+    the partition (e.g. 1000000000000 FOLLOWING);
+  - the exclusion is EXCLUDE GROUP, or EXCLUDE TIES when the current row
+    does not supply the requested non-null value.
+
+The backend spins at 100% CPU and never reaches a CHECK_FOR_INTERRUPTS(), so
+statement_timeout, pg_cancel_backend(), pg_terminate_backend() and
+"pg_ctl stop -m fast" do not stop it; recovery needs SIGKILL, which restarts
+all sessions. The wedged backend also does not absorb a ProcSignalBarrier, so
+an unrelated "ALTER DATABASE <other_db> SET TABLESPACE" (normally ~0.2 s)
+blocks for as long as the query runs. Any role that can run a SELECT can
+trigger it; no table and no special privilege are required.
+
+
+PostgreSQL version
+------------------
+Reproduced on REL_19_STABLE (tip 015f4c9fc3, and also fc189eb750) and on
+master (20devel, 126976a8ff). No commit touches
+src/backend/executor/nodeWindowAgg.c between these revisions. PostgreSQL 18
+and earlier are not affected (IGNORE NULLS is new in 19).
+
+Platform: x86_64 Linux (Ubuntu 24.04, gcc 13.3.0), build configured with
+--enable-cassert --enable-debug. The defect is in executor control flow and
+is not expected to depend on the platform.
+
+
+Minimal reproduction
+---------------------
+No tables or settings are needed. Run on a DISPOSABLE cluster: the statement
+does not return and cannot be cancelled; stop it with SIGKILL on the backend.
+
+    SELECT first_value(x) IGNORE NULLS OVER (
+        ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE GROUP
+    ) FROM (VALUES (1)) v(x);
+
+Expected: one row containing NULL. With no ORDER BY every row is a peer of the
+current row (ref/select.sgml: "all rows are peers if there is no ORDER BY"),
+EXCLUDE GROUP removes the current row and its peers, so the frame is empty,
+and first_value() over an empty frame is NULL. The same query with RESPECT
+NULLS returns NULL immediately, as does the aggregate-path equivalent
+(array_agg(x) FILTER (WHERE x IS NOT NULL) OVER w)[1].
+
+Actual: the statement never completes. In a debugger on this one-row query,
+the loop position advances by ~1.8e8 per second (backend in state R), where
+any valid position is 0 -- i.e. an unbounded loop, not slow execution.
+
+Other shapes that hang the same way (each in its own session):
+
+    -- EXCLUDE TIES, current row NULL (expected: NULL)
+    SELECT first_value(x) IGNORE NULLS OVER (ROWS BETWEEN UNBOUNDED PRECEDING
+           AND UNBOUNDED FOLLOWING EXCLUDE TIES) FROM (VALUES (NULL::int)) v(x);
+
+    -- nth_value, second non-null never exists (expected: NULL)
+    SELECT nth_value(x,2) IGNORE NULLS OVER (ROWS BETWEEN CURRENT ROW
+           AND UNBOUNDED FOLLOWING EXCLUDE TIES)
+    FROM (VALUES (1),(2)) v(x) WHERE x = 1;
+
+    -- huge finite ROWS offset past the partition (expected: NULL)
+    SELECT first_value(x) IGNORE NULLS OVER (ROWS BETWEEN UNBOUNDED PRECEDING
+           AND 1000000000000 FOLLOWING EXCLUDE GROUP) FROM (VALUES (1)) v(x);
+
+    -- RANGE mode, same conditions (expected: NULL)
+    SELECT first_value(x) IGNORE NULLS OVER (RANGE BETWEEN UNBOUNDED PRECEDING
+           AND UNBOUNDED FOLLOWING EXCLUDE GROUP) FROM (VALUES (1)) v(x);
+
+These related forms terminate correctly: the same queries with an ORDER BY in
+the window; a frame ending at CURRENT ROW or a small finite offset;
+last_value() (which scans backward); and RESPECT NULLS.
+
+
+Analysis
+--------
+ignorenulls_getfuncarginframe() (nodeWindowAgg.c) walks the frame forward,
+calling row_is_in_frame(winobj, abs_pos, slot, true) for each position and
+skipping to the next on a 0 result without fetching the row. But
+row_is_in_frame()'s header states the caller must have already determined the
+row is in the partition. For a frame ending at UNBOUNDED FOLLOWING it has no
+frame-end test, and its exclusion branch returns 0 ("excluded") for every
+position other than the current row when ordNumCols == 0 (EXCLUDE GROUP, and
+EXCLUDE TIES for pos != currentpos). So once abs_pos passes the last row,
+every call returns 0; window_gettupleslot() -- the only place that detects
+pos >= spooled_rows -- is never called, and abs_pos (an int64) just keeps
+growing. No CHECK_FOR_INTERRUPTS() runs on this path.
+
+With an ORDER BY, positions past the partition are not peers, row_is_in_frame()
+returns 1, window_gettupleslot() fails, and the loop ends -- which is why only
+the no-ORDER-BY case hangs. (This is distinct from the separately reported
+abs() overflow in the same function: that needs a large negative offset to
+overflow an int, whereas here the offset is 0 and the counter is int64.)
+
+
+Fix
+---
+The attached patch makes ignorenulls_getfuncarginframe() establish partition
+membership before calling row_is_in_frame(), using the same test
+window_gettupleslot() uses (spool_tuples() + spooled_rows), and adds a
+CHECK_FOR_INTERRUPTS() to the loop (which can skip many excluded or
+known-NULL rows without fetching any tuple). It also adds regression queries
+to window.sql. A lower-level alternative would be to make row_is_in_frame()
+itself report positions past the partition end, but that would change its
+documented precondition and affect every caller, so the caller-side fix seems
+preferable; I'm happy to redo it that way if you disagree.
+
+With the patch: the frame-scan queries above return at once with the expected
+values; the core regression suite passes (239/239), isolation passes
+(134/134), and the relevant TAP suites pass (psql including the query-cancel
+test, plus pg_ctl and test_misc). The new window.sql expected output was
+cross-checked against the aggregate-path results on an unpatched server, and a
+24,000-query randomized comparison of IGNORE NULLS against that oracle found
+no differences. The patch applies to both current master and REL_19_STABLE.
+
+Thanks,
+<your name>
+
+
+-----------------------------------------------------------------------------
+ATTACHMENT NOTE (not part of the message body)
+
+Attach: AUDIT-F2_REGRESSION_TEST.patch   (text/x-patch; ~8 KB)
+  - src/backend/executor/nodeWindowAgg.c  (+15)
+  - src/test/regress/sql/window.sql       (+30)
+  - src/test/regress/expected/window.out  (+56)
+  The file begins with an explanatory header; "git apply" skips it. The patch
+  applies cleanly to current origin/master (126976a8ff) and
+  origin/REL_19_STABLE (fc189eb750).
+
+Before sending: fill in <your name>; if submitting via the web bug form, paste
+the body into the form (it assigns the BUG# and sets version/platform fields)
+and attach the patch in a follow-up reply, since the form itself takes no
+attachment. Send from the account that should own the report.

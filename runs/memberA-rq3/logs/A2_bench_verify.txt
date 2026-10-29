@@ -1,0 +1,31 @@
+| bug | commit | symptom | all injected | evidence |
+|---|---|---|---|---|
+| rb-11b56ee2 | 11b56ee2 | assertion | assertion | pathkeys.c: var->varno == rel->relid |
+| rb-94e1385e | 94e1385e | wrong_result | wrong_result | stmt 0: 1 rows on fixed, 1 on buggy |
+| rb-41180127 | 41180127 | missing_error | missing_error | stmt 0: fixed raises 22030 duplicate JSON object key value |
+| rb-b28a2b2b | b28a2b2b | wrong_result | wrong_result | stmt 5: 1 rows on fixed, 1 on buggy |
+| rb-f5635c27 | f5635c27 | none | none |  |
+| rb-d8444163 | d8444163 | wrong_result | wrong_result | stmt 3: 0 rows on fixed, 1 on buggy |
+| rb-62e46c00 | 62e46c00 | error | error | stmt 2: 42P10 there is no unique or exclusion constraint matching the ON CONFLICT specific |
+| rb-738d19d4 | 738d19d4 | internal_error | internal_error | stmt 6: XX000 unsupported join alias expression |
+| rb-6b858a36 | 6b858a36 | assertion | assertion | subselect.c: !IsA(node, SubPlan) |
+| rb-8b29b8da | 8b29b8da | internal_error | internal_error | stmt 10: XX000 could not find pathkey item to sort |
+| rb-d764d61a | d764d61a | wrong_result | wrong_result | stmt 7: 1 rows on fixed, 1 on buggy |
+| rb-dfcf6fa7 | dfcf6fa7 | internal_error | internal_error | stmt 6: XX000 could not find pathkey item to sort |
+| rb-a464d31f | a464d31f | assertion | assertion | relnode.c: join_clause_is_movable_into(rinfo, baserel->relids, joinrelids) |
+| rb-852fd5b8 | 852fd5b8 | internal_error | internal_error | stmt 5: XX000 no relation entry for relid 3 |
+| rb-a8bb1a77 | a8bb1a77 | assertion | assertion | rewriteManip.c: context->new_index != INVALID_VAR |
+| rb-9d0adee8 | 9d0adee8 | none | none |  |
+| rb-895c1b5f | 895c1b5f | none | none |  |
+| rb-35d3f206 | 35d3f206 | internal_error | internal_error | stmt 21: XX000 variable not found in subplan target list |
+| rb-1bf74c80 | 1bf74c80 | wrong_result | wrong_result | stmt 4: 4 rows on fixed, 3 on buggy |
+| rb-7774249d | 7774249d | wrong_result | wrong_result | stmt 1: 1 rows on fixed, 1 on buggy |
+| rb-0d995793 | 0d995793 | wrong_result | wrong_result | stmt 4: 0 rows on fixed, 1 on buggy |
+| rb-d6eac691 | d6eac691 | wrong_result | wrong_result | stmt 0: 0 rows on fixed, 2 on buggy |
+| rb-3b120b1e | 3b120b1e | missing_error | missing_error | stmt 0: fixed raises 22003 integer out of range |
+note: rb-94e1385e raises errors on the fixed server: stmt 1: 2201E cannot take logarithm using base one; stmt 2: 2201E cannot take logarithm using base one
+note: rb-41180127 raises errors on the fixed server: stmt 0: 22030 duplicate JSON object key value
+note: rb-6b858a36 raises errors on the fixed server: stmt 3: 21000 more than one row returned by a subquery used as an expression
+note: rb-3b120b1e raises errors on the fixed server: stmt 0: 22003 integer out of range; stmt 1: 22003 integer out of range; stmt 2: 22003 integer out of range
+
+20/23 bugs observable; copy the symptoms into /home/bhuvi/cs5187-term-project/src/bench/reinjected/bugs.yaml

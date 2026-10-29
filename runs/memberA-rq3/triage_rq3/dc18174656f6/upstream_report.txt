@@ -1,0 +1,73 @@
+Subject: returns a wrong result -- <one line: the feature involved>
+
+PostgreSQL version: 20devel (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script returns a wrong result.
+
+ERROR:  result differs under plan variant no_self_join_elim: 101 rows by default, 101 rows with variant
+
+Script
+------
+
+-- pgfuzz triage of dc18174656f6: wrong_result via plan-variant
+-- default plan:
+SELECT CASE a2.c2 WHEN a2.c2 THEN '{"k": 0, "a": [3, 4, 5]}'::jsonb WHEN a2.c2 THEN a1.c2 ELSE a2.c2 END FROM (t1 a1 JOIN t1 a2 USING (c0)) GROUP BY ROLLUP (a1.c2, a2.c2);
+-- plan variant no_self_join_elim (must return the same rows):
+SET enable_self_join_elimination = 'off';
+SELECT CASE a2.c2 WHEN a2.c2 THEN '{"k": 0, "a": [3, 4, 5]}'::jsonb WHEN a2.c2 THEN a1.c2 ELSE a2.c2 END FROM (t1 a1 JOIN t1 a2 USING (c0)) GROUP BY ROLLUP (a1.c2, a2.c2);
+RESET enable_self_join_elimination;
+
+Actual output
+-------------
+
+query:
+    NULL
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    {"a": [3, 4, 5], "k": 0}
+    ... (101 rows)
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+Analysis
+--------
+
+The answer depends on planner settings: no_self_join_elim; the code paths these switch are the first suspects.
+  enable_self_join_elimination: optimizer/plan/analyzejoins.c (self-join elimination)
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.

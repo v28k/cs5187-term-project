@@ -1,0 +1,106 @@
+HOW TO SUBMIT THE EXTENDED-STATS PATCH  (read all of this first)
+
+WHAT YOU HAVE
+  Patch file : bughunt/0001-Reject-non-finite-MCV-frequencies-in-pg_restore_exte.patch
+  Git branch : esi-nonfinite in ~/pgfuzz/src/postgres-esi (commit 55479a12,
+               based on master a39e53a7)
+  Changes    : extended_stats_funcs.c (+21), stats_import.sql (+62),
+               stats_import.out (+87/-1; the -1 is the "drop cascades to N
+               other objects" count, which changes because the test adds
+               objects)
+
+WHAT WAS VERIFIED (real runs, 18 Oct 2026, cassert build)
+  1. With the fix:    stats_import passes; full "make check" 239/239 pass.
+  2. Without the fix: stats_import FAILS (new test shows the bad values are
+     accepted). So the test does detect the problem.
+  3. A first build gave "implicit declaration of isfinite". Fixed by
+     following commit 7cb9060d: #include <math.h> and isnan()/isinf().
+
+WHAT THIS IS, HONESTLY
+  - A small hardening patch. Not a security fix and NOT a CVE. Nothing
+    crashes; the planner just gets absurd row estimates (1e100).
+  - It is NOT original work in the sense of a new class of problem. It
+    follows 7cb9060d (reltuples) and Ewan Young's open thread
+    "pg_restore_attribute_stats() accepts non-finite values" (2026-08-25),
+    whose patch (v3) covers attribute stats only.
+  - It does NOT cover the float fields inside the "exprs" jsonb (range
+    stats, null_frac, etc.). Say so in the email. Do not claim full coverage.
+  - Whether anyone commits it is up to the committers. Do not promise your
+    college an outcome. What you can truthfully show: a reproducible issue,
+    a patch with a test, and the list thread.
+
+BEFORE YOU SEND
+  [ ] Re-read the Ewan Young thread's newest messages. If someone already
+      covered extended stats, do not send this.
+  [ ] Check the author name/email in the patch header. I used
+      "Bhuvan C <c.bhuvan@iitg.ac.in>" from your handoff notes. Change it
+      if wrong:  git commit --amend --reset-author
+  [ ] Rebase on current master and re-run make check if more than a day or
+      two has passed.
+
+WHERE TO SEND
+  Option A (best fit): reply on the existing thread, so related work stays
+  together. Subject must stay:
+      Re: pg_restore_attribute_stats() accepts non-finite values
+  Reply-All to pgsql-hackers@lists.postgresql.org, Cc Ewan Young
+  <kdbase.hack@gmail.com> and Michael Paquier <michael@paquier.xyz>.
+  (You said you do not want to add to someone else's topic. If so, use B.)
+
+  Option B: new thread on pgsql-hackers@lists.postgresql.org
+      Subject: Reject non-finite MCV frequencies in pg_restore_extended_stats()
+  and mention the related thread by link, so nobody thinks you hid it.
+
+  Send as PLAIN TEXT with the .patch attached. A first post from a
+  non-subscriber may wait for moderation.
+
+EMAIL BODY (edit as needed)
+----------------------------------------------------------------------
+Hi,
+
+pg_restore_extended_stats() accepts NaN and Infinity in most_common_freqs
+and most_common_base_freqs and stores them in the MCV list.
+check_mcvlist_array() only checks dimensions, NULLs and length.
+
+CLAMP_PROBABILITY() does not neutralize NaN, so the planner then estimates
+the maximum row count for matching clauses. On master (a39e53a7, cassert):
+
+  CREATE TABLE m(a int, b int);
+  INSERT INTO m SELECT i%3, i%3 FROM generate_series(1,3000) i;
+  CREATE STATISTICS ms (mcv) ON a,b FROM m;
+  ANALYZE m;
+  SELECT pg_restore_extended_stats(
+    'schemaname','public','relname','m',
+    'statistics_schemaname','public','statistics_name','ms',
+    'inherited', false,
+    'most_common_vals','{{0,0},{1,1}}'::text[],
+    'most_common_freqs','{NaN,0.3}'::float8[],
+    'most_common_base_freqs','{0.1,0.1}'::float8[]);   -- returns t
+  EXPLAIN SELECT * FROM m WHERE a=0 AND b=0;           -- rows=1e100
+
+(baseline after ANALYZE is rows=1000). Infinity gives the same result.
+Nothing crashes and query results stay correct; as with 7cb9060d and the
+attribute-stats thread, this is stored garbage the planner cannot defend
+against.
+
+The attached patch rejects non-finite values with a WARNING, like the other
+inconsistent inputs in check_mcvlist_array(), and adds tests to stats_import.
+Finite but out-of-range values are still accepted, since these functions do
+only superficial validation by design.
+
+This only covers the MCV arrays. The float fields inside "exprs" (e.g.
+range_empty_frac, null_frac) have the same gap; I left them out to keep this
+small and can follow up if there is interest.
+
+make check passes (239/239) with the patch, and stats_import fails without
+the C change.
+
+Regards,
+Bhuvan
+----------------------------------------------------------------------
+
+FOR YOUR ASSIGNMENT, LIST THESE SEPARATELY AND ACCURATELY
+  1. BUG #19768 (JSON_TABLE collation): filed 16 Oct 2026 with a patch.
+     This is your strongest item. Status: no committer reply yet.
+  2. This patch: submitted to pgsql-hackers (add the archive link after
+     sending). Status: whatever the thread shows. Do not write "accepted"
+     or "committed" unless a commit exists.

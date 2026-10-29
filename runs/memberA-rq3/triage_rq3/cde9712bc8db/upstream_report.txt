@@ -1,0 +1,42 @@
+Subject: fails an assertion -- <one line: the feature involved>
+
+PostgreSQL version: 20devel (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script fails an assertion.
+
+TRAP: failed Assert("list_length(rcexpr->inputcollids) == nopers"), File: "execExpr.c", Line: 2078
+
+Script
+------
+
+-- pgfuzz triage of cde9712bc8db: assertion via assertion
+WITH rc(c0) AS (SELECT 1) SELECT FROM (t1 CROSS JOIN JSON_TABLE (CASE WHEN TRUE THEN CASE WHEN (ROW (11, '{"k": 1}') <= ROW (41, '0'::text)) THEN '{"k": 2, "a": [0]}'::jsonb END END, '$[*]' COLUMNS ( c1 text PATH '$')) AS a2);
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+Backtrace (top frames)
+----------------------
+
+ExceptionalCondition
+ExecInitExpr
+ExecInitTableFuncScan
+ExecInitNode
+ExecInitNestLoop
+ExecInitNode
+ExecInitSort
+ExecInitNode
+ExecInitAgg
+ExecInitNode
+standard_ExecutorStart
+PortalStart
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.

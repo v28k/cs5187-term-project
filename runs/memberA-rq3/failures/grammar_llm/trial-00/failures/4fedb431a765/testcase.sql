@@ -1,0 +1,8 @@
+-- pgfuzz failure 4fedb431a765 (internal_error, signature strength: message)
+-- test case 6122 from grammar
+-- SQLSTATE XX000: could not find pathkey item to sort
+-- failing statement: #3
+ALTER TABLE t0 ADD FOREIGN KEY (c0) REFERENCES t1 (c0) NOT VALID;
+ALTER TABLE t1 ALTER COLUMN c1 SET STATISTICS 0;
+SELECT ('{"k": -1, "a": [1, 2, 3]}'::jsonb ? 'x') AS c0, REGEXP_REPLACE (LEFT (TRIM (BOTH 'a' FROM ' '::text), 3), '[a-c]+', 'X', 'g') AS c1 FROM (t1 AS a1 INNER JOIN JSONB_ARRAY_ELEMENTS (JSONB_BUILD_ARRAY (TRUE, FALSE)) AS a2 (c0) ON ((a1.c2 = a2.c0) AND ('\\'::text ~ 'b.*c'))) WHERE ('2024-02-29'::date NOT BETWEEN '2000-02-29'::date AND '2000-01-01'::date) UNION (SELECT JSON_EXISTS ('{"k": 1, "a": [1, 2]}'::jsonb, '$[*] ? (@.k > 2).k') AS c0, ARRAY_TO_STRING (GREATEST ('{a,b,c,d}'::text[], '{a,b,c,d}'::text[]), ',') AS c1 FROM t4 AS a3, LATERAL (SELECT (43)::float8 AS c0 FROM t3 AS a4 WHERE FALSE) AS a5 WHERE TRUE GROUP BY GROUPING SETS ((a3.c3), (a5.c0), (a3.c0), ()) EXCEPT ALL (SELECT (NOT ('[3,)'::int4range IS NOT DISTINCT FROM '[3,)'::int4range)) AS c0, '[1,10)'::text AS c1 FROM t1 AS a6 WHERE TRUE UNION SELECT FALSE AS c0, 'A'::text AS c1 FROM JSON_TABLE (('{"k": 2, "a": [0]}'::jsonb || '{"k": -1, "a": [1, 2, 3]}'::jsonb), '$.a[*]' COLUMNS (c0 FOR ORDINALITY, c1 int PATH '$')) AS a7)) ORDER BY 2;
+SELECT LOWER ('[1,10)'::int4range) AS c0, LOWER ('[0,0]'::int4range) AS c1 FROM tp AS a1, LATERAL (SELECT '79'::int AS c0) AS a2 UNION ALL (SELECT '-2'::int AS c0, 7 AS c1 FROM tp AS a3 WHERE FALSE UNION SELECT LENGTH ('c4ca4238a0b923820dcc509a6f75849b'::text) AS c0, LOWER ('[3,)'::int4range) AS c1 FROM UNNEST (ARRAY_SORT ('{NULL}'::int[])) WITH ORDINALITY AS a4 (c0, c1));

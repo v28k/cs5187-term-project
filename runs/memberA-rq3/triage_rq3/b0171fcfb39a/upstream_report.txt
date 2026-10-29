@@ -1,0 +1,33 @@
+Subject: returns a wrong result -- <one line: the feature involved>
+
+PostgreSQL version: ? (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script returns a wrong result.
+
+ERROR:  result differs under plan variant index_scans: 0 rows by default, 1 rows with variant
+
+Script
+------
+
+-- pgfuzz triage of b0171fcfb39a: wrong_result via plan-variant
+-- default plan:
+SELECT c0 FROM tl WHERE (c0 = 1);
+-- plan variant index_scans (must return the same rows):
+SET enable_seqscan = 'off';
+SET enable_bitmapscan = 'off';
+SELECT c0 FROM tl WHERE (c0 = 1);
+RESET enable_seqscan;
+RESET enable_bitmapscan;
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.

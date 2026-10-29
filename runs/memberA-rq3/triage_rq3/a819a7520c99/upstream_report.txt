@@ -1,0 +1,42 @@
+Subject: returns a wrong result -- <one line: the feature involved>
+
+PostgreSQL version: 20devel (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script returns a wrong result.
+
+ERROR:  metamorphic check expr:llm_nullif_null_reduction failed: 46 rows vs 46 rows
+
+Script
+------
+
+-- pgfuzz triage of a819a7520c99: wrong_result via metamorphic:expr
+-- the two queries below must return the same rows (as a multiset):
+SELECT UPPER (LEFT ('é'::text, 3));
+SELECT UPPER ((NULLIF( (LEFT ('é'::text, 3)) , NULL::text COLLATE "POSIX")));
+
+Actual output
+-------------
+
+lhs:
+    É
+
+rhs:
+    é
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+Analysis
+--------
+
+No planner setting removes the disagreement: suspect an always-applied rewrite, constant folding, a planner support function, or expression evaluation.
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.

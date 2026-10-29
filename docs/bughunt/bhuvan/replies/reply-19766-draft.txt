@@ -1,0 +1,40 @@
+To: pgsql-bugs@lists.postgresql.org
+Cc: alpkeles99@gmail.com
+Subject: Re: BUG #19766: Assert in shm_toc_insert: EXPLAIN ANALYZE of a SubPlan shared by Parallel Append children
+In-Reply-To: <19766-c3d105a4e0ec5487@postgresql.org>
+References: <19766-c3d105a4e0ec5487@postgresql.org>
+
+Hello,
+
+I ran into the same assertion independently while fuzzing an
+assert-enabled master build, and can add one data point: the shared
+SubPlan does not need a partitioned table. An inheritance parent and
+child give the same Parallel Append and the same crash, with default
+settings and empty tables:
+
+CREATE TABLE ip (a int);
+CREATE TABLE ic () INHERITS (ip);
+CREATE TABLE s (b int);
+EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY OFF, BUFFERS OFF)
+  SELECT * FROM ip WHERE a NOT IN (SELECT 1 FROM s, s s2);
+
+TRAP: failed Assert("toc->toc_entry[i].key != key"), File: "shm_toc.c", Line: 190
+  shm_toc_insert
+  ExecMaterialInitializeDSM
+
+The plan is Gather -> Parallel Append -> Parallel Seq Scan on ic and on
+ip, both with the filter NOT (ANY (a = (SubPlan any_1).col1)), as in
+your partitioned case. Your ORDER BY b, b + 1 query on these tables
+fails the same assertion in ExecSortInitializeDSM.
+
+The fuzzer also reached it in ExecAggInitializeDSM and
+ExecSortInitializeDSM with a larger query whose Parallel Append is over
+an inheritance parent and child sharing a hashed SubPlan. The
+ExecSortInitializeDSM case there did not need debug_parallel_query:
+work_mem = '64kB' and cpu_tuple_cost = 10 were enough.
+
+Tested on master at 7787aec (--enable-cassert --enable-debug, Linux
+x86_64; the build carries an unrelated one-line parser patch).
+
+Regards,
+Bhuvan Chilukuti

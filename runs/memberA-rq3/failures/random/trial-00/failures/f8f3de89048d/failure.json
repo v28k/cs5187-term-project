@@ -1,0 +1,68 @@
+{
+  "v": 1,
+  "signature": "f8f3de89048d",
+  "strength": "diff",
+  "key": "wrong_result|xversion|SELECT|agg,group_by",
+  "outcome": "wrong_result",
+  "sqlstate": null,
+  "message": "result differs under plan variant xversion: 19 rows by default, 19 rows with variant",
+  "culprit": 0,
+  "culprit_sql": "SELECT c0, count(*) AS n FROM t0 GROUP BY c0",
+  "details": {
+    "variant": "xversion",
+    "settings": {
+      "reference_server": "18.6"
+    },
+    "rows_default": 19,
+    "rows_variant": 19
+  },
+  "known_bugs": [],
+  "first_t": 420.072,
+  "testcase_id": 26359,
+  "origin": "random",
+  "meta": {
+    "arm": "random"
+  },
+  "statements": [
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 2.87067500039484,
+      "rows": 19,
+      "result_hash": "022570591cc725535aedc430",
+      "variants": {
+        "no_hashagg": {
+          "settings": {
+            "enable_hashagg": "off"
+          },
+          "status": "ok",
+          "hash": "022570591cc725535aedc430",
+          "rows": 19,
+          "ms": 4.217
+        },
+        "geqo": {
+          "settings": {
+            "geqo": "on",
+            "geqo_threshold": "2"
+          },
+          "status": "ok",
+          "hash": "022570591cc725535aedc430",
+          "rows": 19,
+          "ms": 4.65
+        },
+        "xversion": {
+          "status": "ok",
+          "hash": "1cadc22ca3db302f42762146",
+          "rows": 19,
+          "settings": {
+            "reference_server": "18.6"
+          }
+        }
+      },
+      "plan_shape": "c220a31618a1b338"
+    }
+  ],
+  "server_log": [],
+  "extra": {}
+}
