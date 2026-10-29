@@ -1,0 +1,104 @@
+# Reproducer results, run 2026-10-16 23:01 UTC
+# master = upstream 26bd08f + the fix (same tree as v1, 57b481dd), --enable-cassert; 17.11 and 18.6 are unpatched release builds
+
+################ 17.11-unpatched
+PostgreSQL 17.11 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit
+=== Q1 row compare in context item (expect t)
+ a 
+---
+ f
+(1 row)
+
+=== Q2 text compare COLLATE C in context item (expect t)
+psql:repro.sql:4: ERROR:  could not determine which collation to use for string comparison
+HINT:  Use the COLLATE clause to set the collation explicitly.
+=== Q3 text compare in PASSING (expect t)
+psql:repro.sql:6: ERROR:  could not determine which collation to use for string comparison
+HINT:  Use the COLLATE clause to set the collation explicitly.
+=== Q4 row compare in PASSING (expect t)
+ a 
+---
+ t
+(1 row)
+
+=== Controls: same expressions outside JSON_TABLE
+ plain_row | plain_text 
+-----------+------------
+ t         | t
+(1 row)
+
+ json_query_row 
+----------------
+ true
+(1 row)
+
+
+################ 18.6-unpatched
+PostgreSQL 18.6 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit
+=== Q1 row compare in context item (expect t)
+ a 
+---
+ f
+(1 row)
+
+=== Q2 text compare COLLATE C in context item (expect t)
+psql:repro.sql:4: ERROR:  could not determine which collation to use for string comparison
+HINT:  Use the COLLATE clause to set the collation explicitly.
+=== Q3 text compare in PASSING (expect t)
+psql:repro.sql:6: ERROR:  could not determine which collation to use for string comparison
+HINT:  Use the COLLATE clause to set the collation explicitly.
+=== Q4 row compare in PASSING (expect t)
+ a 
+---
+ t
+(1 row)
+
+=== Controls: same expressions outside JSON_TABLE
+ plain_row | plain_text 
+-----------+------------
+ t         | t
+(1 row)
+
+ json_query_row 
+----------------
+ true
+(1 row)
+
+
+################ master+fix-cassert
+PostgreSQL 20devel on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit
+=== Q1 row compare in context item (expect t)
+ a 
+---
+ t
+(1 row)
+
+=== Q2 text compare COLLATE C in context item (expect t)
+ a 
+---
+ t
+(1 row)
+
+=== Q3 text compare in PASSING (expect t)
+ a 
+---
+ t
+(1 row)
+
+=== Q4 row compare in PASSING (expect t)
+ a 
+---
+ t
+(1 row)
+
+=== Controls: same expressions outside JSON_TABLE
+ plain_row | plain_text 
+-----------+------------
+ t         | t
+(1 row)
+
+ json_query_row 
+----------------
+ true
+(1 row)
+

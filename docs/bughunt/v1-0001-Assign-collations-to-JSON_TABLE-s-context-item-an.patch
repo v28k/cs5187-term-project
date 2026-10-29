@@ -1,0 +1,97 @@
+From b73becf0eac28d6df9d0de859454f05e0270d18e Mon Sep 17 00:00:00 2001
+From: Venu Kummari <venu2805k@gmail.com>
+Date: Fri, 16 Oct 2026 22:59:44 +0000
+Subject: [PATCH v1] Assign collations to JSON_TABLE's context item and PASSING
+ arguments
+
+transformJsonTable() transforms the context item and PASSING arguments
+into TableFunc.docexpr (and copies the PASSING arguments into
+passingvalexprs), but unlike XMLTABLE it never ran
+assign_expr_collations() over the result.  Expressions in there were
+therefore left without collations: a text comparison failed with
+"could not determine which collation to use for string comparison"
+even with an explicit COLLATE clause, and a row comparison was left with
+an empty inputcollids list, which made the executor compare zero
+columns and return the result for equal rows (so ROW(1, 2) < ROW(3, 4)
+yielded false), or trip an assertion in ExecInitExprRec on
+assert-enabled builds.
+
+Found by grammar-based fuzzing.
+
+Bug: #19768
+---
+ src/backend/parser/parse_jsontable.c          |  1 +
+ .../regress/expected/sqljson_jsontable.out    | 29 +++++++++++++++++++
+ src/test/regress/sql/sqljson_jsontable.sql    | 10 +++++++
+ 3 files changed, 40 insertions(+)
+
+diff --git a/src/backend/parser/parse_jsontable.c b/src/backend/parser/parse_jsontable.c
+index d86c694..55f0a81 100644
+--- a/src/backend/parser/parse_jsontable.c
++++ b/src/backend/parser/parse_jsontable.c
+@@ -155,6 +155,7 @@ transformJsonTable(ParseState *pstate, JsonTable *jt)
+ 	jfe->on_error = jt->on_error;
+ 	jfe->location = jt->location;
+ 	tf->docexpr = transformExpr(pstate, (Node *) jfe, EXPR_KIND_FROM_FUNCTION);
++	assign_expr_collations(pstate, tf->docexpr);
+ 
+ 	/*
+ 	 * Create a JsonTablePlan that will generate row pattern that becomes
+diff --git a/src/test/regress/expected/sqljson_jsontable.out b/src/test/regress/expected/sqljson_jsontable.out
+index ae64dbe..acdca93 100644
+--- a/src/test/regress/expected/sqljson_jsontable.out
++++ b/src/test/regress/expected/sqljson_jsontable.out
+@@ -1926,3 +1926,32 @@ CREATE OR REPLACE VIEW public.json_table_view_on_empty AS
+             ) ERROR ON ERROR
+         )
+ DROP VIEW json_table_view_on_empty;
++-- Collations must be assigned in the context item and PASSING arguments
++SELECT * FROM JSON_TABLE(jsonb_build_object('k', ROW(1, 2) < ROW(3, 4)), '$'
++	COLUMNS (a bool PATH '$.k'));
++ a 
++---
++ t
++(1 row)
++
++SELECT * FROM JSON_TABLE(jsonb_build_object('k', 'a' < 'b' COLLATE "C"), '$'
++	COLUMNS (a bool PATH '$.k'));
++ a 
++---
++ t
++(1 row)
++
++SELECT * FROM JSON_TABLE(jsonb '{}', '$' PASSING 'a' < 'b' COLLATE "C" AS x
++	COLUMNS (a bool PATH '$x'));
++ a 
++---
++ t
++(1 row)
++
++SELECT * FROM JSON_TABLE(jsonb '{}', '$' PASSING ROW(1, 2) < ROW(3, 4) AS x
++	COLUMNS (a bool PATH '$x'));
++ a 
++---
++ t
++(1 row)
++
+diff --git a/src/test/regress/sql/sqljson_jsontable.sql b/src/test/regress/sql/sqljson_jsontable.sql
+index 2a33aae..7d9d6e8 100644
+--- a/src/test/regress/sql/sqljson_jsontable.sql
++++ b/src/test/regress/sql/sqljson_jsontable.sql
+@@ -1052,3 +1052,13 @@ SELECT * FROM JSON_TABLE(jsonb '{}', '$' AS p0
+ \sv json_table_view_on_empty;
+ 
+ DROP VIEW json_table_view_on_empty;
++
++-- Collations must be assigned in the context item and PASSING arguments
++SELECT * FROM JSON_TABLE(jsonb_build_object('k', ROW(1, 2) < ROW(3, 4)), '$'
++	COLUMNS (a bool PATH '$.k'));
++SELECT * FROM JSON_TABLE(jsonb_build_object('k', 'a' < 'b' COLLATE "C"), '$'
++	COLUMNS (a bool PATH '$.k'));
++SELECT * FROM JSON_TABLE(jsonb '{}', '$' PASSING 'a' < 'b' COLLATE "C" AS x
++	COLUMNS (a bool PATH '$x'));
++SELECT * FROM JSON_TABLE(jsonb '{}', '$' PASSING ROW(1, 2) < ROW(3, 4) AS x
++	COLUMNS (a bool PATH '$x'));
+-- 
+2.43.0
+

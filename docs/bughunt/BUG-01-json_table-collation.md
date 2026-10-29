@@ -1,6 +1,7 @@
 # BUG-01: JSON_TABLE does not assign collations to its context item and PASSING arguments
 
-Status: **found, reproduced, root-caused, patch written, regression tests pass. Not yet filed.**
+Status: **reported upstream as BUG #19768 (official bug form). v1 patch
+prepared and verified; to be attached to the #19768 email thread.**
 
 Found 16 Oct 2026 by the grammar campaign (`configs/cloud_hunt.yaml`, trial 0,
 test case 13306, about 600 s into the run), as an assertion failure on the
@@ -14,10 +15,19 @@ assert-enabled master build.
 | 18.6 release | same | **wrong result**: `ROW(1, 2) < ROW(3, 4)` evaluates to `false` |
 | 18.6 release | text comparison in the context item or PASSING, even with explicit `COLLATE "C"` | spurious `ERROR: could not determine which collation to use for string comparison` |
 | master (cassert) | row comparison in PASSING | server crash (same assertion) |
+| 17.11 / 18.6 release | row comparison in PASSING | `t` (correct by chance; the expression still has no collation) |
+| 17.11 release | context item and text cases above | same wrong result and collation errors as 18.6 |
 
-Affected: every branch with JSON_TABLE (17, 18, 19 beta, master). REL_17 has
-the same code (`parse_jsontable.c`: `tf->docexpr = transformExpr(...)` with no
-`assign_expr_collations`).
+The wrong row-comparison result is "the result for equal rows": with an empty
+`inputcollids` the executor compares zero columns, so `<`/`>` give `false` and
+`<=`/`>=` give `true` whatever the values (also with table columns, not only
+constants).
+
+Affected: every branch with JSON_TABLE (17, 18, 19 beta, master). Reproduced
+on 17.11 (`REL_17_STABLE` `e4cc408`), 18.6 (`REL_18_STABLE` `92d47d5`) and
+master `26bd08fb`, all built from source; script
+[`evidence/bug01-repro.sql`](evidence/bug01-repro.sql), output
+[`evidence/bug01-v1-repro-results.txt`](evidence/bug01-v1-repro-results.txt).
 
 ## Minimal reproducer
 
@@ -65,20 +75,37 @@ copied, so the copies are collated too):
 +	assign_expr_collations(pstate, tf->docexpr);
 ```
 
-Patch with regression tests: [`0001-Assign-collations-to-JSON_TABLE-s-context-item-and-P.patch`](0001-Assign-collations-to-JSON_TABLE-s-context-item-and-P.patch)
-(against master `26bd08fb`). Checked: the new tests fail on unpatched 18.6
-(wrong result and collation errors) and pass with the patch; the SQL/JSON,
-json, jsonb, jsonpath and collate regression suites pass.
+**Patch to send:** [`v1-0001-Assign-collations-to-JSON_TABLE-s-context-item-an.patch`](v1-0001-Assign-collations-to-JSON_TABLE-s-context-item-an.patch)
+(author Venu Kummari <venu2805k@gmail.com>, against master `26bd08fb`,
+`Bug: #19768` trailer). Its code and tests are byte-identical to the earlier
+[`0001-...patch`](0001-Assign-collations-to-JSON_TABLE-s-context-item-and-P.patch),
+which is kept for history; v1 only changes the author line and makes the
+commit message precise (zero-column comparison returns the equal-rows result,
+not always false) and adds the bug number.
 
-## How to file it (to do)
+Checks run on the v1 commit (16 Oct 2026):
 
-1. Bug report: https://www.postgresql.org/account/submitbug/ (needs a free
-   community account), or mail `pgsql-bugs@lists.postgresql.org`. Paste the
-   "Minimal reproducer" and "Symptoms" sections, the versions, and the root
-   cause in two sentences.
-2. Patch: reply in the same thread with the `.patch` file attached (or post to
-   `pgsql-hackers` referencing the bug number).
-3. Record the bug number, thread URL, and any fix commit here.
+| Check | Result |
+|---|---|
+| `git am` onto clean upstream master `26bd08fb` | applies; resulting tree identical to the tested tree (`57b481dd`) |
+| `make check` (core regression suite, cassert build) | **All 239 tests passed**, incl. `sqljson_jsontable` and `collate`: [`evidence/bug01-v1-make-check.log`](evidence/bug01-v1-make-check.log) |
+| `pgindent --diff src/backend/parser/parse_jsontable.c` | no changes (tool confirmed working on a mis-indented copy) |
+| `git diff --check` | no whitespace errors |
+| Reproducers: unpatched 17.11 / 18.6, patched master | bug on 17.11 and 18.6; all four `t` with the patch |
+| Code hunk on `REL_18_STABLE` / `REL_17_STABLE` | applies; the test-file hunk needs context adjustment (left to the committer's back-patch) |
+
+Not run: `make check-world`, and the full regression suites on 17/18 with the
+fix back-ported.
+
+## Filing status
+
+1. Bug report: **BUG #19768**, filed through
+   https://www.postgresql.org/account/submitbug/.
+2. Patch: reply to the #19768 thread on `pgsql-bugs` (plain text, inline
+   reply) with the v1 patch attached. A revised patch is sent as `v2-0001-...`
+   in the same thread.
+3. To record here: thread URL (message-id), reviewers' comments, fix commit
+   hash and branches.
 
 ## Draft report text
 
