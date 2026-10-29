@@ -35,7 +35,7 @@
   \end{tcolorbox}}
 
 \title{LLM-Guided Grammar-Aware Fuzzing of PostgreSQL}
-\subtitle{CS-5187 Term Project A3 --- Progress meeting 2}
+\subtitle{CS-5187 Term Project A3 --- Progress meeting 2: results}
 \author{Venu \and Bhuvan \and Gowtham}
 \date{26--30 October 2026}
 
@@ -50,22 +50,23 @@
 \textbf{Done since meeting 1}
 \begin{itemize}\small
   \item Every item of the meeting-1 plan implemented and tested on real \pg master
-  \item \alert{2 previously unknown \pg bugs}, root-caused, with patches
+  \item \alert{4 previously unknown \pg bugs}: 2 confirmed by committers, 1 fixed on master
   \item 12 metamorphic oracle kinds on derivation trees, 18 plan variants, cross-version
   \item Triage: tree + token reduction, localization, upstream drafts
   \item Gated LLM arm; 23-bug re-injected benchmark
-  \item Paper drafted (all five graded parts)
+  \item Campaigns finished (RQ1--RQ4); paper at 12 pages with real numbers
 \end{itemize}
 \column{0.5\textwidth}
 \textbf{Numbers}
 \begin{itemize}\small
-  \item 99.5--99.7\% valid statements
-  \item 20/23 benchmark bugs observable, only 9 by crashes
-  \item 3{,}379 checks of new oracle kinds: 0 false positives
-  \item Tree reduction: 116 $\rightarrow$ \alert{79} tokens
-  \item 138 unit tests, $\approx$10.5k lines of Python
+  \item Grammar: 36.7\% of lines vs 22.2\% random; 99\% valid vs 26\%
+  \item Oracles double plan shapes (20k $\rightarrow$ 34k)
+  \item 93 candidates triaged: 7 real, 15 duplicates, precision 0.16 (0.37 with duplicates)
+  \item Re-injected bugs: at most 2 of 20 in 1 h
+  \item LLM: +5 features, no coverage gain
+  \item 148 unit tests, $\approx$10.5k lines of Python
 \end{itemize}
-\textbf{Next}: overnight campaigns (RQ1--RQ4), file both bugs upstream
+\textbf{Next}: paper, final slides, verify open candidates
 \end{columns}
 \end{frame}
 
@@ -111,8 +112,7 @@ FROM (VALUES (NULL::int), (1)) v(c);
     \texttt{expr<int4range>} node: \texttt{e} $\equiv$ \texttt{(SELECT e)}
 \end{itemize}
 \column{0.42\textwidth}
-\placeholder{\linewidth}{4.6cm}{Screenshot: \texttt{psql} on 18.6 and master
-running this query, plus \texttt{EXPLAIN VERBOSE} showing \texttt{Output: true}}{docs/bughunt/BUG-02-*.md}
+\includegraphics[width=\linewidth,height=5.2cm,keepaspectratio]{../figs/shots/A3_bug02.png}
 \end{columns}
 \end{frame}
 
@@ -129,8 +129,8 @@ Triage & reproduce $\times3$, tree + token reduction, localization, upstream dra
 LLM loop & miner, cached prompt, gate, diff coverage, repair, ledger, rewrite gate & \textcolor{good}{done} \\
 Benchmark (RQ3) & 23 reverted fixes; fixed / solo / injected servers; attribution & \textcolor{good}{done} \\
 Stretch goals & plan-shape guidance, bandit weights, data profile, RLS and CERT oracles & \textcolor{good}{done} \\
-Campaigns & RQ1--RQ4 configs; smoke runs pass & \textcolor{orange!80!black}{running next} \\
-Upstream & BUG-01, BUG-02 patches with regression tests & \textcolor{orange!80!black}{filing this week} \\
+Campaigns & RQ1--RQ4: 5 trials $\times$ 1 h per arm, two machines; LLM arm with Gemini Flash (no Claude key) & \textcolor{good}{done} \\
+Upstream & 4 bugs filed or confirmed (\#19768, \#19793, \#19802, \#19803) & \textcolor{good}{done} \\
 \bottomrule
 \end{tabularx}
 \end{frame}
@@ -264,8 +264,7 @@ tree first, then tokens & \alert{\textbf{79}} & 555 \\
     $\rightarrow$ support function (correct)
 \end{itemize}
 \column{0.48\textwidth}
-\placeholder{\linewidth}{3.6cm}{Screenshot: \texttt{pgfuzz triage} output and
-the generated \texttt{upstream\_report.txt}}{results/triage/<signature>/}
+\includegraphics[width=\linewidth,height=4.2cm,keepaspectratio]{../figs/shots/A3_triage.png}
 \end{columns}
 \end{frame}
 
@@ -329,31 +328,11 @@ not observable (excluded) & 3 \\
 \bottomrule
 \end{tabular}
 \vspace{2mm}
-\placeholder{\linewidth}{2.4cm}{Screenshot: \texttt{bench verify} table (fixed / solo / injected per bug)}{src/bench/reinjected/verify.json}
+\includegraphics[width=\linewidth,height=2.6cm,keepaspectratio]{../figs/shots/A2_bench_verify.png}
 \end{columns}
 \end{frame}
 
-\begin{frame}{Smoke run 2: 15 min per arm on the injected server}
-\small
-\begin{tabular}{lrrrrr}
-\toprule
-Arm & Test cases & Valid & Features & Plan shapes & Bench bugs \\
-\midrule
-Random/Mutation & 174{,}104 & 26.3\% & 17 & 22 & 0 \\
-Grammar & 16{,}841 & 99.6\% & 101 & 5{,}416 & 0 \\
-Grammar+Oracles & 15{,}861 & 99.7\% & 101 & 5{,}968 & \alert{1} (158 s) \\
-+LLM (no fragments yet) & 15{,}800 & 99.7\% & 101 & 5{,}937 & \alert{1} (160 s) \\
-\bottomrule
-\end{tabular}
 
-\medskip
-\begin{itemize}
-  \item 10$\times$ more test cases do not buy reach: random reaches 17 features
-  \item \texttt{rb-dfcf6fa7} found only with oracles + plan guidance; attribution by replay
-    separated it from a bug with the same message
-  \item One trial each: this shows the pipeline works, \emph{not} a significant difference
-\end{itemize}
-\end{frame}
 
 \begin{frame}{Component checks on master (single runs)}
 \footnotesize
@@ -373,39 +352,39 @@ LLM fragment gate & valid fragment 251/251 accepted; invalid rejected with serve
 \end{tabularx}
 \end{frame}
 
-\begin{frame}{Precision ledger (RQ2, claim 2)}
+\begin{frame}{Precision ledger (RQ2): 93 triaged candidates}
 \begin{columns}[T]
-\column{0.55\textwidth}
-\footnotesize
-\begin{tabular}{lrrrr}
+\column{0.6\textwidth}
+\scriptsize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrrrrr}
 \toprule
-Oracle & Cand. & Real & FP & After fixes \\
+Oracle & Cand. & Real & Dup. & FP & Flaky & Open \\
 \midrule
-assertion & 2 & 1 & 1 & 1.00 \\
-crash & 1 & 0 & 1 & -- \\
-cross-version & 3 & 0 & 2 & -- \\
-internal error & 2 & 1 & 0 & 1.00 \\
-mm: expr & 1 & 1 & 0 & 1.00 \\
-mm: tlp\_having & 4 & 0 & 4 & -- \\
-plan-variant & 5 & 0 & 5 & -- \\
+assertion & 15 & 3 & 10 & 1 & 1 & 0 \\
+cross-version & 25 & 0 & 0 & 7 & 18 & 0 \\
+internal error & 4 & 2 & 1 & 0 & 1 & 0 \\
+mm: expr & 3 & 1 & 1 & 1 & 0 & 0 \\
+mm: rls & 5 & 0 & 0 & 0 & 0 & 5 \\
+mm: tlp\_having & 4 & 0 & 0 & 4 & 0 & 0 \\
+mm: tlp\_where & 4 & 1 & 1 & 2 & 0 & 0 \\
+plan-variant & 32 & 0 & 2 & 21 & 8 & 1 \\
 \midrule
-all & 18 & 3 & 13 & 1.00 \\
+all (+1 crash) & 93 & 7 & 15 & 37 & 28 & 6 \\
 \bottomrule
 \end{tabular}
 
-\scriptsize 2 flaky. Raw precision 0.19, logged on purpose.
-\column{0.43\textwidth}
+\scriptsize Precision $7/44=0.16$; $22/59=0.37$ if duplicates count. Not re-measured after the fixes.
+\column{0.37\textwidth}
 \small
-\textbf{6 false-positive classes, all fixed + tested}
+\textbf{10 false-positive classes, all fixed + tested}
 \begin{itemize}\scriptsize
-  \item \texttt{ARRAY(SELECT)} without \texttt{ORDER BY}
-  \item TLP-HAVING without \texttt{GROUP BY}
-  \item numeric scale under \texttt{DISTINCT}
-  \item clock in seed data across versions
-  \item our PoC replay crashed a shared server $\rightarrow$ PID check
-  \item intended \texttt{corr} change on master
+  \item 6 before the campaigns (\texttt{ARRAY(SELECT)}, TLP-HAVING, numeric scale, seed clock, PoC PID, intended \texttt{corr} change)
+  \item \alert{Equal intervals with different text: 16}
+  \item \texttt{ORDER BY NULL} in ordered aggregates: 2
+  \item cross-version state divergence (\texttt{IGNORE NULLS}): 5
+  \item LLM rewrite changing the collation: 1
 \end{itemize}
-\alert{Lesson: oracle precision, not generator power, is the bottleneck.}
+\alert{Oracle precision, not generator power, is the bottleneck.}
 \end{columns}
 \end{frame}
 
@@ -418,7 +397,6 @@ all & 18 & 3 & 13 & 1.00 \\
   \item Found by the grammar campaign (assertion, \texttt{execExpr.c:2078})
   \item 18.6: \texttt{ROW(1,2) < ROW(3,4)} in the context item returns \alert{false}
   \item Missing \texttt{assign\_expr\_collations()} in \texttt{parse\_jsontable.c}
-  \item One-line patch + regression tests; 17, 18, master
 \end{itemize}
 \column{0.5\textwidth}
 \textbf{BUG-02 --- range containment w/ NULL}
@@ -426,11 +404,21 @@ all & 18 & 3 & 13 & 1.00 \\
 \begin{itemize}
   \item Found by \texttt{expr:scalar\_sub} rewrite
   \item \texttt{find\_simplified\_clause()} folds to a constant
-  \item Patch: simplify only if the element is provably non-null
-  \item \texttt{make check} passes; 17, 18, master
 \end{itemize}
 \end{columns}
-\vspace{-1mm}\placeholder{\textwidth}{1.9cm}{Upstream status: pgsql-bugs numbers + thread links for BUG-01 and BUG-02}{postgresql.org/list/pgsql-bugs}
+\vspace{-1mm}\scriptsize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{llll}
+\toprule
+Bug & Found by & Upstream & Status \\
+\midrule
+BUG-01 JSON\_TABLE collations & grammar & \#19768 & filed \\
+BUG-02 range containment NULL & \texttt{(SELECT e)} rewrite & \#19793 & filed, patch \\
+MERGE ``SubPlan with no parent'' & grammar & \#19802 & \alert{confirmed, patch posted} \\
+Parallel Append assertion & LLM fragments + TLP & \#19803 & \alert{confirmed, fixed on master} \\
+\bottomrule
+\end{tabular}
+
+\scriptsize Rediscovered after others: \#19800 (self-join elimination, plan-variant oracle), \#19772, \#19784, \#19771.
 \end{frame}
 
 \begin{frame}{Experiment design (RQ1--RQ4)}
@@ -454,21 +442,67 @@ all & 18 & 3 & 13 & 1.00 \\
 \end{columns}
 \end{frame}
 
-\begin{frame}{RQ1 results (to fill after the campaign)}
+\begin{frame}{RQ1: reach (median of 5 one-hour trials)}
+\scriptsize
+\begin{tabular}{lrrrrrr}
+\toprule
+Arm & Valid & Lines & Branches & Features & Plan shapes & Tests \\
+\midrule
+Random & 26.0\% & 22.2\% & 15.1\% & 23 & 43 & 1{,}074k \\
+Grammar & 99.3\% & 36.7\% & 27.1\% & 101 & 20{,}279 & 71k \\
+Grammar+Oracles & 96.3\% & 36.2\% & 26.7\% & 101 & 34{,}313 & 59k \\
+\quad no bandit & 99.4\% & 36.2\% & 26.8\% & 101 & 23{,}997 & 65k \\
++LLM fragments & 95.5\% & 35.7\% & 26.5\% & 104 & 25{,}972 & 48k \\
++LLM seeds & 98.3\% & 35.6\% & 26.4\% & 106 & 29{,}274 & 64k \\
++LLM both & 95.3\% & 35.7\% & 26.4\% & 106 & 26{,}375 & 47k \\
+\bottomrule
+\end{tabular}
+
+\medskip
 \begin{columns}[T]
 \column{0.5\textwidth}
-\placeholder{\linewidth}{5.2cm}{Plot: backend line coverage over time, median and IQR band per arm}{pgfuzz report ../results/rq1 $\rightarrow$ plots/}
+\includegraphics[width=\linewidth]{../figs/rq1_lines.png}
 \column{0.5\textwidth}
-\placeholder{\linewidth}{5.2cm}{Table: validity, coverage, features, plan shapes per arm with $p$ and $\hat A_{12}$}{results/rq1/report.md}
+\begin{itemize}
+  \item Grammar vs random: $\hat A_{12}=1.00$, $p=0.008$, though random runs 15$\times$ more tests
+  \item Oracles: no line gain ($p=0.42$), plan shapes 20k $\rightarrow$ 34k ($\hat A_{12}=0.84$, $p=0.095$)
+  \item Oracles cost throughput: 67 $\rightarrow$ 40 statements/s
+\end{itemize}
 \end{columns}
 \end{frame}
 
-\begin{frame}{RQ3 and RQ4 results (to fill after the campaigns)}
+\begin{frame}{RQ3 and RQ4}
 \begin{columns}[T]
-\column{0.5\textwidth}
-\placeholder{\linewidth}{5.2cm}{Table: bugs found per arm (out of 20), time to first detection per bug}{pgfuzz bench attribute $\rightarrow$ table\_rq3.tex}
-\column{0.5\textwidth}
-\placeholder{\linewidth}{5.2cm}{LLM ledger: fragments accepted/rejected, repair rounds, diff coverage with/without, tokens and \$}{pgfuzz llm report}
+\column{0.47\textwidth}
+\textbf{RQ3: bugs found (of 20), 5 trials $\times$ 1 h}
+\tiny\setlength{\tabcolsep}{2pt}
+\begin{tabular}{lrrrr}
+\toprule
+ & Rand. & Gram. & +Orac. & +LLM \\
+\midrule
+\texttt{dfcf6fa7} (error) & 0/5 & 5/5 & 4/5 & 5/5 \\
+\texttt{11b56ee2} (assert.) & 0/5 & 0/5 & 1/5 & 1/5 \\
+wrong result (8) & 0 & 0 & 0 & 0 \\
+\midrule
+bugs found & 0 & 1 & 2 & 2 \\
+\bottomrule
+\end{tabular}
+
+\scriptsize
+\begin{itemize}
+  \item The benchmark does \emph{not} show an oracle advantage; that rests on RQ2
+  \item 1 h $\times$ 5 trials is short for bugs needing feature combinations
+\end{itemize}
+\column{0.51\textwidth}
+\textbf{RQ4: LLM (Gemini Flash, free tier)}
+\small
+\begin{itemize}
+  \item 10 commits, 4 accepted (40\%), 25 rounds; 16 rejected on server validity
+  \item +5 SQL features ($p=0.004$), \alert{no} coverage gain
+  \item 328k in / 171k out tokens, 0 USD
+  \item 7/7 rewrites passed the gate; one changed the collation $\rightarrow$ false positive; gate now rejects \texttt{COLLATE}
+  \item Fragments-only arm found \#19803
+\end{itemize}
 \end{columns}
 \end{frame}
 
@@ -480,11 +514,11 @@ all & 18 & 3 & 13 & 1.00 \\
 \begin{tikzpicture}[font=\scriptsize]
 \draw[very thick,gray] (0,0) -- (12.5,0);
 \foreach \x/\top/\bot/\c in {
-  0/{24--26 Oct}/{builds,\\LLM extension}/accent,
-  2.5/{26--27 Oct}/{RQ3 campaign\\overnight}/accent,
-  5.0/{27--28 Oct}/{RQ1/2/4 campaign\\overnight}/accent,
-  7.5/{28--30 Oct}/{triage all;\\\textbf{file BUG-01/02}}/warn,
-  10.0/{2--6 Nov}/{meeting 3:\\all RQ tables}/good,
+  0/{24--26 Oct}/{builds,\\LLM extension}/good,
+  2.5/{26--28 Oct}/{RQ1--RQ4\\campaigns done}/good,
+  5.0/{29 Oct}/{triage all,\\paper numbers}/good,
+  7.5/{30 Oct--5 Nov}/{verify open cases,\\final slides}/warn,
+  10.0/{2--6 Nov}/{meeting 3}/accent,
   12.5/{12 / 13 Nov}/{presentation /\\paper + repo}/good}
 {
   \fill[\c] (\x,0) circle (4pt);
@@ -495,9 +529,8 @@ all & 18 & 3 & 13 & 1.00 \\
 \end{center}
 \small
 \begin{itemize}
-  \item Exact commands and expected times in \texttt{docs/EXECUTION\_PLAN.md}
-    (phases 0--5, $\approx$16 h of machine time, $\approx$1.5 h of ours)
-  \item Campaigns resume if interrupted
+  \item Open: 5 RLS candidates and one \texttt{corr()} case to verify; authorship of fix 776df8a6
+  \item Results and deviations: \texttt{docs/RESULTS\_ANALYSIS.md}
 \end{itemize}
 \end{frame}
 
@@ -507,18 +540,17 @@ all & 18 & 3 & 13 & 1.00 \\
 \textbf{Risks and fallbacks}
 \small
 \begin{itemize}
-  \item New false-positive classes in long runs $\rightarrow$ triage; they are RQ2 data
-  \item LLM API unavailable $\rightarrow$ manual mode, replayed responses
-  \item No upstream reply by 13 Nov $\rightarrow$ report filing, reproducer, patch
-  \item 5 trials may not reach $p<0.05$ $\rightarrow$ effect sizes + CIs; more trials if time
+  \item Happened: 4 new false-positive classes; fixed after the runs, not re-measured
+  \item Happened: no Claude key, LLM arm ran on Gemini Flash, 10 commits (quota)
+  \item 5 trials rarely reach $p<0.05$ $\rightarrow$ we report effect sizes
+  \item Remaining upstream replies after 13 Nov $\rightarrow$ report status as of the deadline
 \end{itemize}
 \column{0.5\textwidth}
 \textbf{Questions for you}
 \small
 \begin{itemize}
-  \item Is 5 trials $\times$ 1 h per arm acceptable, or should we cut arms for 10 trials?
-  \item Does a filed bug with a patch, under review by 13 Nov, count towards the top band?
-  \item Paper is $\approx$1 page over 12: cut related work or component checks?
+  \item Do two committer-confirmed bugs (one fixed) meet the top band even though the benchmark shows no oracle advantage?
+  \item Is it acceptable that precision after the fixes is argued from reproducers, not a new campaign?
 \end{itemize}
 \end{columns}
 \end{frame}
@@ -526,11 +558,11 @@ all & 18 & 3 & 13 & 1.00 \\
 \begin{frame}{Live demo (backup screenshots)}
 \begin{columns}[T]
 \column{0.31\textwidth}
-\placeholder{\linewidth}{4.2cm}{\texttt{pgfuzz sample --execute}: generated SQL and 99.5\% validity}{terminal}
+\includegraphics[width=\linewidth,height=4.4cm,keepaspectratio]{../figs/shots/A3_sample.png}
 \column{0.31\textwidth}
-\placeholder{\linewidth}{4.2cm}{\texttt{pgfuzz triage}: 590 $\rightarrow$ 79 tokens, report}{docs/evidence/}
+\includegraphics[width=\linewidth,height=4.4cm,keepaspectratio]{../figs/shots/B4_triage.png}
 \column{0.31\textwidth}
-\placeholder{\linewidth}{4.2cm}{RQ3 smoke report: medians, $\hat A_{12}$, time to first bug}{rq3\_smoke2/report.md}
+\includegraphics[width=\linewidth,height=4.4cm,keepaspectratio]{../figs/shots/A5_attribute.png}
 \end{columns}
 \end{frame}
 

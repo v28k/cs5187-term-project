@@ -118,6 +118,12 @@ function placeholder(s, x, y, w, h, what, source) {
   ], { x: x + 0.2, y, w: w - 0.4, h, align: "center", valign: "middle", isTextBox: true, objectName: uid("placeholder-text") });
 }
 
+// screenshot fitted into a box (aspect = width / height of the image)
+function shot(s, name, x, y, w, h, ar) {
+  const nw = w / h > ar ? h * ar : w, nh = w / h > ar ? h : w / ar;
+  s.addImage({ path: path.join(__dirname, "..", "figs", "shots", name), x: x + (w - nw) / 2, y, w: nw, h: nh, objectName: "shot-" + name.replace(".png", "") });
+}
+
 function code(s, lines, x, y, w, h, fontSize = 13) {
   s.addText(lines.join("\n"), { x, y, w, h, fontFace: MONO, fontSize, color: C.text1, fill: { color: C.background2 }, valign: "top", margin: 0.12, isTextBox: true, objectName: uid("code") });
 }
@@ -151,21 +157,22 @@ pres.addSection({ title: "Overview" });
 // ---------------------------------------------------------------- 2 status
 {
   const s = content("Status at a glance", "Overview",
-    "Lead with the two bugs. Everything planned at meeting 1 is implemented; the remaining work is running the long campaigns and filing upstream.");
-  stat(s, MX, 1.45, 2.8, "2", "previously unknown PostgreSQL bugs, with patches", C.accent3);
-  stat(s, MX + 3.1, 1.45, 2.8, "99.5%", "valid statements (typed grammar)");
-  stat(s, MX + 6.2, 1.45, 2.8, "20 / 23", "re-injected bugs observable; only 9 by crashes");
-  stat(s, MX + 9.3, 1.45, 2.8, "0", "false positives in 3,379 checks of new oracle kinds", C.accent2);
+    "Lead with the four bugs and the honest results. Campaigns are done; remaining work is verification and packaging.");
+  stat(s, MX, 1.45, 2.8, "4", "previously unknown PostgreSQL bugs; 2 confirmed by committers, 1 fixed", C.accent3);
+  stat(s, MX + 3.1, 1.45, 2.8, "36.7%", "of backend lines (random mutation: 22.2%)");
+  stat(s, MX + 6.2, 1.45, 2.8, "0.16", "oracle precision, 93 candidates (0.37 counting duplicates)");
+  stat(s, MX + 9.3, 1.45, 2.8, "2 / 20", "re-injected bugs found by the best arm in 1 h", C.accent2);
   card(s, MX, 3.3, 7.3, 3.4, "Done since meeting 1", [
     "Every meeting-1 plan item implemented and tested on PostgreSQL master",
     "12 metamorphic oracle kinds on derivation trees, 18 plan variants, cross-version",
-    "Triage: tree + token reduction (116 → 79 tokens), localization, upstream drafts",
-    "Gated LLM arm; 23-bug re-injected benchmark; paper drafted (all five parts)",
-  ], { size: 18 });
+    "Campaigns finished: RQ1–RQ4, 5 trials × 1 h per arm, on two machines",
+    "LLM arm ran on Gemini Flash (no Claude key): 10 commits, +5 features, no coverage gain",
+    "Paper at 12 pages with real numbers; 148 unit tests",
+  ], { size: 15 });
   card(s, MX + 7.6, 3.3, 4.5, 3.4, "Next", [
-    "Overnight campaigns for RQ1–RQ4",
-    "File BUG-01 and BUG-02 upstream",
-    "Fill result tables in the paper",
+    "Verify the open candidates (5 RLS, 1 corr)",
+    "Final slides and artifact package",
+    "Upstream follow-up",
   ], { size: 18 });
 }
 
@@ -210,7 +217,7 @@ pres.addSection({ title: "Overview" });
     "Silent wrong result in released PostgreSQL 17 and 18",
     "Found because the oracle knew '(,)'::int4range is one typed expr<int4range> node, so e ≡ (SELECT e)",
   ], MX, 3.9, 7.0, 2.8, 18);
-  placeholder(s, 8.0, 1.45, 4.73, 5.2, "Screenshot: psql on 18.6 and master running this query, plus EXPLAIN VERBOSE showing \"Output: true\"", "docs/bughunt/BUG-02-*.md");
+  shot(s, "A3_bug02.png", 8.0, 1.45, 4.73, 5.2, 1.3411078717201166);
 }
 
 // ---------------------------------------------------------------- 5 changes
@@ -317,7 +324,7 @@ pres.addSection({ title: "The system" });
   text(s, [{ text: "Localization: ", options: { bold: true } },
     { text: "BUG-02 → \"not toggled by planner settings\" → a support function, which is the real cause." }],
   MX, 4.6, 6.2, 1.2, { fontSize: 18 });
-  placeholder(s, 7.2, 2.85, 5.53, 3.8, "Screenshot: pgfuzz triage output and the generated upstream_report.txt", "results/triage/<signature>/");
+  shot(s, "A3_triage.png", 7.2, 2.85, 5.53, 3.8, 1.8416833667334669);
 }
 {
   const s = content("The LLM arm: the LLM proposes, the server decides", "The system", "e IS TRUE passed 109 sampled checks but is false, not NULL, at NULL: the value probe exists because sampling is not proof.");
@@ -360,23 +367,9 @@ pres.addSection({ title: "Evaluation" });
     ["wrong result", em("8")], ["internal error", "5"], ["assertion", "4"],
     ["missing / wrong error", "3"], ["not observable (excluded)", "3"],
   ], 7.2, 1.45, 5.53, [4.0, 1.53], 16, { rowH: 0.42 });
-  placeholder(s, 7.2, 4.15, 5.53, 2.5, "Screenshot: bench verify table (fixed / solo / injected per bug)", "src/bench/reinjected/verify.json");
+  shot(s, "A2_bench_verify.png", 7.2, 4.15, 5.53, 2.5, 2.143617021276596);
 }
-{
-  const s = content("Smoke run 2: 15 min per arm on the injected server", "Evaluation", "One trial per arm: this shows the pipeline works, not a significant difference.");
-  table(s, [
-    ["Arm", "Test cases", "Valid", "Features", "Plan shapes", "Bench bugs"],
-    ["Random/Mutation", "174,104", "26.3%", "17", "22", "0"],
-    ["Grammar", "16,841", "99.6%", "101", "5,416", "0"],
-    ["Grammar+Oracles", "15,861", "99.7%", "101", "5,968", em("1 (158 s)")],
-    ["+LLM (no fragments yet)", "15,800", "99.7%", "101", "5,937", em("1 (160 s)")],
-  ], MX, 1.45, CW, [3.4, 1.7, 1.5, 1.5, 1.8, 2.23], 17, { rowH: 0.52 });
-  bullets(s, [
-    "10× more test cases do not buy reach: the random arm reaches 17 features",
-    "rb-dfcf6fa7 found only with oracles + plan guidance; replay attribution separated it from a bug with the same message",
-    "One trial each: the pipeline works end to end; this is not a significant difference",
-  ], MX, 4.3, CW, 2.4, 19);
-}
+
 {
   const s = content("Component checks on master (single runs)", "Evaluation", "Each component was measured once on master; the paper has the same table.");
   table(s, [
@@ -392,42 +385,37 @@ pres.addSection({ title: "Evaluation" });
   ], MX, 1.45, CW, [3.9, 8.23], 17, { rowH: 0.55 });
 }
 {
-  const s = content("Precision ledger (RQ2, claim 2)", "Evaluation", "Raw precision is low on purpose: we log every false positive we ever produced. All 13 came from 6 classes, all fixed with tests.");
+  const s = content("Precision ledger (RQ2): 93 triaged candidates", "Evaluation", "Precision 7/44 = 0.16 without duplicates, 22/59 = 0.37 with. Four new classes were fixed after the campaigns and not re-measured.");
+  const b = (t) => ({ text: t, options: { bold: true } });
   table(s, [
-    ["Oracle", "Cand.", "Real", "FP", "After fixes"],
-    ["assertion", "2", "1", "1", "1.00"], ["crash", "1", "0", "1", "–"],
-    ["cross-version", "3", "0", "2", "–"], ["internal error", "2", "1", "0", "1.00"],
-    ["mm: expr", "1", "1", "0", "1.00"], ["mm: tlp_having", "4", "0", "4", "–"],
-    ["plan-variant", "5", "0", "5", "–"],
-    [{ text: "all", options: { bold: true } }, { text: "18", options: { bold: true } }, { text: "3", options: { bold: true } }, { text: "13", options: { bold: true } }, { text: "1.00", options: { bold: true } }],
-  ], MX, 1.45, 6.4, [2.4, 0.95, 0.95, 0.95, 1.15], 16, { rowH: 0.42 });
-  text(s, "2 flaky. Raw precision 0.19, logged on purpose.", MX, 5.4, 6.4, 0.4, { fontSize: 13, color: C.accent5 });
-  card(s, 7.4, 1.45, 5.33, 4.4, "6 false-positive classes, all fixed + tested", [
-    "ARRAY(SELECT) without ORDER BY",
-    "TLP-HAVING without GROUP BY",
-    "numeric scale under DISTINCT",
-    "clock in seed data across versions",
-    "our PoC replay crashed a shared server → PID check",
-    "intended corr change on master",
-  ], { size: 17 });
+    ["Oracle", "Cand.", "Real", "Dup.", "FP", "Flaky", "Open"],
+    ["assertion", "15", "3", "10", "1", "1", "0"], ["cross-version", "25", "0", "0", "7", "18", "0"],
+    ["internal error", "4", "2", "1", "0", "1", "0"], ["mm: expr", "3", "1", "1", "1", "0", "0"],
+    ["mm: rls", "5", "0", "0", "0", "0", "5"], ["mm: tlp_having", "4", "0", "0", "4", "0", "0"],
+    ["mm: tlp_where", "4", "1", "1", "2", "0", "0"], ["plan-variant", "32", "0", "2", "21", "8", "1"],
+    [b("all (+1 crash)"), b("93"), b("7"), b("15"), b("37"), b("28"), b("6")],
+  ], MX, 1.45, 6.6, [2.4, 0.8, 0.7, 0.7, 0.7, 0.7, 0.6], 15, { rowH: 0.42 });
+  card(s, 7.6, 1.45, 5.13, 4.5, "10 false-positive classes, all fixed + tested", [
+    "6 before the campaigns (ARRAY(SELECT), TLP-HAVING, numeric scale, seed clock, PoC PID, intended corr change)",
+    "Equal intervals with different text: 16",
+    "ORDER BY NULL in ordered aggregates: 2",
+    "Cross-version state divergence (IGNORE NULLS): 5",
+    "LLM rewrite that changes the collation: 1",
+  ], { size: 15 });
   text(s, [{ text: "Lesson: ", options: { bold: true } }, { text: "oracle precision, not generator power, is the bottleneck.", options: { color: C.accent1, bold: true } }],
-    7.4, 6.0, 5.33, 0.7, { fontSize: 17 });
+    7.6, 6.1, 5.13, 0.7, { fontSize: 17 });
 }
 {
-  const s = content("Bugs found", "Evaluation", "BUG-01: assertion on master, wrong result on 18.6. BUG-02: wrong result in released 17 and 18. Both have patches and regression tests.");
-  card(s, MX, 1.45, 5.95, 3.55, "BUG-01: JSON_TABLE collations", [
-    "Found by the grammar campaign (assertion, execExpr.c:2078)",
-    "18.6: ROW(1,2) < ROW(3,4) in the context item returns false",
-    "Missing assign_expr_collations() in parse_jsontable.c",
-    "One-line patch + regression tests; affects 17, 18, master",
-  ], { size: 17 });
-  card(s, MX + 6.18, 1.45, 5.95, 3.55, "BUG-02: range containment with NULL", [
-    "Found by the expr:scalar_sub rewrite",
-    "find_simplified_clause() folds the call to a constant",
-    "Patch: simplify only if the element is provably non-null",
-    "make check passes; affects 17, 18, master",
-  ], { size: 17 });
-  placeholder(s, MX, 5.2, CW, 1.5, "Upstream status: pgsql-bugs numbers and thread links for BUG-01 and BUG-02", "postgresql.org/list/pgsql-bugs");
+  const s = content("Bugs found", "Evaluation", "Two confirmed by committers, one fixed on master. Four more were found days after others had reported them: the oracles do work.");
+  table(s, [
+    ["Bug", "Found by", "Upstream", "Status"],
+    ["BUG-01 JSON_TABLE collations", "grammar (10 signatures)", "#19768", "filed"],
+    ["BUG-02 range containment NULL", "(SELECT e) rewrite", "#19793", "filed, patch"],
+    ["MERGE: SubPlan with no parent plan", "grammar", "#19802", good("confirmed, patch posted")],
+    ["Parallel Append assertion", "LLM fragments + TLP", "#19803", good("confirmed, fixed on master")],
+  ], MX, 1.45, CW, [4.2, 3.1, 1.6, 3.23], 17, { rowH: 0.6 });
+  text(s, "Rediscovered after others reported them: #19800 (self-join elimination wrong result, plan-variant oracle, present in 18.6), #19772, #19784, #19771 (fixed upstream).", MX, 4.9, CW, 0.9, { fontSize: 17 });
+  text(s, "Also filed or reported: C-01 dependencies.c assertion, AUDIT-F1 NOT IN anti-join cast, AUDIT-F2 IGNORE NULLS hang, #19766 shm_toc assertion.", MX, 5.8, CW, 0.9, { fontSize: 15, color: C.accent5 });
 }
 {
   const s = content("Experiment design (RQ1–RQ4)", "Evaluation", "Arms differ only in the generator; everything else is shared and paired by seed.");
@@ -438,21 +426,49 @@ pres.addSection({ title: "Evaluation" });
    ["RQ4 LLM", "what fragments add (diff coverage, ablation) and what they cost"]]
     .forEach(([h, b], i) => card(s, MX + i * (cw + 0.3), 1.45, cw, 2.0, h, b, { size: 16 }));
   bullets(s, [
-    "RQ1: 7 arms (incl. no-bandit and LLM ablations) × 5 trials × 1 h on a gcov build",
-    "RQ3: 4 arms × 5 trials × 1 h, injected server + 18.6 reference",
+    "RQ1: 7 arms (incl. no-bandit and LLM ablations) × 5 trials × 1 h on a gcov build (machine B)",
+    "RQ3: 4 arms × 5 trials × 1 h, injected server + 18.6 reference (machine A)",
     "Paired seeds, same oracles and budget; one commit (26bd08fb) for everything",
     "Statistics: medians, IQR, bootstrap 95% CI, Mann–Whitney U, Vargha–Delaney Â12",
   ], MX, 3.75, CW, 3.0, 19);
 }
 {
-  const s = content("RQ1 results (to fill after the campaign)", "Evaluation", "Replace both boxes with the report output after Phase 3.");
-  placeholder(s, MX, 1.45, 5.9, 5.2, "Plot: backend line coverage over time, median and IQR band per arm", "pgfuzz report ../results/rq1 → plots/");
-  placeholder(s, MX + 6.23, 1.45, 5.9, 5.2, "Table: validity, coverage, features, plan shapes per arm, with p and Â12", "results/rq1/report.md");
+  const s = content("RQ1: reach (median of 5 one-hour trials)", "Evaluation", "Grammar vs random is large on every metric. The oracles do not add coverage but double the plan shapes. The LLM adds features, not coverage.");
+  table(s, [
+    ["Arm", "Valid", "Lines", "Branches", "Features", "Plan shapes", "Tests"],
+    ["Random", "26.0%", "22.2%", "15.1%", "23", "43", "1,074k"],
+    ["Grammar", "99.3%", "36.7%", "27.1%", "101", "20,279", "71k"],
+    ["Grammar+Oracles", "96.3%", "36.2%", "26.7%", "101", em("34,313"), "59k"],
+    ["  no bandit", "99.4%", "36.2%", "26.8%", "101", "23,997", "65k"],
+    ["+LLM fragments", "95.5%", "35.7%", "26.5%", "104", "25,972", "48k"],
+    ["+LLM seeds", "98.3%", "35.6%", "26.4%", "106", "29,274", "64k"],
+    ["+LLM both", "95.3%", "35.7%", "26.4%", "106", "26,375", "47k"],
+  ], MX, 1.4, CW, [3.0, 1.4, 1.4, 1.5, 1.5, 1.9, 1.43], 14, { rowH: 0.36 });
+  s.addImage({ path: path.join(__dirname, "..", "figs", "rq1_lines.png"), x: MX, y: 4.5, w: 3.4, h: 2.4, objectName: "figure-rq1-lines" });
+  bullets(s, [
+    "Grammar vs random: Â12 = 1.00, p = 0.008, though random runs 15× more tests",
+    "Oracles: no line gain (p = 0.42); plan shapes 20k → 34k (Â12 = 0.84, p = 0.095)",
+    "Oracles cost throughput: 67 → 40 statements/s",
+  ], 4.2, 4.55, 8.5, 2.3, 16);
 }
 {
-  const s = content("RQ3 and RQ4 results (to fill after the campaigns)", "Evaluation", "Replace with the attribution table and the LLM ledger report.");
-  placeholder(s, MX, 1.45, 5.9, 5.2, "Table: bugs found per arm (out of 20), time to first detection per bug", "pgfuzz bench attribute → table_rq3.tex");
-  placeholder(s, MX + 6.23, 1.45, 5.9, 5.2, "LLM ledger: fragments accepted / rejected, repair rounds, diff coverage with and without, tokens and $", "pgfuzz llm report");
+  const s = content("RQ3 and RQ4", "Evaluation", "RQ3 does not show an oracle advantage; that claim rests on RQ2. RQ4: the LLM adds features but no coverage, and one accepted rewrite was not an identity.");
+  text(s, "RQ3: bugs found of 20, 5 trials × 1 h", MX, 1.4, 5.9, 0.4, { bold: true, color: C.accent1 });
+  table(s, [
+    ["", "Random", "Gram.", "+Orac.", "+LLM"],
+    ["dfcf6fa7 (internal error)", "0/5", "5/5", "4/5", "5/5"],
+    ["11b56ee2 (assertion)", "0/5", "0/5", "1/5", "1/5"],
+    ["wrong result (8 bugs)", "0", "0", "0", "0"],
+    [{ text: "bugs found", options: { bold: true } }, "0", "1", "2", "2"],
+  ], MX, 1.9, 5.9, [2.7, 0.8, 0.8, 0.8, 0.8], 14, { rowH: 0.45 });
+  bullets(s, ["No wrong-result bug found by any arm", "1 h × 5 trials is short for bugs needing feature combinations"], MX, 4.4, 5.9, 2.2, 16);
+  card(s, 6.9, 1.4, 5.83, 5.3, "RQ4: LLM (Gemini Flash, free tier)", [
+    "10 commits, 4 accepted (40%), 25 rounds; 16 rejected on server validity",
+    "+5 SQL features (p = 0.004), no coverage gain",
+    "328k in / 171k out tokens, 0 USD",
+    "7 of 7 rewrites passed the gate; one changed the collation → false positive; gate now rejects COLLATE",
+    "Fragments-only arm found #19803",
+  ], { size: 16 });
 }
 
 // ---------------------------------------------------------------- plan
@@ -463,9 +479,9 @@ pres.addSection({ title: "Plan" });
 }
 {
   const s = content("Timeline to the deadline", "Plan", "Machine time is mostly overnight; our time is short. Filing upstream happens right after triage.");
-  const pts = [["24–26 Oct", "builds,\nLLM extension", C.accent1], ["26–27 Oct", "RQ3 campaign\novernight", C.accent1],
-    ["27–28 Oct", "RQ1/2/4 campaign\novernight", C.accent1], ["28–30 Oct", "triage all;\nfile BUG-01/02", C.accent3],
-    ["2–6 Nov", "meeting 3:\nall RQ tables", C.accent2], ["12 / 13 Nov", "presentation /\npaper + repo", C.accent2]];
+  const pts = [["24–26 Oct", "builds,\nLLM extension", C.accent2], ["26–28 Oct", "RQ1–RQ4\ncampaigns done", C.accent2],
+    ["29 Oct", "triage all,\npaper numbers", C.accent2], ["30 Oct–5 Nov", "verify open cases,\nfinal slides", C.accent3],
+    ["2–6 Nov", "meeting 3", C.accent1], ["12 / 13 Nov", "presentation /\npaper + repo", C.accent2]];
   const x0 = 1.3, x1 = 12.0, y = 3.1, step = (x1 - x0) / 5;
   s.addShape(pres.shapes.LINE, { x: x0, y, w: x1 - x0, h: 0, line: { color: C.accent5, width: 3 }, objectName: "timeline-line" });
   pts.forEach(([d, l, col], i) => {
@@ -475,30 +491,29 @@ pres.addSection({ title: "Plan" });
     s.addText(l, { x: x - 1.0, y: y + 0.3, w: 2.0, h: 0.9, fontSize: 14, color: C.text1, align: "center", valign: "top", isTextBox: true, objectName: uid("milestone-label") });
   });
   bullets(s, [
-    "Exact commands and expected times in docs/EXECUTION_PLAN.md (phases 0–5, ≈16 h of machine time, ≈1.5 h of ours)",
-    "Campaigns resume if interrupted",
+    "Open: 5 RLS candidates and one corr() case to verify; authorship of fix 776df8a6",
+    "Results and deviations: docs/RESULTS_ANALYSIS.md",
   ], MX, 4.9, CW, 1.6, 18);
 }
 {
   const s = content("Risks, and what we would like feedback on", "Plan", "End with the questions for the professor.");
   card(s, MX, 1.45, 5.95, 5.2, "Risks and fallbacks", [
-    "New false-positive classes in long runs → triage; they are RQ2 data",
-    "LLM API unavailable → manual mode, replayed responses",
-    "No upstream reply by 13 Nov → report the filing, reproducer and patch",
-    "5 trials may not reach p < 0.05 → effect sizes + CIs; more trials if time allows",
+    "Happened: 4 new false-positive classes, fixed after the runs and not re-measured",
+    "Happened: no Claude key, LLM arm on Gemini Flash, 10 commits (quota)",
+    "5 trials rarely reach p < 0.05 → we report effect sizes",
+    "Upstream replies after 13 Nov → report status as of the deadline",
   ], { size: 18 });
   card(s, MX + 6.18, 1.45, 5.95, 5.2, "Questions for you", [
-    "Is 5 trials × 1 h per arm acceptable, or should we cut arms for 10 trials?",
-    "Does a filed bug with a patch, under review by 13 Nov, count towards the top band?",
-    "The paper is ≈1 page over 12: cut related work or the component checks?",
+    "Do two committer-confirmed bugs (one fixed) meet the top band although the benchmark shows no oracle advantage?",
+    "Is it acceptable that precision after the fixes is argued from reproducers, not a new campaign?",
   ], { size: 18, fill: C.background2 });
 }
 {
   const s = content("Live demo (backup screenshots)", "Plan", "If the live demo fails, show these screenshots instead.");
   const cw = (CW - 0.6) / 3;
-  placeholder(s, MX, 1.45, cw, 5.2, "pgfuzz sample --execute: generated SQL and 99.5% validity", "terminal");
-  placeholder(s, MX + cw + 0.3, 1.45, cw, 5.2, "pgfuzz triage: 590 → 79 tokens, report", "docs/evidence/tree_reduction/");
-  placeholder(s, MX + 2 * (cw + 0.3), 1.45, cw, 5.2, "RQ3 smoke report: medians, Â12, time to first bug", "docs/evidence/rq3_smoke2/report.md");
+  shot(s, "A3_sample.png", MX, 1.45, cw, 5.2, 1.9399075500770415);
+  shot(s, "B4_triage.png", MX + cw + 0.3, 1.45, cw, 5.2, 1.863720073664825);
+  shot(s, "A5_attribute.png", MX + 2 * (cw + 0.3), 1.45, cw, 5.2, 1.709812108559499);
 }
 {
   const s = pres.addSlide({ masterName: "TITLE_DARK", sectionTitle: "Plan" });
