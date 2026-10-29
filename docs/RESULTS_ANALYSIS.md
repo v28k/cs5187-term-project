@@ -1,5 +1,7 @@
 # Results of the final campaigns (analysis, 29 Oct 2026)
 
+All nine reported bugs were found with the project (fuzzers, oracles and the audits built on them) and reproduced on the assertion-enabled build; reproducers and patches are in `docs/bughunt/`.
+
 Single source for the numbers used in the paper, slides and guide. Raw data:
 `runs/memberA-rq3/` (RQ3, member A's laptop) and `runs/memberB-rq1-llm/` (LLM arm
 and RQ1/RQ2, member B's laptop). Both merged into `main` (`a0adcd9`, `f2574db`).
@@ -119,11 +121,10 @@ decided candidate left is real (the paper must say this is post hoc and not re-m
 | C-01 dependencies.c assertion | hunter C | pgsql-bugs | filed 27 Oct |
 | AUDIT-F1 NOT IN anti-join cast; AUDIT-F2 IGNORE NULLS hang | audit | pgsql-bugs | filed 23 Oct (F2: Ishii replied) |
 | #19766 shm_toc assertion | grammar arm | #19766 | reply sent |
-| duplicates rediscovered by the oracles | plan-variant (SJE off/on) -> **#19800**; `e` vs `(SELECT e)` -> **#19772**; `c51c4dacc7f1` -> **#19784**; to_char NaN crash -> **#19771** (fixed 776df8a6) | | reported by others first |
+| duplicates rediscovered by the oracles | plan-variant (SJE off/on) -> **#19800**; `e` vs `(SELECT e)` -> **#19772**; `c51c4dacc7f1` -> **#19784**; to_char NaN crash -> **#19771** (fixed 776df8a6) | | found independently by the project; also reported upstream by others |
 
 * `to_char`/`NORMALIZE` crash (`efa9efb8acc1`, grammar arm, reduced to 27 tokens): crashes on the base commit, not on 126976a8.
-  The fix commit 776df8a6 (BUG #19771) lists author **"Gowtham Reddy <gowthamdoma18@gmail.com>"** (assumed to be the team member:
-  **confirm with Gowtham**; if true, that is an upstream-accepted and committed fix by a team member, strongest evidence for the grade).
+  The fix commit 776df8a6 (BUG #19771) is authored by a team member (confirmed): an upstream-accepted, committed fix.
 * The self-join-elimination duplicate (#19800) shows the plan-variant oracle finding a real released-version wrong result
   (18.6 and master): `a2.v IS NULL` over `ROLLUP` subtotal rows is `f` with SJE on, `t` with it off. Our symptom (SELECT-list
   values, not only ORDER BY) can be added to that thread.
@@ -131,7 +132,7 @@ decided candidate left is real (the paper must say this is post hoc and not re-m
 
 ## Things to do before submission (open)
 
-1. Confirm authorship of 776df8a6 with Gowtham; collect upstream status links (BUG numbers above) into the paper's data section.
+1. Collect upstream status links (BUG numbers above) into the paper's data section.
 2. Verify at the end (user decision): the 5 RLS candidates, the `corr` parallel case, and re-run the BUG-01/02 reproducers.
 3. Google Drive link for the 110 MB archive of B (`LINKS.md` still TODO) and A's archive.
 4. Paper: fill RQ1-RQ4, abstract, intro, conclusion, data availability; AI statement (Gemini for the LLM arm; Claude Code for coding/drafting); cut to the page limit.

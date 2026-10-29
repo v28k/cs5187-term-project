@@ -1,6 +1,6 @@
 # Arbor: LLM-guided grammar-aware fuzzing of PostgreSQL
 
-CS-5187 term project A3 (Venu, Bhuvan, Gowtham). The tool is called `pgfuzz` in
+CS-5187 term project A3. The tool is called `pgfuzz` in
 the code and **Arbor** in the (anonymised) paper.
 
 Arbor generates SQL as typed derivation trees from a grammar of 78 rules, rewrites

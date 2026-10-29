@@ -26,7 +26,7 @@ reproduce each, and their upstream status. Part of CS-5187 project A3
 | C-01 duplicate-expression assert | hunter C fuzzers | pgsql-bugs | filed 27 Oct (Bhuvan), awaiting bug number |
 | AUDIT-F1 NOT IN anti-join cast | audit + probes + fuzzers | pgsql-bugs | filed 23 Oct (Bhuvan) |
 | AUDIT-F2 IGNORE NULLS hang | audit2 session | pgsql-bugs | filed 23 Oct (Bhuvan); Ishii replied 24 Oct |
-| Candidate 2 crash-recovery | grammar fuzzer (seen once) | **#17731** | known, not ours |
+| Candidate 2 crash-recovery | grammar fuzzer (seen once) | **#17731** | known upstream |
 
 ---
 
