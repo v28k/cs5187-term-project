@@ -1,0 +1,30 @@
+{
+ "model": "gemini-3-flash-preview",
+ "requested_model": "gemini-3-flash-preview",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 14453,
+  "output_tokens": 14535,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "The commit fixes a parser failure in parseCheckAggregates when a whole-row Var representing a join is nulled (on the nullable side of an outer join) and referenced in a query with aggregates or a GROUP BY clause. This occurred because the parser cannot safely push down nulling bits into a RowExpr (the result of expanding a whole-row join Var) when no PlannerInfo is available. To exercise this, we need a nested join that is aliased and then placed on the nullable side of an outer join, with the join alias itself used as an expression. The grammar fragment adds a specific 'joined' alternative that creates this nested aliased structure and provides expressions to reference it in aggregation and HAVING contexts.",
+  "grammar_fragment": "joined : <0.5> \"(\" from_item LEFT JOIN \"(\" @table JOIN @table ON @join_eq \")\" AS \"j_alias\" ON TRUE \")\" ;\nagg<bigint> : <0.2> COUNT \"(\" \"j_alias\" \")\" ;\nexpr<bool> : <0.2 ?agg_ok> \"(\" \"j_alias\" IS NOT NULL \")\" ;",
+  "seeds": [
+   "SELECT a1.c0, count(j_alias) FROM t1 AS a1 LEFT JOIN (t2 AS a2 JOIN t3 AS a3 ON a2.c0 = a3.c0) AS j_alias ON TRUE GROUP BY a1.c0;",
+   "SELECT j_alias, count(*) FROM t1 AS a1 LEFT JOIN (t2 AS a2 JOIN t3 AS a3 ON a2.c1 = a3.c1) AS j_alias ON TRUE GROUP BY j_alias;",
+   "SELECT 1 FROM t1 AS a1 LEFT JOIN (t2 AS a2 JOIN t3 AS a3 ON a2.c1 = a3.c1) AS j_alias ON TRUE HAVING j_alias IS NOT NULL;"
+  ],
+  "features": [
+   "JOIN",
+   "AGGREGATES",
+   "GROUP BY"
+  ],
+  "rewrites": []
+ },
+ "t": 1793105582.4674265
+}

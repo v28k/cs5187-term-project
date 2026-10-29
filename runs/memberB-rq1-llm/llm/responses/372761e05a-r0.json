@@ -1,0 +1,30 @@
+{
+ "model": "gemini-3-flash-preview",
+ "requested_model": "gemini-3-flash-preview",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 13742,
+  "output_tokens": 13175,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "The commit fixes an internal error in 'parseCheckAggregates' which is triggered when a whole-row Var representing a join is nulled (on the nullable side of an outer join) and referenced in a query containing aggregation or a GROUP BY clause. The parser previously failed to correctly flatten these join alias Vars because it could not handle whole-row references that carry nulling bits without a PlaceHolderVar. The fix ensures that such Vars are left unexpanded during the parsing phase. To reach the affected code, we need an outer join where the inner side is another aliased join, and that alias must be referenced as a whole-row Var in a COUNT() aggregate or a GROUP BY expression.",
+  "grammar_fragment": "expr<bigint> : <0.5 ?agg_ok> \"(\" SELECT COUNT(\"j\") FROM @table LEFT JOIN \"(\" @table JOIN @table ON @join_eq \")\" AS \"j\" ON @join_eq \")\" ;\nexpr<bool>   : <0.5 ?agg_ok> EXISTS \"(\" SELECT \"1\" FROM @table LEFT JOIN \"(\" @table JOIN @table ON @join_eq \")\" AS \"j\" ON @join_eq GROUP BY \"j\" \")\" ;",
+  "seeds": [
+   "SELECT t1.c0, count(t_join) FROM t1 LEFT JOIN (t0 JOIN t2 ON t0.c0 = t2.c0) AS t_join ON t1.c0 = t_join.c0 GROUP BY t1.c0;",
+   "SELECT t_join, count(*) FROM t1 LEFT JOIN (t0 JOIN t2 ON t0.c0 = t2.c0) AS t_join ON t1.c0 = t_join.c0 GROUP BY t_join;",
+   "SELECT 1 FROM t1 LEFT JOIN (t2 JOIN t3 ON t2.c0 = t3.c0) AS j ON t1.c0 = j.c0 HAVING j IS NOT NULL;"
+  ],
+  "features": [
+   "JOIN",
+   "AGGREGATES",
+   "GROUP BY"
+  ],
+  "rewrites": []
+ },
+ "t": 1793105460.7967756
+}

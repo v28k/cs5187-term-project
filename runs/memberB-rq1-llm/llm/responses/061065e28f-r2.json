@@ -1,0 +1,32 @@
+{
+ "model": "gemini-3-flash-preview",
+ "requested_model": "gemini-3-flash-preview",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 15759,
+  "output_tokens": 5871,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "The commit modifies ri_LockPKTuple in ri_triggers.c to use the scan snapshot's command ID (es_output_cid) instead of the current command ID when locking rows for foreign key validation. This specifically affects the 'fast-path' RI checks where a btree index scan is used to verify the existence of the PK row. To reach this code, the fuzzer needs to generate tables with FOREIGN KEY constraints and execute DML (INSERT/UPDATE) that triggers these checks. The grammar fragment enables the creation of such constraints. The seeds include a specific case where a side-effecting operator class (containing an UPDATE) advances the command counter during the index scan, ensuring that the consistency of the row locking is tested against the fixed command ID logic.",
+  "grammar_fragment": "new_col : <1.0> @new_col(int) REFERENCES \"t1\" \"(\" \"c0\" \")\" ;\nalter_table : <1.0> ALTER TABLE @target(plain) ADD FOREIGN KEY \"(\" @target_col(int) \")\" REFERENCES \"t1\" \"(\" \"c0\" \")\" ;",
+  "seeds": [
+   "BEGIN;\nCREATE TABLE pk_cid (id int PRIMARY KEY, v int DEFAULT 0);\nINSERT INTO pk_cid VALUES (1);\nCREATE FUNCTION fp_cid_eq(int, int) RETURNS bool LANGUAGE plpgsql AS $$\nBEGIN\n    UPDATE pk_cid SET v = v + 1 WHERE id OPERATOR(pg_catalog.=) $1;\n    RETURN $1 OPERATOR(pg_catalog.=) $2;\nEND$$;\nCREATE OPERATOR === (LEFTARG = int, RIGHTARG = int, FUNCTION = fp_cid_eq);\nCREATE OPERATOR CLASS cid_ops FOR TYPE int USING btree AS\n    OPERATOR 1 <, OPERATOR 2 <=, OPERATOR 3 ===, OPERATOR 4 >=, OPERATOR 5 >,\n    FUNCTION 1 btint4cmp(int, int);\nCREATE UNIQUE INDEX ON pk_cid (id cid_ops);\nCREATE TABLE fk_cid (a int REFERENCES pk_cid (id));\n-- Triggers ri_LockPKTuple with side-effecting scan\nINSERT INTO fk_cid VALUES (1);\nROLLBACK;",
+   "INSERT INTO t1 (c0, c1) VALUES (1001, 1001) ON CONFLICT DO NOTHING;\nCREATE TABLE t_fk_cid (a int REFERENCES t1 (c0));\nINSERT INTO t_fk_cid VALUES (1001);\nUPDATE t_fk_cid SET a = 1001 WHERE a = 1001;",
+   "ALTER TABLE t0 ADD FOREIGN KEY (c0) REFERENCES t1 (c0);\nINSERT INTO t1 (c0) VALUES (55) ON CONFLICT DO NOTHING;\nINSERT INTO t0 (c0) VALUES (55);"
+  ],
+  "features": [
+   "FOREIGN KEY",
+   "RI Triggers",
+   "Operator Classes",
+   "Custom Operators",
+   "Row Locking"
+  ],
+  "rewrites": []
+ },
+ "t": 1793105235.1414936
+}

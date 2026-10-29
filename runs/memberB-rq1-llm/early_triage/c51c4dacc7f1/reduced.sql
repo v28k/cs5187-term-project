@@ -1,0 +1,2 @@
+-- pgfuzz triage of c51c4dacc7f1: internal_error via internal_error
+WITH rc(c0) AS (SELECT 1) SELECT '0' FROM LATERAL (SELECT COALESCE (MAX (c2)) AS c1 FROM t4 AS a2) AS a3 WHERE COALESCE (7 = ANY (ARRAY_CAT (CASE WHEN TRUE THEN ARRAY_POSITIONS (ARRAY[LENGTH (c1)], 16) ELSE ARRAY[1] END, '{}')));

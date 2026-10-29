@@ -1,0 +1,33 @@
+{
+ "model": "gemini-3.6-flash",
+ "requested_model": "gemini-3.5-flash",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 17554,
+  "output_tokens": 3158,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "This commit changes foreign key (RI) check execution in ri_triggers.c so that FK checks needing implicit cast functions use SPI instead of the fast path, while binary-coercible and domain types remain on the fast path. The function ri_check_fastpath_index evaluates pg_cast eligibility and caches the result. To execute the modified lines in ri_triggers.c, the fuzzer needs to add foreign key constraints across different compatible types (such as int to bigint or custom implicit casts) and run INSERT/UPDATE statements that trigger RI checks.",
+  "grammar_fragment": "alter_table @scope\n  : <2> ALTER TABLE @target(plain) ADD FOREIGN KEY \"(\" @target_col(int) \")\" REFERENCES \"t1\" \"(\" \"c0\" \")\" NOT VALID\n  | <2> ALTER TABLE @target(plain) ADD FOREIGN KEY \"(\" @target_col(bigint) \")\" REFERENCES \"t1\" \"(\" \"c0\" \")\" NOT VALID\n  ;",
+  "seeds": [
+   "CREATE TABLE pk_cast_t (id bigint PRIMARY KEY);\nINSERT INTO pk_cast_t VALUES (1), (2);\nCREATE TABLE fk_cast_t (a int REFERENCES pk_cast_t(id));\nINSERT INTO fk_cast_t VALUES (1), (2);",
+   "INSERT INTO t1 (c0) VALUES (999) ON CONFLICT DO NOTHING;\nALTER TABLE t0 ADD FOREIGN KEY (c0) REFERENCES t1(c0) NOT VALID;\nINSERT INTO t0 (c0, c1, c2) VALUES (999, 'test', 1.0);",
+   "CREATE DOMAIN my_int AS int;\nCREATE TABLE pk_dom (id my_int PRIMARY KEY);\nINSERT INTO pk_dom VALUES (10);\nCREATE TABLE fk_dom (a int REFERENCES pk_dom(id));\nINSERT INTO fk_dom VALUES (10);",
+   "CREATE TYPE word_enum AS ENUM ('one', 'two');\nCREATE FUNCTION word_to_int(word_enum) RETURNS int LANGUAGE sql IMMUTABLE AS $$ SELECT CASE WHEN $1 = 'one' THEN 1 ELSE 2 END $$;\nCREATE CAST (word_enum AS int) WITH FUNCTION word_to_int(word_enum) AS IMPLICIT;\nCREATE TABLE pk_enum (id int PRIMARY KEY);\nINSERT INTO pk_enum VALUES (1), (2);\nCREATE TABLE fk_enum (a word_enum REFERENCES pk_enum);\nINSERT INTO fk_enum VALUES ('one'::word_enum);"
+  ],
+  "features": [
+   "foreign_keys",
+   "alter_table_add_fk",
+   "ri_triggers",
+   "cross_type_fk",
+   "implicit_casts"
+  ],
+  "rewrites": []
+ },
+ "t": 1793100203.853629
+}

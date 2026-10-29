@@ -1,0 +1,32 @@
+{
+ "model": "gemini-3.8-flash",
+ "requested_model": "gemini-3.7-flash",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 13937,
+  "output_tokens": 5314,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "Commit 6b3f8857aa moved the invocation of qp_callback in query_planner() from inside the join-removal loop to after it. Previously, when self-join elimination (SJE) or outer-join removal restarted query_planner, qp_callback had already run and adjust_group_pathkeys_for_groupagg had set Aggref.aggpresorted flags that were not reset on restart. This fix is reached by queries combining self-joins or removable joins on unique/primary keys (such as t1.c0) with multiple DISTINCT aggregates and GROUP BY clauses that engage presorted aggregate pathkey optimizations.",
+  "grammar_fragment": "agg<bigint>\n  : <1> SUM \"(\" DISTINCT expr<int> \")\"\n  ;\n\nagg<numeric>\n  : <1> AVG \"(\" DISTINCT expr<int> \")\"\n  | <1> SUM \"(\" DISTINCT expr<bigint> \")\"\n  ;\n\nself_join @frame\n  : <2> \"(\" @table(t1) (JOIN | LEFT JOIN) @table(t1) USING \"(\" \"c0\" \")\" \")\"\n  ;\n\nset_stmt\n  : <1> SET LOCAL \"enable_self_join_elimination\" \"=\" (ON | OFF)\n  ;",
+  "seeds": [
+   "SELECT count(DISTINCT a1.c1) AS c1_cnt, count(DISTINCT a1.c0) AS c0_cnt, sum(DISTINCT a2.c1) AS c1_sum FROM t1 a1 JOIN t1 a2 ON a1.c0 = a2.c0;",
+   "SELECT a1.c1, count(DISTINCT a1.c0), sum(DISTINCT a2.c1) FROM t1 a1 JOIN t1 a2 USING (c0) GROUP BY a1.c1 ORDER BY a1.c1;",
+   "SET LOCAL enable_self_join_elimination = ON; EXPLAIN (COSTS OFF) SELECT count(DISTINCT a1.c1), sum(DISTINCT a2.c1) FROM t1 a1 JOIN t1 a2 ON a1.c0 = a2.c0;",
+   "SELECT count(DISTINCT a1.c1), count(DISTINCT a2.c1), sum(DISTINCT a3.c1) FROM t1 a1 JOIN t1 a2 ON a1.c0 = a2.c0 JOIN t1 a3 ON a1.c0 = a3.c0;"
+  ],
+  "features": [
+   "self-join elimination",
+   "presorted aggregates",
+   "distinct aggregates",
+   "join removal"
+  ],
+  "rewrites": []
+ },
+ "t": 1793103324.6508799
+}

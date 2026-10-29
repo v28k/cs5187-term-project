@@ -1,0 +1,124 @@
+{
+  "v": 1,
+  "experiment": "rq1",
+  "config": "grammar_mm",
+  "label": "Grammar+Oracles",
+  "trial": 1,
+  "seed": 56952959367581897,
+  "worker": 1,
+  "budget": {
+    "seconds": 3600.0,
+    "testcases": null
+  },
+  "generator": {
+    "plugin": "pgfuzz.grammar.generator:GrammarGenerator",
+    "params": {
+      "grammar": "/home/gow/cs5187-term-project/src/configs/../grammar/postgres.pgg",
+      "schema": "/home/gow/cs5187-term-project/src/configs/../corpus/schema.yaml",
+      "mm_prob": 0.5,
+      "plan_guidance": true,
+      "bandit": 0.1,
+      "profile": "/home/gow/cs5187-term-project/src/configs/../corpus/profile.json",
+      "profile_prob": 0.3,
+      "rls": "/home/gow/cs5187-term-project/src/configs/../corpus/rls.sql"
+    },
+    "name": "grammar",
+    "grammar": "/home/gow/cs5187-term-project/src/configs/../grammar/postgres.pgg",
+    "schema": "/home/gow/cs5187-term-project/src/configs/../corpus/schema.yaml",
+    "grammar_sha1": "3cee8ebea4f7",
+    "mutate_prob": 0.5,
+    "max_depth": 14,
+    "setup_prob": 0.5,
+    "queries": [
+      1,
+      2
+    ],
+    "mm_prob": 0.5,
+    "mm_per_query": 1,
+    "bandit": 0.1,
+    "profile": "profile.json",
+    "profile_prob": 0.3,
+    "grammar_stats": {
+      "rules": 78,
+      "variants": 108,
+      "alternatives": 421,
+      "types": 13
+    }
+  },
+  "executor": {
+    "plugin": "pgfuzz.reference.pg_executor:PostgresExecutor",
+    "params": {
+      "dsn": "host=127.0.0.1 port=5451 dbname=postgres user=postgres",
+      "isolation": "savepoint",
+      "statement_timeout_ms": 3000,
+      "setup_sql": [
+        "/home/gow/cs5187-term-project/src/configs/../corpus/schema.sql",
+        "/home/gow/cs5187-term-project/src/configs/../corpus/rls.sql"
+      ],
+      "reset_sql": [
+        "/home/gow/cs5187-term-project/src/configs/../corpus/schema.sql",
+        "/home/gow/cs5187-term-project/src/configs/../corpus/rls.sql"
+      ],
+      "server_log": "/home/gow/pgfuzz/data/cov-1/postgresql.log",
+      "coverage_command": "bash /home/gow/cs5187-term-project/src/configs/../../scripts/rq1_servers.sh coverage 1",
+      "coverage_reset_command": "bash /home/gow/cs5187-term-project/src/configs/../../scripts/rq1_servers.sh coverage 1 reset",
+      "differential": {
+        "per_query": 2
+      },
+      "metamorphic": true,
+      "plan_shapes": {
+        "every": 1
+      }
+    },
+    "name": "postgres",
+    "isolation": "savepoint",
+    "statement_timeout_ms": 3000,
+    "server_log": "/home/gow/pgfuzz/data/cov-1/postgresql.log",
+    "coverage": true,
+    "differential": true,
+    "metamorphic": true,
+    "plan_shapes_every": 1,
+    "diff_per_query": 2,
+    "server_version": "20devel",
+    "version": "PostgreSQL 20devel on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
+    "debug_assertions": "on",
+    "data_checksums": "on",
+    "plan_variants": [
+      "geqo",
+      "hashjoin_only",
+      "index_scans",
+      "mergejoin_only",
+      "nestloop_only",
+      "no_eager_agg",
+      "no_hashagg",
+      "no_join_reorder",
+      "no_memoize_material",
+      "no_partition_pruning",
+      "no_reordering",
+      "no_self_join_elim",
+      "no_sort_opt",
+      "parallel",
+      "partitionwise",
+      "seq_scans",
+      "tiny_work_mem"
+    ],
+    "plan_variants_dropped": [
+      "jit"
+    ]
+  },
+  "known_bugs": {
+    "catalog": "/home/gow/cs5187-term-project/src/known_bugs/known_bugs.yaml",
+    "entries": 0
+  },
+  "coverage_interval_s": 300.0,
+  "snapshot_interval_s": 30.0,
+  "started_at": "2026-10-27T15:21:03+00:00",
+  "env": {
+    "pgfuzz": "0.1.0",
+    "python": "3.10.12",
+    "platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "git_commit": "ca92682fc46b093575fc14597ff9dd1ec21a7e00-dirty"
+  }
+}

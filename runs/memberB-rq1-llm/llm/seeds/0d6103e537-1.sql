@@ -1,0 +1,8 @@
+SELECT s.*
+FROM t0
+LEFT JOIN (
+  SELECT 999 AS c, t1.c0 AS x
+  FROM t1
+  WHERE t1.c0 NOT IN (SELECT t3.c0 FROM t3 WHERE t3.c0 IS NOT NULL)
+) s ON true
+WHERE s.x = s.c;

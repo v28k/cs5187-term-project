@@ -1,0 +1,17 @@
+{
+ "commit": "d8ce0050a6cff3efefa5fce8abe3c6df7bd492ce",
+ "rewrites": [
+  {
+   "name": "case_true_metamorphic",
+   "type": "int",
+   "template": "CASE WHEN true THEN {e} ELSE 0 END",
+   "why": "CASE with a constant TRUE condition simplifies to its branch, which must preserve its typmod and collation."
+  },
+  {
+   "name": "nullif_null_metamorphic",
+   "type": "text",
+   "template": "NULLIF({e}, NULL::text COLLATE \"C\")",
+   "why": "NULLIF with a constant NULL second argument reduces to the first argument while preserving collation metadata."
+  }
+ ]
+}

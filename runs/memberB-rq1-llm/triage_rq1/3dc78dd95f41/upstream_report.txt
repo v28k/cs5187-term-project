@@ -1,0 +1,26 @@
+Subject: raises an internal error (XX000) -- <one line: the feature involved>
+
+PostgreSQL version: 20devel (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script raises an internal error (XX000).
+
+ERROR:  SubPlan found with no parent plan
+
+Script
+------
+
+-- pgfuzz triage of 3dc78dd95f41: internal_error via internal_error
+MERGE INTO tp a1 USING (SELECT TRUE AS c1 LIMIT 1) AS a2 ON (c0 IS NULL) WHEN MATCHED THEN UPDATE SET c1 = NULLIF (a1.c1, CONCAT ((SELECT NULL WHERE a2.c1))) WHEN NOT MATCHED THEN INSERT (c0, c1) VALUES ( 1, 'x%');
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.

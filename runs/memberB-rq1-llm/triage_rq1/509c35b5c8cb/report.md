@@ -1,0 +1,64 @@
+# assertion: server connection lost while running metamorphic check tlp_where
+
+* Oracle: **metamorphic:tlp_where**, signature `509c35b5c8cb`
+* Reproduced: 3/3 on 20devel
+* Reduced: 2 -> 1 statements, 258 -> 2 tokens
+* Verdict: TODO: real | duplicate | false_positive | not_a_bug | flaky
+
+## Reproducer
+
+```sql
+-- pgfuzz triage of 509c35b5c8cb: assertion via metamorphic:tlp_where
+-- the two queries below must return the same rows (as a multiset):
+SELECT 'a'::text AS c0, 'empty'::int4range AS c1, '1999-12-31'::date AS c2 FROM JSONB_ARRAY_ELEMENTS (JSONB_BUILD_ARRAY (('2000-01-01 00:00:00+00'::timestamptz)::date, '(,)'::int4range)) AS a1 (c0) WHERE (a1.c0 < ALL (SELECT a1.c0 AS c0)) INTERSECT SELECT REPLACE ('x%'::text, 'c'::text, '0'::text) AS c0, COALESCE (int4range(2, 40), '[3,)'::int4range) AS c1, GREATEST ('2024-01-26'::date, '2024-03-16'::date) AS c2 FROM JSON_TABLE (JSONB_BUILD_OBJECT ('k', CASE ((-1))::numeric WHEN TRUNC (COALESCE (0.0::numeric, 10.0::numeric)) THEN (('abc'::text || '23x'::text) ^@ NORMALIZE ('c4ca4238a0b923820dcc509a6f75849b'::text)) WHEN 10.0::numeric THEN (CONCAT ('{}'::text[], '1999-12-31'::date) ILIKE '%b%'::text) ELSE NULLIF (TRUE, (ROW (1::bigint, FALSE) < ROW ('27'::bigint, TRUE))) END), '$.a[*]' COLUMNS (c0 FOR ORDINALITY, c1 int PATH '$')) AS a2;
+SELECT 'a'::text AS c0, 'empty'::int4range AS c1, '1999-12-31'::date AS c2 FROM JSONB_ARRAY_ELEMENTS (JSONB_BUILD_ARRAY (('2000-01-01 00:00:00+00'::timestamptz)::date, '(,)'::int4range)) AS a1 (c0) WHERE (a1.c0 < ALL (SELECT a1.c0 AS c0)) INTERSECT ((SELECT REPLACE ('x%'::text, 'c'::text, '0'::text) AS c0, COALESCE (int4range(2, 40), '[3,)'::int4range) AS c1, GREATEST ('2024-01-26'::date, '2024-03-16'::date) AS c2 FROM JSON_TABLE (JSONB_BUILD_OBJECT ('k', CASE ((-1))::numeric WHEN TRUNC (COALESCE (0.0::numeric, 10.0::numeric)) THEN (('abc'::text || '23x'::text) ^@ NORMALIZE ('c4ca4238a0b923820dcc509a6f75849b'::text)) WHEN 10.0::numeric THEN (CONCAT ('{}'::text[], '1999-12-31'::date) ILIKE '%b%'::text) ELSE NULLIF (TRUE, (ROW (1::bigint, FALSE) < ROW ('27'::bigint, TRUE))) END), '$.a[*]' COLUMNS (c0 FOR ORDINALITY, c1 int PATH '$')) AS a2 WHERE (((ROW ((JSONB_BUILD_OBJECT ('k', 31) @@ '$.k == 1'), '2024-01-01 00:00:00+00'::timestamptz) = ROW (('{"k": 2, "a": [0]}'::jsonb @@ '$.a[*] > 1'), 'epoch'::timestamptz)) IS TRUE))) UNION ALL (SELECT REPLACE ('x%'::text, 'c'::text, '0'::text) AS c0, COALESCE (int4range(2, 40), '[3,)'::int4range) AS c1, GREATEST ('2024-01-26'::date, '2024-03-16'::date) AS c2 FROM JSON_TABLE (JSONB_BUILD_OBJECT ('k', CASE ((-1))::numeric WHEN TRUNC (COALESCE (0.0::numeric, 10.0::numeric)) THEN (('abc'::text || '23x'::text) ^@ NORMALIZE ('c4ca4238a0b923820dcc509a6f75849b'::text)) WHEN 10.0::numeric THEN (CONCAT ('{}'::text[], '1999-12-31'::date) ILIKE '%b%'::text) ELSE NULLIF (TRUE, (ROW (1::bigint, FALSE) < ROW ('27'::bigint, TRUE))) END), '$.a[*]' COLUMNS (c0 FOR ORDINALITY, c1 int PATH '$')) AS a2 WHERE NOT (((ROW ((JSONB_BUILD_OBJECT ('k', 31) @@ '$.k == 1'), '2024-01-01 00:00:00+00'::timestamptz) = ROW (('{"k": 2, "a": [0]}'::jsonb @@ '$.a[*] > 1'), 'epoch'::timestamptz)) IS TRUE))) UNION ALL (SELECT REPLACE ('x%'::text, 'c'::text, '0'::text) AS c0, COALESCE (int4range(2, 40), '[3,)'::int4range) AS c1, GREATEST ('2024-01-26'::date, '2024-03-16'::date) AS c2 FROM JSON_TABLE (JSONB_BUILD_OBJECT ('k', CASE ((-1))::numeric WHEN TRUNC (COALESCE (0.0::numeric, 10.0::numeric)) THEN (('abc'::text || '23x'::text) ^@ NORMALIZE ('c4ca4238a0b923820dcc509a6f75849b'::text)) WHEN 10.0::numeric THEN (CONCAT ('{}'::text[], '1999-12-31'::date) ILIKE '%b%'::text) ELSE NULLIF (TRUE, (ROW (1::bigint, FALSE) < ROW ('27'::bigint, TRUE))) END), '$.a[*]' COLUMNS (c0 FOR ORDINALITY, c1 int PATH '$')) AS a2 WHERE (((ROW ((JSONB_BUILD_OBJECT ('k', 31) @@ '$.k == 1'), '2024-01-01 00:00:00+00'::timestamptz) = ROW (('{"k": 2, "a": [0]}'::jsonb @@ '$.a[*] > 1'), 'epoch'::timestamptz)) IS TRUE)) IS NULL));
+```
+
+## Assertion
+
+`TRAP: failed Assert("list_length(rcexpr->inputcollids) == nopers"), File: "execExpr.c", Line: 2078`
+
+## Backtrace (top frames)
+
+```
+ExceptionalCondition
+ExecInitExpr
+ExecInitTableFuncScan
+ExecInitNode
+ExecInitSetOp
+ExecInitNode
+standard_ExecutorStart
+ExecutorStart
+PortalStart
+PostgresMain
+postmaster_child_launch
+PostmasterMain
+main
+__libc_start_main
+_start
+```
+
+## Observed on the test server
+
+`lhs`:
+
+```
+    ERROR: None consuming input failed: server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+```
+
+`rhs`:
+
+```
+    ERROR: None consuming input failed: server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+```
+
+## Before filing
+
+1. Decide which side is right (SQL standard / documentation) and say why.
+2. Search pgsql-bugs and pgsql-hackers for the message / function names.
+3. Check the newest master and the latest release; bisect with scripts/bisect_pg.sh.
+4. Record the verdict in triage/verdicts.yaml (it feeds the precision table).

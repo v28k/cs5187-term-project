@@ -1,0 +1,1120 @@
+[
+ {
+  "sha": "30d4a6daac8b61fd18dfe0d990d00943a170e48b",
+  "date": "2026-10-15",
+  "subject": "Modernize our parsing of XML data in CONTENT mode.",
+  "body": "The main goal of this patch is to get rid of our use of\nxmlKeepBlanksDefault, which libxml2 has deprecated.\nTo do that, we want to use xmlParseInNodeContext instead of\nxmlParseBalancedChunkMemory, so that we can pass an options\nmask that includes XML_PARSE_NOBLANKS.\n\nxmlParseInNodeContext wants an xmlNode rather than an xmlDoc as\ncontext.  This gives us an opportunity for simplification though:\nwe can make that node be a dummy root node for xml_parse's result\ndocument, and then attach the content node(s) as children of the root,\nessentially moving the data structure hack in xmltotext_with_options\ninto xml_parse.  The main benefit of this is that callers no longer\nneed to free the content node list separately; freeing the document is\nsufficient.  (There were error paths in xmltotext_with_options that\nI think would have leaked that list, though they could only be\nreached in OOM or similar conditions.)\n\nWe also do some fooling with doc->encoding, to be bug-compatible\nwith our previous behavior on as many libxml2 versions as practical.\nSome small discrepancies with previous behavior are known with older\nlibxml2 versions.  Therefore, it seems inadvisable to back-patch this,\nat least not before it's gotten a good deal of field experience.\n\nAuthor: Tom Lane <tgl@sss.pgh.pa.us>\nFix-suggested-by: Andrew Dunstan <andrew@dunslane.net>\nReviewed-by: Rui Zhao <zhaorui126@gmail.com>\nDiscussion: https://postgr.es/m/ZR2PPFF1830B8772632FA23847D7482168FD2C62@ZR2PPFF1830B877.CHEP278.PROD.OUTLOOK.COM",
+  "files": [
+   "src/backend/utils/adt/xml.c",
+   "src/test/regress/expected/xml.out",
+   "src/test/regress/sql/xml.sql"
+  ],
+  "functions": [
+   "xml_parse",
+   "xml_in",
+   "xml_recv",
+   "xmltotext_with_options",
+   "xmlparse",
+   "xml_is_document",
+   "xml_doctype_in_content",
+   "wellformed_xml"
+  ],
+  "targets": {
+   "src/backend/utils/adt/xml.c": [
+    287,
+    415,
+    708,
+    773,
+    779,
+    782,
+    1017,
+    1161,
+    1771,
+    1810,
+    1821,
+    1848,
+    1849,
+    1885,
+    1896,
+    1897,
+    1899,
+    1900,
+    1909,
+    1910,
+    1916,
+    1917,
+    1918,
+    1920,
+    1921,
+    1922,
+    1923,
+    1924,
+    1927,
+    1929,
+    1932,
+    1933,
+    1934,
+    1939,
+    1952,
+    1953,
+    1954,
+    1955,
+    1956,
+    4663
+   ]
+  },
+  "regress_sql": "-- check some encoding-dependent behaviors\n-- (this is mostly checking for libxml2 bugs, not our bugs...)\nDO $$\nDECLARE\n  result text;\nBEGIN\n  IF getdatabaseencoding() = 'UTF8' THEN\n    -- U+FEFF after an XML declaration is content, not a byte-order mark\n    result := xmlserialize(CONTENT xmlparse(CONTENT\n              '<?xml version=\"1.0\"?>' || chr(65279) || 'abc') AS text INDENT);\n    IF result <> '&#xFEFF;abc' THEN\n      RAISE WARNING 'U+FEFF was not preserved: %', result;\n    END IF;\n    -- non-ASCII characters are converted to hex entities if in data\n    result := xmlserialize(CONTENT xmlparse(CONTENT\n              'ni' || chr(241) || 'o') AS text INDENT);\n    IF result <> 'ni&#xF1;o' THEN\n      RAISE WARNING 'U+F1 was not converted to a hex entity: %', result;\n    END IF;\n    -- non-ASCII characters are preserved in tag attributes\n    result := xmlserialize(CONTENT xmlparse(CONTENT\n              '<a attr=\"ni' || chr(241) || 'o\"/>') AS text INDENT);\n    IF result <> '<a attr=\"ni' || chr(241) || 'o\"/>' THEN\n      RAISE WARNING 'U+F1 was not preserved in a tag: %', result;\n    END IF;\n  END IF;\nEND\n$$;\n\n-- IS DOCUMENT",
+  "stats": {
+   "target_lines": 40,
+   "files": 3
+  }
+ },
+ {
+  "sha": "6aecabcd5ed54ac055b4df031336e997c84f7450",
+  "date": "2026-10-15",
+  "subject": "Use SPI for RI checks whose FK values need a cast function",
+  "body": "When the FK column's type needs a cast function to reach the equality\noperator's input type, the RI fast path calls that function directly.\nThe SPI path instead applies the cast as an expression in its query,\nwhich takes care of the function's declared arguments, its input\ncollation, a NULL result, volatility, and replanning when the function\nchanges.  The direct call doesn't cover all of that; for example, a\nNULL result raises an internal error rather than a foreign key\nviolation, and if the cast's function is dropped and replaced, later\nchecks fail with \"cache lookup failed for function\".  Coercions that\naren't a call to one function, array coercion and coercion via I/O,\nfail outright with \"no conversion function\".\n\nRather than replicate expression evaluation, leave FK values that\naren't binary-coercible to the operator's input type to SPI.  The fast\npath keeps handling cross-type operators, domains and binary-compatible\ntypes.  As eligibility now depends on pg_cast, invalidate cached\nconstraint information on pg_cast changes too.\n\nBecause the check needs catalog lookups, it is made in\nri_check_fastpath_index(), which caches its result in fastpath_state\nuntil the constraint's cached information is invalidated, rather than\nfor every row in ri_fastpath_is_applicable().\n\nThe two tests that used a cast function to exercise fast-path code that\nstill exists (metadata invalidation and the active snapshot) now use\nthe equality function of a custom opclass, the only user code a\nfast-path check still runs.\n\nThe fast-path code that calls cast functions is now unused; the next\ncommit removes it.\n\nReported-by: Nikolay Samokhvalov <nik@postgres.ai>\nReported-by: Amit Langote <amitlangote09@gmail.com>\nReviewed-by: Matheus Alcantara <matheusssilv97@gmail.com>\nDiscussion: https://postgr.es/m/CAM527d9BgPjeOOYmbCBTd57R145qHCk-dzw9qNq+nOrDq1j__A@mail.gmail.com\nBackpatch-through: 19",
+  "files": [
+   "src/backend/utils/adt/ri_triggers.c",
+   "src/test/regress/expected/foreign_key.out",
+   "src/test/regress/sql/foreign_key.sql"
+  ],
+  "functions": [
+   "ri_check_fastpath_index",
+   "RI_FKey_check",
+   "get_ri_constraint_root",
+   "InvalidateConstraintCacheCallBack",
+   "ri_FastPathCheck",
+   "ri_LockPKTuple",
+   "ri_fastpath_is_applicable",
+   "recheck_matched_pk_tuple",
+   "ri_InitHashTables"
+  ],
+  "targets": {
+   "src/backend/utils/adt/ri_triggers.c": [
+    307,
+    308,
+    2534,
+    2535,
+    2826,
+    3070,
+    3143,
+    3145,
+    3146,
+    3147,
+    3149,
+    3150,
+    3152,
+    3153,
+    3680,
+    3681,
+    3682
+   ]
+  },
+  "regress_sql": "-- not be lost.  An RI check runs during the deferred firing loop and can run\n-- user cast code whose DML queues a further deferred check; that check must\n-- still fire.  fk_defer_main's deferred check runs a cast whose function\n-- inserts a violating row into fk_defer_t2, queueing fk_defer_t2's own\n-- deferred check, which must still be reported.\n-- An FK check must check EXECUTE, as the referenced table's owner, on the\n-- functions it applies to the FK values: the equality operator's function\n-- and, for an FK needing an implicit cast function, the cast.  Validation of\n-- a new constraint by a role that cannot use the bulk check (RLS is enabled\n-- on the referenced table) runs per-row checks, through the fast path for\n-- the operator case and through SPI for the cast case, since FK values that\n-- need a cast function are not checked by the fast path.\n  ADD FOREIGN KEY (a) REFERENCES pktable_acl_cast (a);\t-- fails (SPI path message)\n-- A STABLE equality function used by an FK check must see changes made by\n-- earlier AFTER triggers, using the check's snapshot rather than the outer\n-- query's snapshot.  Compare the fast path (pk_fast) with a partitioned-parent\n-- SPI check (pk_spi).  The equality function of the referenced index's\n-- opclass is the user code that runs during a fast-path check.\n-- Considers two values equal only if a lookup row exists for them.\nCREATE FUNCTION lookup_eq(a int, b int) RETURNS bool\n    RETURN a = b AND EXISTS (SELECT 1 FROM lookup_rows AS r WHERE r.v = a);\nCREATE OPERATOR === (LEFTARG = int, RIGHTARG = int, FUNCTION = lookup_eq);\nCREATE OPERATOR CLASS lookup_ops FOR TYPE int USING btree AS\n    OPERATOR 1 <, OPERATOR 2 <=, OPERATOR 3 ===, OPERATOR 4 >=, OPERATOR 5 >,\n    FUNCTION 1 btint4cmp(int, int);\nCREATE TABLE pk_fast (v int);\nCREATE UNIQUE INDEX ON pk_fast (v lookup_ops);\nCREATE TABLE pk_spi (v int) PARTITION BY RANGE (v lookup_ops);\nCREATE UNIQUE INDEX ON pk_spi (v lookup_ops);\nCREATE TABLE fk_fast (k int REFERENCES pk_fast(v));\nCREATE TABLE fk_spi (k int REFERENCES pk_spi(v));\n    INSERT INTO lookup_rows VALUES (NEW.k);\n-- Both checks must succeed.  Without the check's snapshot active, the\n-- STABLE equality function misses the lookup row, so no PK row matches.\nINSERT INTO fk_fast VALUES (1);\nINSERT INTO fk_spi VALUES (1);\n-- Re-entrant FK check: DML on the same FK table from a cast function\n-- The equality function of the referenced index's opclass runs while the\n-- fast path scans the index.  One that performs DDL raises an invalidation\n-- there, detaching the constraint's fast-path metadata while the check is\n-- still using it.  This is done in a transaction that is rolled back, so that\n-- other tests never see the operator class.\nBEGIN;\nCREATE FUNCTION fp_inval_eq(int4, int4) RETURNS bool AS $$\n    RETURN $1 OPERATOR(pg_catalog.=) $2;\nCREATE OPERATOR =@= (LEFTARG = int4, RIGHTARG = int4, FUNCTION = fp_inval_eq);\nCREATE OPERATOR CLASS fp_inval_ops FOR TYPE int4 USING btree AS\n    OPERATOR 1 pg_catalog.<, OPERATOR 2 pg_catalog.<=, OPERATOR 3 =@=,\n    OPERATOR 4 pg_catalog.>=, OPERATOR 5 pg_catalog.>,\n    FUNCTION 1 btint4cmp(int4, int4);\nCREATE TABLE pktable_inval (a int4, b int4);\nCREATE UNIQUE INDEX pktable_inval_a_b ON pktable_inval (a fp_inval_ops, b);\nCREATE TABLE fktable_inval (a int4, b int4,\nINSERT INTO fktable_inval VALUES (1, 1), (2, 2);\n-- Confirms the equality function actually ran and raised the invalidation.\n-- Without this the insert above could pass merely by not exercising the path\n-- at all.\nROLLBACK;\n\n--\n-- FK values that need a coercion to reach the equality operator's input type\n-- are checked through SPI, which applies the coercion as part of the query.\n-- The fast path used to call the cast function directly.\n--\nBEGIN;\nCREATE SCHEMA ri_cast;\nSET LOCAL search_path = ri_cast, pg_catalog;\n\n-- A cast that returns NULL for a non-NULL key: an FK violation, as for any\n-- other key without a match, not an internal error.\nCREATE TYPE ri_word AS ENUM ('one', 'none');\nCREATE FUNCTION ri_word_to_int4(ri_word) RETURNS int4\n    LANGUAGE sql IMMUTABLE AS $$ SELECT CASE WHEN $1::text = 'one' THEN 1 END $$;\nCREATE CAST (ri_word AS int4) WITH FUNCTION ri_word_to_int4(ri_word) AS IMPLICIT;\nCREATE TABLE ri_pk (id int4 PRIMARY KEY);\nINSERT INTO ri_pk VALUES (1);\nCREATE TABLE ri_fk (a ri_word REFERENCES ri_pk);\nINSERT INTO ri_fk VALUES ('one');\nSAVEPOINT s;\nINSERT INTO ri_fk VALUES ('none');\t-- fails\nROLLBACK TO SAVEPOINT s;\n\n-- Replacing the cast and dropping its old function must not leave a later\n-- check in this session calling the dropped function.\nCREATE FUNCTION ri_word_to_int4_v2(ri_word) RETURNS int4\n    LANGUAGE sql IMMUTABLE AS $$ SELECT 1 $$;\nDROP CAST (ri_word AS int4);\nCREATE CAST (ri_word AS int4) WITH FUNCTION ri_word_to_int4_v2(ri_word) AS IMPLICIT;\nDROP FUNCTION ri_word_to_int4(ri_word);\nINSERT INTO ri_fk VALUES ('none');\t-- succeeds through the new cast\n\n-- A collation-sensitive cast from a collatable type gets the input\n-- collation an expression would give it.\nCREATE TYPE ri_ctext;\nCREATE FUNCTION ri_ctext_in(cstring) RETURNS ri_ctext\n    AS 'textin' LANGUAGE internal IMMUTABLE STRICT;\nCREATE FUNCTION ri_ctext_out(ri_ctext) RETURNS cstring\n    AS 'textout' LANGUAGE internal IMMUTABLE STRICT;\nCREATE TYPE ri_ctext (INPUT = ri_ctext_in, OUTPUT = ri_ctext_out,\n                      LIKE = text, COLLATABLE = true);\nCREATE FUNCTION ri_ctext_lower(ri_ctext) RETURNS text\n    AS 'lower' LANGUAGE internal IMMUTABLE STRICT;\nCREATE CAST (ri_ctext AS text) WITH FUNCTION ri_ctext_lower(ri_ctext) AS IMPLICIT;\nCREATE TABLE ri_pk_text (k text PRIMARY KEY);\nINSERT INTO ri_pk_text VALUES ('abc');\nCREATE TABLE ri_fk_text (a ri_ctext REFERENCES ri_pk_text);\nINSERT INTO ri_fk_text VALUES ('ABC');\t-- succeeds; the cast lowercases\n\n-- An array coercion (int2[] to int4[], allowed with an opclass declared for\n-- int4[]) has no single cast function to call.\nCREATE FUNCTION ri_i4a_lt(int4[], int4[]) RETURNS bool\n    AS 'array_lt' LANGUAGE internal IMMUTA",
+  "stats": {
+   "target_lines": 17,
+   "files": 3
+  }
+ },
+ {
+  "sha": "b84ad0cd90414970a453e37983624a13921421ca",
+  "date": "2026-10-14",
+  "subject": "Disallow joins whose lateral references can never be satisfied",
+  "body": "If a proposed join has lateral references to rels outside it,\njoin_is_legal() checks that those rels can still be joined to from\noutside.  To do that it collects the rels that must end up on the\ninner side of an outer join with the proposed join, directly or\nindirectly, and rejects the join if any of its lateral references\npoint to one of them.\n\nThat search followed only outer joins, from min_lefthand to\nmin_righthand.  It failed to notice that a rel that laterally\nreferences the proposed join, or any rel found by the search, cannot\nsupply a parameter to the proposed join either, and that the same\nholds for rels on the inner side of an outer join with such a rel.  As\na result, we could approve a join whose lateral references could never\nbe satisfied.\n\nSuch a join can never appear in a complete plan.  Worse, as the\nexisting comment warns, its apparent legality could mislead the\nclauseless-join heuristics into thinking that some other join rel need\nnot be formed.  In particular, have_join_order_restriction() would not\nforce a clauseless outer join if one of its input rels appeared to\nhave a legal clause join elsewhere, and if that outer join was\nrequired, we would fail with \"failed to build any N-way joins\".\n\nTo fix, also include in the search any input rel of the current join\nsearch that laterally references a rel already found.  The input rels\nare taken from root->initial_rels rather than from the query's base\nrels, because an input can be the joinrel of a sub-joinlist, as\nhappens for a full join or when from_collapse_limit or\njoin_collapse_limit prevents flattening.  Such a joinrel is joined as\na unit, so it has to be included as a whole.\n\nBack-patch to all supported branches.\n\nAuthor: Richard Guo <guofenglinux@gmail.com>\nReviewed-by: Tender Wang <tndrwang@gmail.com>\nReviewed-by: wenhui qiu <qiuwenhuifx@gmail.com>\nDiscussion: https://postgr.es/m/CAMbWs4_p6iWbsjNcYpd6-6mWFnog3UJ2fZKrxWAQTsyNoyeQTw@mail.gmail.com\nBackpatch-through: 14",
+  "files": [
+   "src/backend/optimizer/path/allpaths.c",
+   "src/backend/optimizer/path/joinrels.c",
+   "src/test/regress/expected/join.out",
+   "src/test/regress/sql/join.sql"
+  ],
+  "functions": [
+   "make_rel_from_joinlist",
+   "join_is_legal"
+  ],
+  "targets": {
+   "src/backend/optimizer/path/joinrels.c": [
+    649,
+    651,
+    653,
+    654,
+    656,
+    657,
+    658
+   ]
+  },
+  "regress_sql": "--\n-- check that a join is disallowed when its lateral reference can only be\n-- satisfied by way of a rel that laterally references the join itself\n--\n\nexplain (costs off)\nselect 1 from int4_tbl t1 left join int4_tbl t2 on true,\n  lateral (select t2.f1 offset 0) s1 left join int8_tbl t3 on s1.f1 = t3.q1,\n  lateral (select t3.q2 offset 0) s2\nwhere s2.q2 > t1.f1;\n\nselect 1 from int4_tbl t1 left join int4_tbl t2 on true,\n  lateral (select t2.f1 offset 0) s1 left join int8_tbl t3 on s1.f1 = t3.q1,\n  lateral (select t3.q2 offset 0) s2\nwhere s2.q2 > t1.f1;\n\n-- likewise when the outer join above the lateral referencer is a full join\nexplain (costs off)\nselect count(*) from int4_tbl t1 left join int4_tbl t2 on true,\n  lateral (select t2.f1 offset 0) s1 full join int8_tbl t3 on s1.f1 = t3.q1,\n  lateral (select t3.q2 offset 0) s2\nwhere s2.q2 > t1.f1;\n\nselect count(*) from int4_tbl t1 left join int4_tbl t2 on true,\n  lateral (select t2.f1 offset 0) s1 full join int8_tbl t3 on s1.f1 = t3.q1,\n  lateral (select t3.q2 offset 0) s2\nwhere s2.q2 > t1.f1;\n\n-- likewise when the lateral referencer is part of a sub-joinlist\nset from_collapse_limit to 4;\n\nexplain (costs off)\nselect count(*) from int4_tbl t1 left join int4_tbl t2 on true,\n  lateral (select t2.f1 offset 0) s1 join int8_tbl t3 on s1.f1 = t3.q1,\n  lateral (select t3.q2 offset 0) s2\nwhere s2.q2 > t1.f1;\n\nselect count(*) from int4_tbl t1 left join int4_tbl t2 on true,\n  lateral (select t2.f1 offset 0) s1 join int8_tbl t3 on s1.f1 = t3.q1,\n  lateral (select t3.q2 offset 0) s2\nwhere s2.q2 > t1.f1;\n\nreset from_collapse_limit;",
+  "stats": {
+   "target_lines": 7,
+   "files": 4
+  }
+ },
+ {
+  "sha": "0d6103e537e1299046e5906149f9a7d2108be2cf",
+  "date": "2026-10-14",
+  "subject": "Give antijoins made from sublinks a relid",
+  "body": "When pull_up_sublinks() converts a sublink to an antijoin, it builds a\nJoinExpr with no RTE, on the grounds that nothing above the join can\nreference its RHS.  That overlooks PlaceHolderVars.  A PHV with no\nVars of its own is evaluated at its phrels, and for the outputs of a\npulled-up subquery phrels is all the relids in the subquery's\njointree, including the RHS of such a join.\n\nA qual using the PHV thus appears to reference the RHS rels, and can\nbe pushed down into the RHS as a parameterized join clause.  There it\nhas the opposite of the intended effect: outer rows that fail the qual\nfind no match and are emitted, giving wrong results.  For an outer\njoin, including an antijoin made by reducing a left join, this cannot\nhappen because the join's relid is among the qual's relids.  Before\nv16, the qual's nullable_relids prevented it.\n\nTo fix, make a join RTE for an antijoin built from a sublink, so that\nit has a relid like any other outer join.  Semijoins are left as they\nare: a qual evaluated within a semijoin's RHS does not change the\nresult.\n\nBack-patch to v16.  Before that, the qual's nullable_relids included\nthe antijoin's RHS, which kept the qual from being moved there; that\nprotection went away when nullable_relids was replaced by outer-join\nrelids.\n\nAuthor: Richard Guo <guofenglinux@gmail.com>\nReviewed-by: Tom Lane <tgl@sss.pgh.pa.us>\nReviewed-by: wenhui qiu <qiuwenhuifx@gmail.com>\nDiscussion: https://postgr.es/m/CAMbWs4_rEdcG89BgC-AO7b+Bf2z8w3976+4zP==Urt=CXB1hsg@mail.gmail.com\nBackpatch-through: 16",
+  "files": [
+   "src/backend/optimizer/README",
+   "src/backend/optimizer/plan/initsplan.c",
+   "src/backend/optimizer/plan/subselect.c",
+   "src/backend/optimizer/util/relnode.c",
+   "src/include/nodes/pathnodes.h",
+   "src/include/nodes/primnodes.h",
+   "src/test/regress/expected/join.out",
+   "src/test/regress/sql/join.sql"
+  ],
+  "functions": [
+   "deconstruct_recurse",
+   "sublink_testexpr_is_not_nullable",
+   "convert_ANY_sublink_to_join",
+   "convert_EXISTS_sublink_to_join",
+   "eager_aggregation_possible_for_relation"
+  ],
+  "targets": {
+   "src/backend/optimizer/plan/initsplan.c": [
+    1638,
+    1639,
+    1640,
+    1641,
+    1642,
+    1643,
+    1644,
+    1646,
+    1647
+   ],
+   "src/backend/optimizer/plan/subselect.c": [
+    96,
+    1474,
+    1787,
+    1806,
+    1807,
+    1809,
+    1812,
+    1813,
+    1814,
+    1815,
+    1816,
+    1817,
+    1818,
+    1819,
+    1821,
+    1822,
+    1823,
+    1824,
+    1825,
+    1831,
+    1833
+   ]
+  },
+  "regress_sql": "--\n-- Test that a qual from above an antijoin made from a sublink is not pushed\n-- down into the antijoin's RHS.\n--\n\nEXPLAIN (COSTS OFF)\nSELECT s.*\nFROM (VALUES (1)) AS v(z) LEFT JOIN\n  (SELECT 123456 AS c, t1.f1 AS x FROM int4_tbl t1\n   WHERE NOT EXISTS (SELECT 1 FROM tenk1 t2 WHERE t2.unique1 = t1.f1)) s ON true\nWHERE s.x = s.c;\n\nSELECT s.*\nFROM (VALUES (1)) AS v(z) LEFT JOIN\n  (SELECT 123456 AS c, t1.f1 AS x FROM int4_tbl t1\n   WHERE NOT EXISTS (SELECT 1 FROM tenk1 t2 WHERE t2.unique1 = t1.f1)) s ON true\nWHERE s.x = s.c;\n\n-- Test the same for NOT IN, which needs non-nullable inputs to become an\n-- antijoin\nBEGIN;\n\nCREATE TEMP TABLE not_null_tab (f1 int4 NOT NULL);\nINSERT INTO not_null_tab VALUES (0), (123456), (-123456);\nANALYZE not_null_tab;\n\nEXPLAIN (COSTS OFF)\nSELECT s.*\nFROM (VALUES (1)) AS v(z) LEFT JOIN\n  (SELECT 123456 AS c, t1.f1 AS x FROM not_null_tab t1\n   WHERE t1.f1 NOT IN (SELECT t2.unique1 FROM tenk1 t2\n                       WHERE t2.unique1 IS NOT NULL)) s ON true\nWHERE s.x = s.c;\n\nSELECT s.*\nFROM (VALUES (1)) AS v(z) LEFT JOIN\n  (SELECT 123456 AS c, t1.f1 AS x FROM not_null_tab t1\n   WHERE t1.f1 NOT IN (SELECT t2.unique1 FROM tenk1 t2\n                       WHERE t2.unique1 IS NOT NULL)) s ON true\nWHERE s.x = s.c;\n\nROLLBACK;",
+  "stats": {
+   "target_lines": 30,
+   "files": 8
+  }
+ },
+ {
+  "sha": "6b3f8857aa83b214f9e7d2465d4e21d6ef75f39e",
+  "date": "2026-10-13",
+  "subject": "Delay qp_callback processing till after join removal.",
+  "body": "Commit 2ebf25e7d left query_planner's qp_callback call where\nit had been historically, but that turns out to be a bad idea.\nIt means that the code reached via qp_callback is subject to the\nmust-be-able-to-restart rule created by looping back after join\nremoval.  We found one place that fails that requirement:\nadjust_group_pathkeys_for_groupagg sets Aggref.aggpresorted flags,\nand there's nothing that will reset those in case of a query_planner\nrestart, yet the selected set of Aggrefs can change.  There might be\nother places with similar issues.\n\nFortunately, qp_callback's main charter is to compute/update pathkey\nvalues, and that is not something that join removal depends on or\nshould depend on.  (Whether join removal is valid is surely not\ndependent on what order the rel might get scanned in.)  Nothing else\nwithin the restart loop depends on it either --- in other words,\nthe existing placement was a bit random to begin with.  So we can\nfix this problem just by moving that call to below the restart loop.\nThat costs nothing, indeed it saves some cycles by not having to do\nthat processing more than once.  And removing an unstated requirement\nfrom code that's not directly called by query_planner should help\nforestall future bugs.\n\nWhile the known bug only exists in v18 and up (older branches lack the\naggpresorted optimization), I've chosen to back-patch the code change\nto v16 like 2ebf25e7d was.  This is the sort of API requirement that\nwe don't really want to be different across branches.\n\nReported-by: shihao zhong <zhong950419@gmail.com>\nAuthor: Tom Lane <tgl@sss.pgh.pa.us>\nReviewed-by: shihao zhong <zhong950419@gmail.com>\nDiscussion: https://postgr.es/m/CAGRkXqSOAT1yop44B8jwacL_91rxK=QuoU8Of3NLMb9NgAO2NA@mail.gmail.com\nBackpatch-through: 16",
+  "files": [
+   "src/backend/optimizer/plan/planmain.c",
+   "src/test/regress/expected/join.out",
+   "src/test/regress/sql/join.sql"
+  ],
+  "functions": [],
+  "targets": {
+   "src/backend/optimizer/plan/planmain.c": [
+    306
+   ]
+  },
+  "regress_sql": "-- Check SJE interaction with aggpresorted optimization.\nCREATE TEMP TABLE sje_agg (id int PRIMARY KEY, p int, q int);\nINSERT INTO sje_agg SELECT i, i % 3, (i * 7) % 10 FROM generate_series(1, 30) i;\nANALYZE sje_agg;\n\nEXPLAIN (COSTS OFF)\nSELECT count(DISTINCT a.p) AS dp, count(DISTINCT a.q) AS dq,\n       sum(DISTINCT a2.q) AS sq\nFROM sje_agg a JOIN sje_agg a2 ON a.id = a2.id;\n\nSELECT count(DISTINCT a.p) AS dp, count(DISTINCT a.q) AS dq,\n       sum(DISTINCT a2.q) AS sq\nFROM sje_agg a JOIN sje_agg a2 ON a.id = a2.id;",
+  "stats": {
+   "target_lines": 1,
+   "files": 3
+  }
+ },
+ {
+  "sha": "d8ce0050a6cff3efefa5fce8abe3c6df7bd492ce",
+  "date": "2026-10-10",
+  "subject": "Preserve typmod and collation when reducing an expression to its input",
+  "body": "eval_const_expressions() can reduce a COALESCE, CASE, or NULLIF\nexpression to one of its inputs.  The input, however, does not\nnecessarily expose the same typmod and collation as the expression it\nreplaces.  In particular, an explicit COLLATE clause on one input\ndetermines the collation of the whole expression, while the other\ninputs keep their own collations.  If the expression was reduced to\none of those other inputs, anything that relies on exprCollation(),\nsuch as sorting or grouping on the expression, would use the wrong\ncollation and could produce wrong results.\n\nFor CASE and NULLIF this is a long-standing oversight.  For COALESCE\nit has become much easier to hit since commits 931766aae and\n10c4fe074, which reduce a COALESCE with a single surviving argument,\nor with a leading non-nullable argument, to that argument.\n\nTo fix, apply applyRelabelType() to the replacement in these cases, so\nthat it exposes the type, typmod, and collation of the expression it\nreplaces.\n\nBack-patch to v19 only.  The CASE and NULLIF cases exist in older\nbranches too, but they are not back-patched further, given the lack of\nfield reports and the fact that the fix visibly changes the typmod\nexposed by a reduced CASE expression.\n\nReported-by: Shihao Zhong <zhong950419@gmail.com>\nAuthor: Shihao Zhong <zhong950419@gmail.com>\nAuthor: Richard Guo <guofenglinux@gmail.com>\nDiscussion: https://postgr.es/m/CAGRkXqR7VXacmRP41UBaM5u4aseeCH5ECVmQgn_YS=L7=xdhTw@mail.gmail.com\nBackpatch-through: 19",
+  "files": [
+   "src/backend/optimizer/util/clauses.c",
+   "src/test/regress/expected/collate.icu.utf8.out",
+   "src/test/regress/sql/collate.icu.utf8.sql"
+  ],
+  "functions": [
+   "eval_const_expressions_mutator"
+  ],
+  "targets": {
+   "src/backend/optimizer/util/clauses.c": [
+    3275,
+    3276,
+    3277,
+    3278,
+    3279,
+    3280,
+    3281,
+    3767,
+    3768,
+    3769,
+    3770,
+    3771,
+    3772,
+    3773,
+    3876,
+    3877,
+    3878,
+    3879,
+    3880,
+    3881,
+    3882
+   ]
+  },
+  "regress_sql": "--\n-- An expression that is simplified to one of its inputs must keep its own\n-- collation.\n--\nCREATE TABLE simplify_collation_t (a text COLLATE \"C\" NOT NULL, b text);\nINSERT INTO simplify_collation_t VALUES ('foo'), ('FOO');\n\nSELECT count(*) FROM (SELECT COALESCE(a, b COLLATE case_insensitive) FROM simplify_collation_t GROUP BY 1);\nSELECT count(*) FROM (SELECT CASE WHEN true THEN a ELSE b COLLATE case_insensitive END FROM simplify_collation_t GROUP BY 1);\nSELECT count(*) FROM (SELECT NULLIF(a, NULL::text COLLATE case_insensitive) FROM simplify_collation_t GROUP BY 1);\n\nDROP TABLE simplify_collation_t;",
+  "stats": {
+   "target_lines": 21,
+   "files": 3
+  }
+ },
+ {
+  "sha": "061065e28f086e3e2d7191a7785b9f218b7976d8",
+  "date": "2026-10-08",
+  "subject": "Lock RI fast-path rows as of the scan snapshot's command ID",
+  "body": "ri_LockPKTuple() passed table_tuple_lock() the current command ID, read\nat lock time.  ExecLockRows(), which locks the row for the SPI path's\nSELECT ... FOR KEY SHARE, uses the estate's es_output_cid, fixed when\nthe query starts and equal to the command ID of the query's snapshot.\nThe two differ if user code run between taking the snapshot and locking\nthe row, such as the equality function called by the index scan,\nadvances the command counter.  If that code also updated the referenced\nrow, the lock reports TM_Invisible, and the check fails with \"attempted\nto lock invisible tuple\", where the SPI path gets TM_SelfModified and\nreports a foreign key violation.\n\nTo fix, use the snapshot's command ID in ri_LockPKTuple() to mirror\nwhat ExecLockRows() does.\n\nThis is mostly hardening.  With FK values that need a cast now checked\nthrough SPI, the only user code that can run there is the opclass's\nequality function, and it would have to write to the referenced table.\nThat's unlikely, but the fast path should still behave like SPI.\n\nDiscussion: https://postgr.es/m/CA+HiwqG79XK1oObdZ2AwT660CeJ6s3Mn4LrFPCme-k4L2rF_ag@mail.gmail.com\nBackpatch-through: 19",
+  "files": [
+   "src/backend/utils/adt/ri_triggers.c",
+   "src/test/regress/expected/foreign_key.out",
+   "src/test/regress/sql/foreign_key.sql"
+  ],
+  "functions": [
+   "ri_LockPKTuple"
+  ],
+  "targets": {
+   "src/backend/utils/adt/ri_triggers.c": [
+    2967
+   ]
+  },
+  "regress_sql": "-- The row lock must use the command ID the check's snapshot was taken\n-- with.  An equality function that updates the referenced row advances the\n-- command counter before the lock; the row must then count as updated by\n-- the check's own command, so that the check reports a violation, as the\n-- SPI path does, rather than failing to lock an \"invisible\" tuple.  The\n-- equality function runs while the scan holds the index page locked; its\n-- UPDATE is a HOT update, since v isn't indexed, so it doesn't touch the\n-- index.  This is done in a transaction that is rolled back, so that other\n-- tests never see the operator class.\nBEGIN;\nCREATE TABLE fp_pk_cid (id int, v int DEFAULT 0);\nCREATE FUNCTION fp_cid_eq(int, int) RETURNS bool LANGUAGE plpgsql AS $$\nBEGIN\n    UPDATE fp_pk_cid SET v = v + 1 WHERE id OPERATOR(pg_catalog.=) $1;\n    RETURN $1 OPERATOR(pg_catalog.=) $2;\nEND$$;\nCREATE OPERATOR =~= (LEFTARG = int, RIGHTARG = int, FUNCTION = fp_cid_eq);\nCREATE OPERATOR CLASS fp_cid_ops FOR TYPE int USING btree AS\n    OPERATOR 1 pg_catalog.<, OPERATOR 2 pg_catalog.<=, OPERATOR 3 =~=,\n    OPERATOR 4 pg_catalog.>=, OPERATOR 5 pg_catalog.>,\n    FUNCTION 1 btint4cmp(int, int);\nCREATE UNIQUE INDEX fp_pk_cid_id ON fp_pk_cid (id fp_cid_ops);\nINSERT INTO fp_pk_cid VALUES (1);\nCREATE TABLE fp_fk_cid (a int REFERENCES fp_pk_cid (id));\nSAVEPOINT fp_cid;\nINSERT INTO fp_fk_cid VALUES (1);\t-- fails, as a violation\nROLLBACK TO SAVEPOINT fp_cid;\nROLLBACK;",
+  "stats": {
+   "target_lines": 1,
+   "files": 3
+  }
+ },
+ {
+  "sha": "c993d9f7c8d4bcada0d5c0bd6ea32416d956fc8f",
+  "date": "2026-10-08",
+  "subject": "Refuse RI fast-path row locks in read-only transactions",
+  "body": "The SPI path checks a foreign key with SELECT ... FOR KEY SHARE, which\nExecCheckXactReadOnly() refuses in a read-only transaction unless the\nreferenced table is temporary.  The fast path locks the referenced row\nwithout that check, so for example a deferred check that fires at\nCOMMIT after SET TRANSACTION READ ONLY succeeded, having locked a row\nin a read-only transaction, where the SPI path fails with \"cannot\nexecute SELECT FOR KEY SHARE in a read-only transaction\".\n\nFix the fast path to refuse it the same way so the behavior matches\nwith checks going through SPI.\n\nDiscussion: https://postgr.es/m/CA+HiwqG79XK1oObdZ2AwT660CeJ6s3Mn4LrFPCme-k4L2rF_ag@mail.gmail.com\nBackpatch-through: 19",
+  "files": [
+   "src/backend/utils/adt/ri_triggers.c",
+   "src/test/regress/expected/foreign_key.out",
+   "src/test/regress/sql/foreign_key.sql"
+  ],
+  "functions": [
+   "ri_FastPathCheck"
+  ],
+  "targets": {
+   "src/backend/utils/adt/ri_triggers.c": [
+    34,
+    49,
+    2799,
+    2800
+   ]
+  },
+  "regress_sql": "-- An FK check locks the referenced row, which a read-only transaction does\n-- not allow unless the referenced table is temporary.\nCREATE TABLE fp_pk_ro (a int PRIMARY KEY);\nINSERT INTO fp_pk_ro VALUES (1);\nCREATE TABLE fp_fk_ro (a int REFERENCES fp_pk_ro DEFERRABLE INITIALLY DEFERRED);\nBEGIN;\nINSERT INTO fp_fk_ro VALUES (1);\nSET TRANSACTION READ ONLY;\nCOMMIT;\t-- fails\nCREATE TEMP TABLE fp_pk_ro_tmp (a int PRIMARY KEY);\nINSERT INTO fp_pk_ro_tmp VALUES (1);\nCREATE TEMP TABLE fp_fk_ro_tmp (a int REFERENCES fp_pk_ro_tmp\n    DEFERRABLE INITIALLY DEFERRED);\nBEGIN;\nINSERT INTO fp_fk_ro_tmp VALUES (1);\nSET TRANSACTION READ ONLY;\nCOMMIT;\t-- succeeds\nSELECT count(*) FROM fp_fk_ro;\nSELECT count(*) FROM fp_fk_ro_tmp;\nDROP TABLE fp_fk_ro, fp_pk_ro, fp_fk_ro_tmp, fp_pk_ro_tmp;",
+  "stats": {
+   "target_lines": 4,
+   "files": 3
+  }
+ },
+ {
+  "sha": "372761e05a62856d32fb6a9811edf1c51a286b9c",
+  "date": "2026-10-07",
+  "subject": "Fix parser failure with whole-row join alias Vars",
+  "body": "When a query has aggregates or GROUP BY, parseCheckAggregates()\nflattens join alias Vars in the grouping expressions, target list and\nHAVING clause so that aliased and unaliased references compare equal.\nThe parser has no PlannerInfo, so this relies on every join alias\nexpression being able to carry varnullingrels without a PHV.  That\ndoesn't hold for a whole-row Var of a join on the nullable side of an\nouter join: it expands to a RowExpr, and pushing the nulling bits down\ninto its fields would turn a NULL row into ROW(NULL, ...).  Such\nqueries therefore failed with \"unsupported join alias expression\".\n\nTo fix, leave a nulled whole-row join Var unexpanded when no root is\navailable.  The planner expands it later and wraps it in a\nPlaceHolderVar as before.  Nothing is lost for GROUP BY matching: a\nnulled whole-row Var can only be equal to the same Var, never to an\nexpression over the join's columns.\n\nThis has been broken since the introduction of varnullingrels in v16.\n\nAuthor: Richard Guo <guofenglinux@gmail.com>\nDiscussion: https://postgr.es/m/CAMbWs49q_gvoeOoF0+KZ-DpQaDb=nGFfSgrz2V_n1_64L4ZNVQ@mail.gmail.com\nBackpatch-through: 16",
+  "files": [
+   "src/backend/optimizer/util/var.c",
+   "src/test/regress/expected/join.out",
+   "src/test/regress/sql/join.sql"
+  ],
+  "functions": [
+   "pull_var_clause_walker",
+   "flatten_join_alias_vars",
+   "flatten_join_alias_vars_mutator"
+  ],
+  "targets": {
+   "src/backend/optimizer/util/var.c": [
+    876,
+    877
+   ]
+  },
+  "regress_sql": "-- nulled whole-row Var of a join alias in aggregate queries\nselect t1.q2, count(t23)\nfrom int8_tbl t1 left join\n  (int8_tbl t2 join int4_tbl t3 on t3.f1 = 0) t23\n  on (t1.q2 = t23.q1)\ngroup by t1.q2 order by 1;\n\nselect t23, count(*)\nfrom int8_tbl t1 left join\n  (int8_tbl t2 join int4_tbl t3 on t3.f1 = 0) t23\n  on (t1.q2 = t23.q1)\ngroup by t23 order by 1;",
+  "stats": {
+   "target_lines": 2,
+   "files": 3
+  }
+ },
+ {
+  "sha": "d4c15309e7ed6e30e360b5911e1f4d3ca754aa2b",
+  "date": "2026-10-06",
+  "subject": "Flatten join alias Vars before rechecking subquery pullup safety",
+  "body": "pull_up_simple_subquery() rechecks is_simple_subquery() after pulling\nup the subquery's own subqueries, but it flattened join alias Vars in\nthe subquery's targetlist only after that, and never in its quals.  A\njoin alias Var within the subquery, such as a whole-row Var of a join,\ncan expand to an expression containing lateral references to the outer\nquery once the join's inputs have been pulled up, and until it is\nflattened is_simple_subquery() cannot see them.  We could thus pull up\na LATERAL subquery whose targetlist or quals reference rels outside\nthe lowest outer join above it.  This leads to assertion failures in\ndistribute_qual_to_rels() or \"wrong phnullingrels\" errors, and in some\ncases to wrong query results, where rows that should have been\npreserved by an outer join above the subquery are discarded.\n\nTo fix, flatten join alias Vars in the targetlist, and in the jointree\nquals if the subquery is LATERAL, before the recheck.  If the recheck\nfails, the flattened copy is discarded along with the rest of the\nmodified subquery, so no harm is done.\n\nBack-patch to all supported branches, as this can lead to wrong query\nresults.\n\nAuthor: Richard Guo <guofenglinux@gmail.com>\nReviewed-by: Tatsuya Kawata <kawatatatsuya0913@gmail.com>\nDiscussion: https://postgr.es/m/CAMbWs48GFZ=3Bjc1ug9JRsB0Qupg+CGcb9js5vmTM6kY2OGWOg@mail.gmail.com\nBackpatch-through: 14",
+  "files": [
+   "src/backend/optimizer/prep/prepjointree.c",
+   "src/test/regress/expected/join.out",
+   "src/test/regress/sql/join.sql"
+  ],
+  "functions": [
+   "jointree_contains_lateral_outer_refs",
+   "pull_up_simple_subquery"
+  ],
+  "targets": {
+   "src/backend/optimizer/prep/prepjointree.c": [
+    148,
+    149,
+    1543,
+    1544,
+    1545,
+    1546,
+    1547,
+    1548,
+    2565,
+    2566,
+    2568,
+    2569,
+    2570,
+    2571,
+    2572,
+    2574,
+    2575,
+    2577,
+    2578,
+    2579,
+    2581,
+    2583,
+    2585,
+    2586,
+    2587,
+    2589,
+    2590,
+    2591
+   ]
+  },
+  "regress_sql": "-- check that lateral references hidden in a whole-row join alias Var\n-- prevent pullup of a LATERAL subquery\nexplain (verbose, costs off)\nselect i4.f1, ss.x, i8.q1\nfrom int4_tbl i4,\n  lateral (select (j is null)::int\n           from ((select i4.f1) s left join (select 1) v on false) j) ss(x)\n  left join int8_tbl i8 on ss.x = i8.q1\norder by 1;\nselect i4.f1, ss.x, i8.q1\nfrom int4_tbl i4,\n  lateral (select (j is null)::int\n           from ((select i4.f1) s left join (select 1) v on false) j) ss(x)\n  left join int8_tbl i8 on ss.x = i8.q1\norder by 1;\n\n-- same, with the lateral reference hidden in the subquery's quals\nexplain (verbose, costs off)\nselect i4.f1, i8.q1, ss.y\nfrom int4_tbl i4,\n  int8_tbl i8 left join\n  lateral (select 1 from ((select i4.f1) s left join (select 1) v on false) j\n           where length(j::text) > 3) ss(y) on true\nwhere i4.f1 = 0\norder by 1, 2;\nselect i4.f1, i8.q1, ss.y\nfrom int4_tbl i4,\n  int8_tbl i8 left join\n  lateral (select 1 from ((select i4.f1) s left join (select 1) v on false) j\n           where length(j::text) > 3) ss(y) on true\nwhere i4.f1 = 0\norder by 1, 2;",
+  "stats": {
+   "target_lines": 28,
+   "files": 3
+  }
+ },
+ {
+  "sha": "90893c7b7cf355b87f403a8a56293abe33ad7848",
+  "date": "2026-10-05",
+  "subject": "Fix EXPLAIN of dummy set operations some more.",
+  "body": "EXPLAIN failed to deal with varno-0 Vars that are made by prepunion.c\nand can survive into a finished plan in the case where a provably\nempty set operation is replaced by a dummy Result (which is possible\nsince 03d40e4b5).  Commit 928df067d tried to fix this, but it was a\ncouple bricks shy of a load.  First, it only dealt with varno-0 Vars\nat the top level of the Result's tlist, but they could be buried\nunder coercion expressions.  Fix that by doing a recursive mutation.\nSecond, it always replaced varno 0 with varno 1, but that's just\nwrong: the Result might represent a group of setop leaf queries that\ndo not include the leftmost leaf.  That led to displaying the wrong\nvariable(s) as outputs of the Result, risking confusion.  Fortunately,\nwe can get the actual child relids from the recently-added\nResult.relids field, and use that to discover the leftmost child\nrepresented by the Result.\n\nThis was found while discussing bug #19742, but it's really an\nindependent issue.\n\nAuthor: shihao zhong <zhong950419@gmail.com>\nCo-authored-by: Tom Lane <tgl@sss.pgh.pa.us>\nDiscussion: https://postgr.es/m/CAGRkXqTFwygKmjLG_Y=kbXRHsePFmD6k+qrzVLP4_KrG+-=oRg@mail.gmail.com\nBackpatch-through: 19",
+  "files": [
+   "src/backend/optimizer/plan/setrefs.c",
+   "src/test/regress/expected/union.out",
+   "src/test/regress/sql/union.sql"
+  ],
+  "functions": [
+   "offset_relid_set",
+   "set_plan_refs",
+   "fix_alternative_subplan"
+  ],
+  "targets": {
+   "src/backend/optimizer/plan/setrefs.c": [
+    158,
+    1045,
+    1075,
+    1081,
+    1082,
+    1083,
+    1084,
+    1085,
+    1086,
+    1087,
+    1088,
+    2258,
+    2259,
+    2261,
+    2262,
+    2263,
+    2265,
+    2267,
+    2268,
+    2269,
+    2270,
+    2271,
+    2272,
+    2273,
+    2274,
+    2276,
+    2277
+   ]
+  },
+  "regress_sql": "-- Ensure EXPLAIN can show a dummy set operation whose output is coerced\n-- to another type by the parent set operation.\nEXPLAIN (COSTS OFF, VERBOSE)\nSELECT two::numeric FROM tenk1 t1\nEXCEPT\n(SELECT four FROM tenk1 dummy WHERE 1=2\n EXCEPT ALL\n SELECT ten FROM tenk1 t2);",
+  "stats": {
+   "target_lines": 27,
+   "files": 3
+  }
+ },
+ {
+  "sha": "bfa1a69edd768078bc24d3930e069002167e7c9c",
+  "date": "2026-10-04",
+  "subject": "Set hasSubLinks when expanding a whole-row join alias reference",
+  "body": "If a subquery has been flattened into its parent, the joinaliasvars\nentries of a join above it can be arbitrary expressions rather than\nplain Vars, so expanding a reference to such a join alias may insert a\nSubLink into a lower-level subquery.  flatten_join_alias_vars_mutator\ndetects that and sets the subquery's hasSubLinks flag, but only in the\nsingle-column code path; the whole-row path just asserted in a comment\nthat its recursive call would handle this, which is true only when the\nalias entry is itself a Var referencing another join.\n\nHence a whole-row reference to such a join appearing in a sub-select\nleft that sub-select's hasSubLinks false, so preprocess_expression\nskipped SS_process_sublinks for it, and the unprocessed SubLink\nreached code that is not prepared for one: this produced \"cannot\nhandle unplanned sub-select\" from cost_qual_eval, an assertion failure\nin preprocess_aggrefs, or \"unrecognized node type\" at execution,\ndepending on where in the sub-select the SubLink ended up.\n\nTo fix, make the same check in the whole-row expansion path.\n\nBack-patch to all supported branches.\n\nAuthor: Richard Guo <guofenglinux@gmail.com>\nReviewed-by: Ayush Tiwari <ayushtiwari.slg01@gmail.com>\nDiscussion: https://postgr.es/m/CAMbWs49PgeNFhQTZ2gSzwatF0_LXyegMPGt++jSfxUN7NZuQ5Q@mail.gmail.com\nBackpatch-through: 14",
+  "files": [
+   "src/backend/optimizer/util/var.c",
+   "src/test/regress/expected/subselect.out",
+   "src/test/regress/sql/subselect.sql"
+  ],
+  "functions": [
+   "flatten_join_alias_vars_mutator"
+  ],
+  "targets": {
+   "src/backend/optimizer/util/var.c": [
+    890,
+    891
+   ]
+  },
+  "regress_sql": "-- Likewise, but with the sublink inserted into a whole-row reference.\n\nselect 1 from ((select (select 1) as x) ss1 cross join int4_tbl i4) j\n  where (select 1 where j is null) is null;\n\nselect 1 from ((select (select 1) as x) ss1 cross join int4_tbl i4) j\n  where (1, 1) in (select (j is null)::int, count(*) from int4_tbl);\n\nselect 1 from ((select (select 1) as x) ss1 cross join int4_tbl i4) j\n  where exists (select 1 from int4_tbl\n                tablesample system ((j is null)::int * 100));",
+  "stats": {
+   "target_lines": 2,
+   "files": 3
+  }
+ },
+ {
+  "sha": "425daf545d9146e008220ae0b21415982220cd3f",
+  "date": "2026-10-03",
+  "subject": "Remove batching from RI fast-path checks",
+  "body": "This removes the buffering of FK rows for batched PK index probes,\nalong with the after-trigger callback infrastructure used only by\nbatching.  The per-row fast path, which probes the PK index directly\ninstead of going through SPI, remains.  This is a cherry-pick of\ncommit 25649d6e791c2, which made the same change in REL_19_STABLE,\nadjusted for some drift between the branches.\n\nI (amitlan) initially thought we could keep improving the batching\npath on master by fixing its remaining bugs and other issues as\nthey were found.  However, we are still finding cases where delaying\nchecks to accumulate a batch changes their results, such as when other\nAFTER ROW triggers modify the referenced table.  Individual cases can\nbe addressed, but new ones keep turning up, which makes it hard to be\nconfident that fixing the known ones will be enough.  It seems better\nto rip batching out and reconsider how to introduce it, or at least\nits useful pieces, while preserving the semantics of per-row checks.\n\nDiscussion: https://postgr.es/m/CA+HiwqFx4cjFtC3akr1DW-cPYw+B-EkCSffZPrkpTef8PNS6qA@mail.gmail.com",
+  "files": [
+   "src/backend/access/transam/xact.c",
+   "src/backend/commands/trigger.c",
+   "src/backend/utils/adt/ri_triggers.c",
+   "src/include/commands/trigger.h",
+   "src/test/isolation/isolation_schedule",
+   "src/test/modules/injection_points/specs/ri_fastpath_reindex.spec",
+   "src/test/regress/expected/foreign_key.out",
+   "src/test/regress/expected/triggers.out",
+   "src/test/regress/sql/foreign_key.sql",
+   "src/test/regress/sql/triggers.sql",
+   "src/tools/pgindent/typedefs.list"
+  ],
+  "functions": [
+   "CommitSubTransaction",
+   "AbortSubTransaction",
+   "cancel_prior_stmt_triggers",
+   "AfterTriggerBeginXact",
+   "AfterTriggerEndQuery",
+   "AfterTriggerFreeQuery",
+   "AfterTriggerFireDeferred",
+   "AfterTriggerEndXact",
+   "AfterTriggerBeginSubXact",
+   "AfterTriggerEndSubXact",
+   "AfterTriggerEnlargeQueryState",
+   "AfterTriggerSetState",
+   "check_modified_virtual_generated",
+   "ri_FastPathCheck",
+   "ri_ReportViolation",
+   "RI_FKey_check",
+   "InvalidateConstraintCacheCallBack",
+   "ri_FastPathProbeOne",
+   "ri_LockPKTuple",
+   "ri_check_fastpath_index",
+   "RI_FKey_trigger_type",
+   "ri_FastPathTeardown",
+   "AtEOXact_RI"
+  ],
+  "targets": {
+   "src/backend/utils/adt/ri_triggers.c": [
+    439,
+    440,
+    441,
+    2947
+   ]
+  },
+  "regress_sql": "-- Test the fast-path ALTER TABLE validation path.  RLS on the referenced\n-- table makes RI_Initial_Check() decline the set-based check, so validation\n-- invokes the RI trigger once per referencing row.\nCREATE ROLE regress_fk_fastpath_role;\nALTER TABLE fp_pk_alter ENABLE ROW LEVEL SECURITY;\nCREATE POLICY fp_pk_alter_all ON fp_pk_alter\n    FOR ALL USING (true) WITH CHECK (true);\nGRANT REFERENCES, SELECT ON fp_pk_alter TO regress_fk_fastpath_role;\nALTER TABLE fp_fk_alter OWNER TO regress_fk_fastpath_role;\nSET ROLE regress_fk_fastpath_role;\nRESET ROLE;\nALTER TABLE fp_pk_alter2 ENABLE ROW LEVEL SECURITY;\nCREATE POLICY fp_pk_alter2_all ON fp_pk_alter2\n    FOR ALL USING (true) WITH CHECK (true);\nGRANT REFERENCES, SELECT ON fp_pk_alter2 TO regress_fk_fastpath_role;\nALTER TABLE fp_fk_alter2 OWNER TO regress_fk_fastpath_role;\nSET ROLE regress_fk_fastpath_role;\nRESET ROLE;\nDROP ROLE regress_fk_fastpath_role;\n-- Tests that the fast-path handles multiple constraints\nINSERT INTO fp_multi_fk VALUES (1, 1);  -- two constraints\n-- Test that fast-path handles deferred constraints and SET CONSTRAINTS IMMEDIATE\nSET CONSTRAINTS ALL IMMEDIATE;  -- fires deferred checks here\nINSERT INTO fp_fk_defer VALUES (3);  -- should fail\n-- not be lost.  The RI fast-path runs during the deferred firing loop\n-- At COMMIT the queued fk_defer_t2 check must fire and report the violation\n-- Multi-column FK: exercises direct per-row probing with composite keys\n-- Deferred constraint: deferred check fired at COMMIT, not at statement end\n-- cast re-enters with DML on the same FK\nINSERT INTO fp_reentry_fk SELECT row(1)::fp_vch FROM generate_series(1, 2);\n-- Cache invalidation arriving during a fast-path check.\n-- A cross-type foreign key runs the user's cast function while building its\n-- index scan keys.  A cast that performs DDL raises an invalidation there,\n-- detaching the constraint's fast-path metadata while the check is still\n-- using it.\n-- invalidation partway through the check.  Guarded on the catalog so the\n-- Cross-type on column a, so the cast above is invoked.\n-- The first row invalidates the metadata; the second check must repopulate\n-- and use it safely.",
+  "stats": {
+   "target_lines": 4,
+   "files": 11
+  }
+ },
+ {
+  "sha": "dca6a9e320e0272f0ea8d7e076cda04b06050866",
+  "date": "2026-09-29",
+  "subject": "Prevent self-join elimination when RTEs' checkAsUser fields differ.",
+  "body": "SJE didn't consider the possibility that two RTEs referencing the\nsame table have different securityQuals, and might choose to merge\nthem anyway, thereby possibly losing quals that need to be enforced.\nThis is a regression introduced by 2ebf25e7d, since before that we\ndidn't re-generate baserestrictinfo lists from the RTEs' securityQuals\nafter performing SJE.\n\nTo defend against this, only consider SJE between RTEs with the same\ncheckAsUser values.  That solves the problem because the set of\napplicable RLS policies depends only on the role that is considered\nto be accessing the table, so that the securityQuals must be equal\nif the checkAsUser values are.  It might also keep us from creating\nsimilar bugs if we ever invent other features that depend on the\naccessing role.  And it's a lot cheaper than comparing securityQuals\ntrees themselves would be, not least because we can't sort them so\nthe preliminary sort step wouldn't help.\n\n(The first proposed solution was to not perform SJE at all on RTEs\nwith nonempty securityQuals, but that seems rather sad, especially\nsince such cases worked before 2ebf25e7d.  Making the restriction\ndepend on checkAsUser seems much less likely to interfere with SJE\nunnecessarily, since in most cases that'll be the same for all\npotentially-mergeable RTEs.)\n\nThe added test cases show that SJE is rejected when necessary, and\nalso demonstrate two quirks of this implementation.  One is that if\na removed security qual includes an InitPlan, we'll still attach the\nnow-unused InitPlan to the plan.  That's because SS_process_sublinks\nruns before self-join elimination, so the extra InitPlan has already\nbeen made.  The other quirk is that we won't merge RTEs having zero\nand nonzero checkAsUser fields, even if the calling user matches the\nnonzero checkAsUser value so that there is no difference for this\nuser.  That's intentional so that SJE doesn't require having to mark\nthe plan as caller-dependent.\n\nReported-by: Yonghwa Lee <underdog@theori.io>\nAuthor: Tom Lane <tgl@sss.pgh.pa.us>\nReviewed-by: Ayush Tiwari <ayushtiwari.slg01@gmail.com>\nDiscussion: https://postgr.es/m/20260926174457.13.noahmisch@microsoft.com\nBackpatch-through: 18",
+  "files": [
+   "src/backend/optimizer/plan/analyzejoins.c",
+   "src/test/regress/expected/rowsecurity.out",
+   "src/test/regress/sql/rowsecurity.sql"
+  ],
+  "functions": [
+   "remove_self_joins_recurse",
+   "self_join_candidates_cmp"
+  ],
+  "targets": {
+   "src/backend/optimizer/plan/analyzejoins.c": [
+    40,
+    60,
+    2026,
+    2029,
+    2030,
+    2032,
+    2034,
+    2035,
+    2037,
+    2038,
+    2055,
+    2056,
+    2057,
+    2103,
+    2104
+   ]
+  },
+  "regress_sql": "CREATE TABLE rls_tbl (a int PRIMARY KEY);\n\nEXPLAIN (COSTS OFF) -- check that RLS enforcement is actually happening\nSELECT * FROM rls_view;\n\n-- Use the same view+table to test interaction of SJE with RLS\nSET enable_self_join_elimination = on;\n-- We can do SJE here, although presently an unused InitPlan survives\nEXPLAIN (COSTS OFF)\nSELECT * FROM rls_view r1, rls_view r2 WHERE r1.a = r2.a;\nSET SESSION AUTHORIZATION regress_rls_bob;\n-- No SJE here, because the two rls_tbl RTEs have different checkAsUser values\nEXPLAIN (COSTS OFF)\nSELECT * FROM rls_tbl r1, rls_view r2 WHERE r1.a = r2.a;\n\nRESET enable_self_join_elimination;",
+  "stats": {
+   "target_lines": 15,
+   "files": 3
+  }
+ },
+ {
+  "sha": "1a846a555afb0e5f2008f3aefe8f77acbe6ffba6",
+  "date": "2026-09-26",
+  "subject": "Check EXECUTE privilege on functions invoked by the RI fast path",
+  "body": "ri_FastPathCheck() invokes two functions on the FK values: the\nequality operator's function, via the ScanKey the index AM evaluates,\nand, when the FK column's type differs from the PK column's, the\nimplicit cast function.  The SPI path gets EXECUTE on both checked by\nExecInitFunc() when it initializes the generated query, as the\nreferenced table's owner, but the fast path performed neither check.\n\nAdd ri_CheckFunctionPermissions() and call it once the fast-path\nmetadata is populated, under the switch to the referenced table's\nowner, so the checks happen at the same point as the existing relation\npermission check.  Add a regression test for each function, reaching\nthe fast path through per-row validation of a new constraint, and\nrepeat each against a partitioned referenced table, which takes the\nSPI path, to show that the two behave identically.\n\nReported-by: Nikolay Samokhvalov <nik@postgres.ai> (offlist)\nReviewed-by: Matheus Alcantara <matheusssilv97@gmail.com>\nDiscussion: https://postgr.es/m/CA+HiwqGH+b7sXmsH8sT18diujbheSObWs0gWXqLZqRccMKvZAA@mail.gmail.com\nBackpatch-through: 19",
+  "files": [
+   "src/backend/utils/adt/ri_triggers.c",
+   "src/test/regress/expected/foreign_key.out",
+   "src/test/regress/sql/foreign_key.sql"
+  ],
+  "functions": [
+   "recheck_matched_pk_tuple",
+   "ri_FastPathCheck"
+  ],
+  "targets": {
+   "src/backend/utils/adt/ri_triggers.c": [
+    35,
+    41,
+    404,
+    405,
+    2978,
+    3734,
+    3735,
+    3736,
+    3738,
+    3740,
+    3742,
+    3744,
+    3746,
+    3747,
+    3748,
+    3749,
+    3750,
+    3751,
+    3752,
+    3753
+   ]
+  },
+  "regress_sql": "-- The fast path must check EXECUTE, as the referenced table's owner, on the\n-- functions it invokes on the FK values: the equality operator's function\n-- and, for a cross-type FK, the implicit cast function.  Validation of a new\n-- constraint by a role that cannot use the bulk check (RLS is enabled on the\n-- referenced table) runs per-row checks through the fast path.\n--\n-- Wrapped with BEGIN...ROLLBACK to ensure opclasses used here don't interfere\n-- with nearby tests.\nBEGIN;\nCREATE ROLE regress_ri_pkowner;\nCREATE ROLE regress_ri_fkowner;\n\n-- A private btree opclass whose equality function we can revoke without\n-- affecting anything else.\nCREATE FUNCTION regress_ri_int4eq(int4, int4) RETURNS bool\n  AS 'int4eq' LANGUAGE internal IMMUTABLE STRICT;\nCREATE OPERATOR === (LEFTARG = int4, RIGHTARG = int4,\n  FUNCTION = regress_ri_int4eq, COMMUTATOR = ===,\n  RESTRICT = eqsel, JOIN = eqjoinsel);\nCREATE OPERATOR CLASS regress_ri_int4_ops FOR TYPE int4 USING btree AS\n  OPERATOR 1 <, OPERATOR 2 <=, OPERATOR 3 ===, OPERATOR 4 >=, OPERATOR 5 >,\n  FUNCTION 1 btint4cmp(int4, int4);\nREVOKE EXECUTE ON FUNCTION regress_ri_int4eq(int4, int4) FROM PUBLIC;\nGRANT EXECUTE ON FUNCTION regress_ri_int4eq(int4, int4) TO regress_ri_fkowner;\n\n-- An FK column type needing a user-defined implicit cast to the PK type.\nCREATE TYPE fkenum AS ENUM ('one');\nCREATE FUNCTION fkenum_to_int4(fkenum) RETURNS int4\n  AS 'SELECT 1' LANGUAGE sql IMMUTABLE STRICT;\nCREATE CAST (fkenum AS int4) WITH FUNCTION fkenum_to_int4(fkenum) AS IMPLICIT;\nREVOKE EXECUTE ON FUNCTION fkenum_to_int4(fkenum) FROM PUBLIC;\nGRANT EXECUTE ON FUNCTION fkenum_to_int4(fkenum) TO regress_ri_fkowner;\n\nCREATE TABLE pktable_acl_op (a int4);\nCREATE UNIQUE INDEX ON pktable_acl_op (a regress_ri_int4_ops);\nCREATE TABLE pktable_acl_cast (a int4 PRIMARY KEY);\nCREATE TABLE pktable_acl_op_part (a int4) PARTITION BY LIST (a regress_ri_int4_ops);\nCREATE TABLE pktable_acl_op_part1 PARTITION OF pktable_acl_op_part DEFAULT;\nCREATE UNIQUE INDEX ON pktable_acl_op_part (a regress_ri_int4_ops);\nCREATE TABLE pktable_acl_cast_part (a int4 PRIMARY KEY) PARTITION BY LIST (a);\nINSERT INTO pktable_acl_op VALUES (1);\nINSERT INTO pktable_acl_cast VALUES (1);\nALTER TABLE pktable_acl_op OWNER TO regress_ri_pkowner;\nALTER TABLE pktable_acl_cast OWNER TO regress_ri_pkowner;\nALTER TABLE pktable_acl_op_part OWNER TO regress_ri_pkowner;\nALTER TABLE pktable_acl_cast_part OWNER TO regress_ri_pkowner;\nALTER TABLE pktable_acl_op ENABLE ROW LEVEL SECURITY;\nALTER TABLE pktable_acl_cast ENABLE ROW LEVEL SECURITY;\nALTER TABLE pktable_acl_op_part ENABLE ROW LEVEL SECURITY;\nALTER TABLE pktable_acl_cast_part ENABLE ROW LEVEL SECURITY;\nGRANT REFERENCES ON pktable_acl_op, pktable_acl_cast, pktable_acl_op_part, pktable_acl_cast_part TO regress_ri_fkowner;\n\nCREATE TABLE fktable_acl_op (a int4);\nCREATE TABLE fktable_acl_cast (a fkenum);\nINSERT INTO fktable_acl_op VALUES (1);\nINSERT INTO fktable_acl_cast VALUES ('one');\nALTER TABLE fktable_acl_op OWNER TO regress_ri_fkowner;\nALTER TABLE fktable_acl_cast OWNER TO regress_ri_fkowner;\n\n-- The FK owner holds EXECUTE on both functions; the PK owner does not, and\n-- it is the PK owner whose privileges apply.\nSET ROLE regress_ri_fkowner;\nSAVEPOINT s;\nALTER TABLE fktable_acl_op\n  ADD FOREIGN KEY (a) REFERENCES pktable_acl_op (a);\t-- fails\nROLLBACK TO SAVEPOINT s;\nSAVEPOINT s;\nALTER TABLE fktable_acl_cast\n  ADD FOREIGN KEY (a) REFERENCES pktable_acl_cast (a);\t-- fails\nROLLBACK TO SAVEPOINT s;\nSAVEPOINT s;\nALTER TABLE fktable_acl_op\n  ADD FOREIGN KEY (a) REFERENCES pktable_acl_op_part (a);\t-- fails (SPI path message)\nROLLBACK TO SAVEPOINT s;\nSAVEPOINT s;\nALTER TABLE fktable_acl_cast\n  ADD FOREIGN KEY (a) REFERENCES pktable_acl_cast_part (a);\t-- fails (SPI path message)\nROLLBACK TO SAVEPOINT s;\nRESET ROLE;\nROLLBACK;",
+  "stats": {
+   "target_lines": 20,
+   "files": 3
+  }
+ },
+ {
+  "sha": "e73841ffbceea314cf9fa3f64a5eae9f87a46449",
+  "date": "2026-09-19",
+  "subject": "JSON_TABLE: propagate table-level ON ERROR to columns per SQL standard",
+  "body": "Per ISO/IEC 9075-2:2023, 7.11 <JSON table>, Syntax Rules 1)e)iv) and\n1)f)xi), a regular or formatted JSON_TABLE column that does not specify\nits own ON ERROR clause takes its default error behavior from the\ntable-level ON ERROR clause: with ERROR ON ERROR on the table, the\ncolumn behaves as ERROR ON ERROR; otherwise the column defaults to\nNULL ON ERROR.\n\nPostgreSQL instead always defaulted such columns to NULL ON ERROR, so\n\n  SELECT * FROM JSON_TABLE(jsonb '\"err\"', '$'\n                           COLUMNS (a int PATH '$') ERROR ON ERROR) jt;\n\nreturned a NULL row where the standard requires an error.  The\ndocumentation stated the divergence as if it were a rule, saying that\nthe table-level clause \"does not affect the errors that occur when\nevaluating columns\".\n\nImplement the standard behavior in the JSON_TABLE syntactic\ntransformation: when a column lacks its own ON ERROR clause and the\ntable-level behavior is ERROR ON ERROR, synthesize an implicit ERROR ON\nERROR for the column before it is transformed into a JsonExpr.  A column\nwith its own ON ERROR clause is unaffected.  EXISTS columns are not\ncovered by those syntax rules, so they keep their FALSE ON ERROR\ndefault.  A JSON_TABLE stored in a view is now deparsed with the\npreviously implicit ERROR ON ERROR shown explicitly on the affected\ncolumns, which is a semantically equivalent, round-trip-stable form.\n\n86ab7f4c721d introduced this cascade as part of the PLAN clause and\naf6fad879fbf reverted it, on the grounds that it should be a deliberate\nand separately documented change rather than a side effect of an\nunrelated feature.  This is that change.\n\nDo not back-patch.  A query that specifies ERROR ON ERROR at the table\nlevel and relies on its columns still yielding NULL now raises an error\ninstead of returning rows.  Nothing is silently wrong in the released\nbranches: the table-level clause is ignored for columns consistently,\nand that is what the documentation has promised since PostgreSQL 17, so\nusers could reasonably have depended on it.\n\nDiscussion: https://postgr.es/m/CAPpHfdtDXseGhrL14a2asOkwGnFTVrDk8SQc3iWZgWEEhXXMGw%40mail.gmail.com\nReviewed-by: Nikita Malakhov <hukutoc@gmail.com>",
+  "files": [
+   "doc/src/sgml/func/func-json.sgml",
+   "src/backend/parser/parse_jsontable.c",
+   "src/test/regress/expected/sqljson_jsontable.out",
+   "src/test/regress/sql/sqljson_jsontable.sql"
+  ],
+  "functions": [
+   "transformJsonTableColumn",
+   "transformJsonTableColumns",
+   "appendJsonTableColumns"
+  ],
+  "targets": {
+   "src/backend/parser/parse_jsontable.c": [
+    52,
+    53,
+    72,
+    73,
+    349,
+    380,
+    381,
+    445,
+    500,
+    552,
+    553,
+    554
+   ]
+  },
+  "regress_sql": "-- TABLE-level ERROR ON ERROR is propagated to a column without its own\n-- ON ERROR clause (per SQL standard), so \"err\" raises instead of yielding NULL.\n\tJSON_TABLE(vals.js::jsonb, '$' COLUMNS (a int PATH '$') ERROR ON ERROR) jt\n-- Table-level ERROR ON ERROR is propagated to a column lacking its own ON ERROR\n-- clause, so a conversion failure raises an error rather than yielding NULL\n-- (ISO/IEC 9075-2:2023, 7.11 <JSON table>, SR 1)e)iv)).\n-- ... but an explicit column-level ON ERROR still wins over the table-level one.\nSELECT * FROM JSON_TABLE(jsonb '\"err\"', '$' COLUMNS (a int PATH '$' NULL ON ERROR) ERROR ON ERROR) jt;\n-- Propagation likewise applies to formatted columns (SR 1)f)xi)), but not to\n-- EXISTS columns, which are not part of the standard and keep FALSE ON ERROR.\nSELECT * FROM JSON_TABLE(jsonb '{\"a\":1}', '$' COLUMNS (a int[] PATH '$.a') ERROR ON ERROR) jt;\nSELECT * FROM JSON_TABLE(jsonb '{}', 'strict $' COLUMNS (a int EXISTS PATH 'strict $.x') ERROR ON ERROR) jt;",
+  "stats": {
+   "target_lines": 12,
+   "files": 4
+  }
+ },
+ {
+  "sha": "bee81f7864621117f077a2694b63265378bbd7b9",
+  "date": "2026-09-19",
+  "subject": "Fix preprocessing of PHV copies pushed down into subqueries",
+  "body": "Commit e28cf96e9 preprocessed the copies of a query level's\nPlaceHolderVars that were pushed down into its subqueries in a single\nwalk at the start of subquery_planner.  That was wrong in two ways.\n\nFirst, such copies can also be inserted later, when a join alias Var\nof the outer level is expanded within a LATERAL subquery or a\nSubLink's subselect and the alias expression contains a PHV.  Those\ncopies were never preprocessed, so a SubLink within them survived into\nthe subquery's lateral references or into a SubPlan's argument list,\ntripping an assertion in identify_current_nestloop_params or failing\nin cost_qual_eval.\n\nSecond, when a pushed-down copy directly contains another PHV of the\nsame level, the walk preprocessed the inner one first and then the\nouter one, so the outer one's preprocessing ran into the SubPlans just\ncreated in the inner one and tripped an assertion in\nflatten_join_alias_vars.\n\nTo fix, preprocess the copies right after join alias expansion\ninstead: within preprocess_expression, just before SubLinks are turned\ninto SubPlans, and for LATERAL subquery RTEs, right after their\naliases are flattened.  Preprocessing a copy handles everything within\nit, including any further copies nested inside its SubLinks, so the\nwalker no longer looks inside a copy.\n\nBack-patch to v16, as with commit e28cf96e9.\n\nReported-by: Fujii Masao <masao.fujii@gmail.com>\nAuthor: Richard Guo <guofenglinux@gmail.com>\nDiscussion: https://postgr.es/m/CAHGQGwH-acRnAk1=Ki4EiAJEt67+Rz=_jyg7pbP_c6BK4oHZ4Q@mail.gmail.com\nBackpatch-through: 16",
+  "files": [
+   "src/backend/optimizer/plan/planner.c",
+   "src/backend/optimizer/plan/subselect.c",
+   "src/backend/optimizer/util/var.c",
+   "src/test/regress/expected/join.out",
+   "src/test/regress/sql/join.sql"
+  ],
+  "functions": [
+   "preprocess_expression",
+   "group_var_eqop",
+   "subquery_planner",
+   "preprocess_subquery_phvs",
+   "preprocess_subquery_phvs_walker",
+   "process_sublinks_mutator",
+   "flatten_join_alias_vars_mutator"
+  ],
+  "targets": {
+   "src/backend/optimizer/plan/planner.c": [
+    160,
+    161,
+    162,
+    1130,
+    1131,
+    1472,
+    1473,
+    1649,
+    1655,
+    1680,
+    1681,
+    1699
+   ]
+  },
+  "regress_sql": "-- likewise, where the pushed-down PHV's expression contains another PHV of\n-- the same level, which must not be preprocessed separately from its parent\nexplain (verbose, costs off)\nselect ss3.c2\nfrom int4_tbl i41\n     left join (select coalesce(ss1.c1, 0) as c1\n                from int4_tbl i42\n                     left join (select (select i43.f1) as c1\n                                from int4_tbl i43) ss1 on true) ss2\n       on true,\n     lateral (select ss2.c1 as c2 from int4_tbl i44 offset 0) ss3;\n\n-- likewise, where the PHV copy is only inserted into the LATERAL subquery by\n-- expanding a join alias Var of the outer level\nexplain (verbose, costs off)\nselect ss2.c2\nfrom ((select (select i41.f1) as c1 from int4_tbl i41) ss1\n      full join int4_tbl i42(c1) using (c1)) j,\n     lateral (select j.c1 as c2 from int4_tbl i43 offset 0) ss2;\n\n-- likewise, where the join alias is expanded within a SubLink's subselect\nexplain (verbose, costs off)\nselect (select j.c1 from int4_tbl i43 offset 0) as c2\nfrom ((select (select i41.f1) as c1 from int4_tbl i41) ss1\n      full join int4_tbl i42(c1) using (c1)) j;\n\n-- likewise, where the SubLink holding the copy ends up in the translated\n-- Vars of an appendrel child pulled up from a LATERAL UNION ALL subquery\nexplain (verbose, costs off)\nselect ss2.c2\nfrom (select case when false then remov.id end as c1\n      from int4_tbl i41 left join a remov on i41.f1 = remov.id) ss1\n     right join int4_tbl i42 on true,\n     lateral ((select (select ss1.c1) as c2) union all (select (select ss1.c1))) ss2;",
+  "stats": {
+   "target_lines": 12,
+   "files": 5
+  }
+ },
+ {
+  "sha": "ab713cdcdbfd05b72a6959ff17aad56cf075ae31",
+  "date": "2026-09-19",
+  "subject": "Fix PASSING of toasted text values in JSON query functions",
+  "body": "The PASSING arguments of JSON_EXISTS(), JSON_QUERY(), JSON_VALUE() and\nJSON_TABLE() are evaluated by plain expression steps and given to the\njsonpath executor as-is.\n\nWhen dealing with a varlena, JsonItemFromDatum() was building a\njbvString directly the contents of a varlena.  For a varatt_external\n(varatt_external[oid/oid8] on HEAD), this ignored that the contents of\nthe varlena need to be detoasted, leading to incorrect contents\nreturned.\n\nLet's detoast the value, like the jsonb and json cases.  b0feda79fdf0\nhas fixed the same issue for subscript values in jsonb.\n\nNote that the results of DatumGetTextPP() are allocated in the memory\ncontext used for the evaluation of the expression, which is reset once\nper row.\n\nOversight in 6185c9737cf4.\n\nAuthor: Chaitanya Choudhary <chaitanyyachoudhary@gmail.com>\nAuthor: Shihao Zhong <zhong950419@gmail.com>\nDiscussion: https://postgr.es/m/19693-2ecd2b52c838b3e5@postgresql.org\nBackpatch-through: 17",
+  "files": [
+   "src/backend/utils/adt/jsonpath_exec.c",
+   "src/test/regress/expected/sqljson_queryfuncs.out",
+   "src/test/regress/sql/sqljson_queryfuncs.sql"
+  ],
+  "functions": [
+   "JsonItemFromDatum"
+  ],
+  "targets": {
+   "src/backend/utils/adt/jsonpath_exec.c": [
+    3350,
+    3352,
+    3353,
+    3354,
+    3355
+   ]
+  },
+  "regress_sql": "-- Test PASSING and toasted values\nCREATE TABLE test_passing_toast (t text);\nALTER TABLE test_passing_toast ALTER COLUMN t SET STORAGE EXTENDED;\nINSERT INTO test_passing_toast(t)\n  SELECT repeat(string_agg(to_char(g.i, 'FM0000'), ''), 50)\n  FROM generate_series(1, 500) g(i);\nALTER TABLE test_passing_toast ALTER COLUMN t SET STORAGE EXTERNAL;\nINSERT INTO test_passing_toast(t)\n  SELECT repeat(string_agg(to_char(g.i, 'FM0000'), ''), 50)\n  FROM generate_series(1, 500) g(i);\nSELECT count(*) AS toasted_chunks\n  FROM test_passing_toast WHERE pg_column_toast_chunk_id(t) IS NOT NULL;\nSELECT JSON_VALUE(jsonb 'null', '$a' PASSING t AS a) = t AS ok\n  FROM test_passing_toast;\nDROP TABLE test_passing_toast;",
+  "stats": {
+   "target_lines": 5,
+   "files": 3
+  }
+ },
+ {
+  "sha": "c62b330912e2095dc8dee2f749adf7e5d94ca611",
+  "date": "2026-09-19",
+  "subject": "Invalidate RI fast-path metadata on operator family changes",
+  "body": "The RI fast path checks a foreign key by probing the referenced\nunique index directly, using the equality operator recorded for\nthe constraint.  Whether the fast path can be used is decided once\nand cached in RI_ConstraintInfo, and that cache is invalidated on\npg_constraint changes but not on pg_amop.  So after an ALTER\nOPERATOR FAMILY drops the recorded operator and adds another in its\nplace, the cached decision is stale, and the next fast-path check\nprobes the index with an operator no longer in the opfamily and\nerrors out with \"operator XXX is not a member of opfamily XXX\".\nThe SPI path is unaffected, because the planner just stops matching\nthe index.\n\nTo fix, register an AMOPOPID syscache callback to flush the RI\ncache on pg_amop changes, and have ri_check_fastpath_index()\nrecheck that the recorded operator is still the equality member of\nthe index's opfamily, falling back to SPI when it is not.\n\nAdd regression test coverage.\n\nReported-by: Nikolay Samokhvalov <nik@postgres.ai>\nAuthor: Nikolay Samokhvalov <nik@postgres.ai>\nDiscussion: https://www.postgr.es/m/CAM527d9PzFzagr67N0%3DEx2ng1p5HzrcAszy3j5OoZKHXQMARXA%40mail.gmail.com\nBackpatch-through: 19",
+  "files": [
+   "src/backend/utils/adt/ri_triggers.c",
+   "src/test/regress/expected/foreign_key.out",
+   "src/test/regress/sql/foreign_key.sql"
+  ],
+  "functions": [
+   "get_ri_constraint_root",
+   "InvalidateConstraintCacheCallBack",
+   "ri_check_fastpath_index",
+   "ri_InitHashTables"
+  ],
+  "targets": {
+   "src/backend/utils/adt/ri_triggers.c": [
+    2638,
+    2639,
+    3588,
+    3590,
+    3592,
+    3594,
+    3595,
+    3596,
+    3598,
+    3600,
+    3601,
+    3603,
+    3604,
+    4092,
+    4093,
+    4094
+   ]
+  },
+  "regress_sql": "-- Replace the equality operator the FK recorded with an identical\n-- implementation, so only opfamily membership changes.  The recorded operator\n-- is now absent from the family; the fast path must fall back to SPI instead\n-- of probing with it.\ncreate schema fk_opfamily;\nset search_path = fk_opfamily, pg_catalog;\ncreate operator family fam using btree;\ncreate operator class int_ops for type integer using btree family fam as\n  operator 1 <(integer,integer), operator 2 <=(integer,integer),\n  operator 3 =(integer,integer), operator 4 >=(integer,integer),\n  operator 5 >(integer,integer), function 1 btint4cmp(integer,integer);\nalter operator family fam using btree add\n  operator 1 <(integer,bigint), operator 2 <=(integer,bigint),\n  operator 3 =(integer,bigint), operator 4 >=(integer,bigint),\n  operator 5 >(integer,bigint),\n  operator 1 <(bigint,integer), operator 2 <=(bigint,integer),\n  operator 3 =(bigint,integer), operator 4 >=(bigint,integer),\n  operator 5 >(bigint,integer),\n  operator 1 <(bigint,bigint), operator 2 <=(bigint,bigint),\n  operator 3 =(bigint,bigint), operator 4 >=(bigint,bigint),\n  operator 5 >(bigint,bigint),\n  function 1 (integer,bigint) btint48cmp(integer,bigint),\n  function 1 (bigint,integer) btint84cmp(bigint,integer),\n  function 1 (bigint,bigint) btint8cmp(bigint,bigint);\ncreate operator =#= (leftarg=integer, rightarg=bigint, function=int48eq);\ncreate table p(k integer);\ncreate unique index p_idx on p(k int_ops);\n\n-- Two identical FKs to exercise both cache states: warm gets a row now so its\n-- fast-path metadata is built and cached; cold is left empty and has none.\ncreate table warm(k bigint references p(k));\ncreate table cold(k bigint references p(k));\ninsert into p values (1), (2);\ninsert into warm values (1);\n\n-- Change only pg_amop.  warm's cached metadata now names an operator the\n-- opfamily no longer contains; cold is still evaluated fresh.\nbegin;\nalter operator family fam using btree drop operator 3(integer,bigint);\nalter operator family fam using btree add operator 3 =#=(integer,bigint);\ncommit;\n\n-- A present key must be accepted and a missing one rejected, via SPI.\ninsert into warm values (2);\ninsert into warm values (99);\ninsert into cold values (2);\ninsert into cold values (99);\nselect * from warm order by k;\nselect * from cold order by k;\nreset search_path;\ndrop table fk_opfamily.warm, fk_opfamily.cold, fk_opfamily.p;\ndrop operator class fk_opfamily.int_ops using btree;\ndrop operator family fk_opfamily.fam using btree;\ndrop operator fk_opfamily.=#=(integer,bigint);\ndrop schema fk_opfamily;",
+  "stats": {
+   "target_lines": 16,
+   "files": 3
+  }
+ },
+ {
+  "sha": "2c45694a240e89c3f7d848d433f78e394521b6d6",
+  "date": "2026-09-19",
+  "subject": "Fix RI fast-path permission checks",
+  "body": "The fast path required table-level SELECT on the referenced table,\nrejecting checks that the SPI path allows with column-level grants.\nIt also omitted the UPDATE privilege required by FOR KEY SHARE.\n\nWhen table privileges do not suffice, use ExecCheckOneRelPerms() with\nthe referenced key columns as selectedCols and an empty updatedCols.\nThis accepts SELECT on all referenced columns and UPDATE on any column,\nthe same privileges the executor would require for the SELECT ... FOR\nKEY SHARE the SPI path runs.  Keep the table-privilege check as a\nshortcut that avoids constructing a column bitmap in the usual case.\n\nAdd missing regression test coverage for the fixed cases.\n\nReported-by: Nikolay Samokhvalov <nik@postgres.ai>\nAuthor: Nikolay Samokhvalov <nik@postgres.ai>\nCo-authored-by: Amit Langote <amitlangote09@gmail.com>\nDiscussion: https://www.postgr.es/m/CAM527d9BgPjeOOYmbCBTd57R145qHCk-dzw9qNq%2BnOrDq1j__A%40mail.gmail.com\nBackpatch-through: 19",
+  "files": [
+   "src/backend/utils/adt/ri_triggers.c",
+   "src/test/regress/expected/foreign_key.out",
+   "src/test/regress/sql/foreign_key.sql"
+  ],
+  "functions": [
+   "ri_check_fastpath_index",
+   "ri_FastPathCheck",
+   "ri_FastPathBatchFlush",
+   "ri_CheckPermissions"
+  ],
+  "targets": {
+   "src/backend/utils/adt/ri_triggers.c": [
+    398,
+    399,
+    2943,
+    3110,
+    3580,
+    3583,
+    3584,
+    3585,
+    3596,
+    3597,
+    3598,
+    3606,
+    3607,
+    3608,
+    3609,
+    3611,
+    3613,
+    3616,
+    3617,
+    3618,
+    3619,
+    3620
+   ]
+  },
+  "regress_sql": "-- Grant SELECT on PKTABLE to user regress_foreign_key_user\n-- Revoke SELECT on PKTABLE from user regress_foreign_key_user\n-- SELECT on the referenced key column is enough, without SELECT on ptest2.\nGRANT SELECT (ptest1) ON PKTABLE TO regress_foreign_key_user;\nINSERT INTO FKTABLE VALUES (2, 6);\n\n-- SELECT on an unrelated column does not suffice.\nREVOKE SELECT (ptest1) ON PKTABLE FROM regress_foreign_key_user;\nGRANT SELECT (ptest2) ON PKTABLE TO regress_foreign_key_user;\nINSERT INTO FKTABLE VALUES (2, 6); -- fails\nREVOKE SELECT (ptest2) ON PKTABLE FROM regress_foreign_key_user;\nGRANT SELECT (ptest1) ON PKTABLE TO regress_foreign_key_user;\n\n-- FOR KEY SHARE also requires UPDATE privilege.\nREVOKE UPDATE ON PKTABLE FROM regress_foreign_key_user;\nINSERT INTO FKTABLE VALUES (2, 6); -- fails\n\n-- UPDATE on any column suffices, even one that the check does not read.\nGRANT UPDATE (ptest2) ON PKTABLE TO regress_foreign_key_user;\nINSERT INTO FKTABLE VALUES (2, 6);\n\n-- Table-level SELECT can be combined with column-level UPDATE.\nGRANT SELECT ON PKTABLE TO regress_foreign_key_user;\nINSERT INTO FKTABLE VALUES (2, 6);\nREVOKE UPDATE (ptest2) ON PKTABLE FROM regress_foreign_key_user;\nINSERT INTO FKTABLE VALUES (2, 6); -- fails\n\nDROP TABLE FKTABLE;\nDROP TABLE PKTABLE;\n\n-- Check all referenced columns, including when index and FK order differ.\nCREATE TABLE PKTABLE ( ptest0 text, ptest1 int, ptest2 int,\n                      PRIMARY KEY (ptest2, ptest1) );\nCREATE TABLE FKTABLE ( ftest1 int, ftest2 int );\nINSERT INTO PKTABLE VALUES ('unused', 1, 2);\nINSERT INTO FKTABLE VALUES (1, 2);\nALTER TABLE FKTABLE ADD CONSTRAINT fktable_fk\n    FOREIGN KEY (ftest1, ftest2) REFERENCES PKTABLE (ptest1, ptest2) NOT VALID;\nALTER TABLE PKTABLE OWNER TO regress_foreign_key_user;\nALTER TABLE FKTABLE OWNER TO regress_foreign_key_user;\nREVOKE SELECT ON PKTABLE FROM regress_foreign_key_user;\nGRANT SELECT (ptest1) ON PKTABLE TO regress_foreign_key_user;\n\n-- Lack of SELECT on FKTABLE forces validation to check each row.\nREVOKE SELECT ON FKTABLE FROM regress_foreign_key_user;\nSET ROLE regress_foreign_key_user;\nALTER TABLE FKTABLE VALIDATE CONSTRAINT fktable_fk; -- fails\nGRANT SELECT (ptest2) ON PKTABLE TO regress_foreign_key_user;\n\n-- Per-row validation also requires UPDATE privilege.\nREVOKE UPDATE ON PKTABLE FROM regress_foreign_key_user;\nALTER TABLE FKTABLE VALIDATE CONSTRAINT fktable_fk; -- fails\n-- UPDATE on the unrelated column is enough.\nGRANT UPDATE (ptest0) ON PKTABLE TO regress_foreign_key_user;\nALTER TABLE FKTABLE VALIDATE CONSTRAINT fktable_fk;\nRESET ROLE;",
+  "stats": {
+   "target_lines": 22,
+   "files": 3
+  }
+ },
+ {
+  "sha": "dc5f8cb93467d8e46df9cebea0e35aed4f863768",
+  "date": "2026-09-18",
+  "subject": "Tighten definition of ON CONFLICT arbiter index equivalence",
+  "body": "Commits 2bc7e886fc1b and 90eae926abbb taught ON CONFLICT to include\nindexes matching an already selected arbiter, so that an index left\nbehind by REINDEX CONCURRENTLY continues to arbitrate together with its\nreplacement.  Both checks were too permissive:\n\na) infer_arbiter_indexes() compared a candidate with a named\nconstraint's index using only attributes, expressions and predicate, but\nignored collation, NULLS NOT DISTINCT setting or deferrability.  As a\nresult, an index with a difference in these settings could be accepted\neven though it did not identify the same conflicts.  Also, a deferrable\nindex that otherwise matches an arbiter index would also cause ON\nCONFLICT to fail with \"ON CONFLICT does not support deferrable unique\nconstraints/exclusion constraints as arbiters\".\n\nb) ExecInitPartitionInfo() also failed due to the failure to compare\ndeferrability, so partition-local deferrable indexes would be considered\nand break inserts routed to that partition with the error mentioned\nabove.\n\nFix by making IsIndexCompatibleAsArbiter() compare those properties, and\nchanging infer_arbiter_indexes() to use that routine instead of open\ncoding equivalent logic.  Also handle the named-constraint case in\ninfer_arbiter_indexes() separately instead of passing the constraint\nindex through the regular clause-inference matching.  That function is\nnot static anymore, so move it to index.c, and also reimplement it to\nuse the Relation from the indexes only, no longer receiving the\nIndexInfo (which wasn't really necessary); also, use equal() to compare\nthe expression and predicate lists rather than list_difference().\n\nAdd tests for ON CONFLICT ON CONSTRAINT with deferrable, NULLS NOT\nDISTINCT, and different-collation sibling indexes, preserving the\nbehavior of released pre-19 versions.  Also test routed inserts with a\npartition-local deferrable unique constraint.\n\nAuthor: Zsolt Parragi <zsolt.parragi@percona.com>\nAuthor: Mihail Nikalayeu <mihailnikalayeu@gmail.com>\nReported-by: Zsolt Parragi <zsolt.parragi@percona.com>\nReviewed-by: Michael Paquier <michael@paquier.xyz>\nBackpatch-through: 19\nDiscussion: https://postgr.es/m/CAN4CZFPEYXeYFTxHpoPujfVFb+1Tx1jnXVboDMBg-ZhpgpQ-_g@mail.gmail.com",
+  "files": [
+   "src/backend/catalog/index.c",
+   "src/backend/executor/execPartition.c",
+   "src/backend/optimizer/util/plancat.c",
+   "src/include/catalog/index.h",
+   "src/test/regress/expected/collate.icu.utf8.out",
+   "src/test/regress/expected/insert_conflict.out",
+   "src/test/regress/sql/collate.icu.utf8.sql",
+   "src/test/regress/sql/insert_conflict.sql"
+  ],
+  "functions": [
+   "BuildSpeculativeIndexInfo",
+   "ExecFindPartition",
+   "ExecInitPartitionInfo",
+   "find_relation_notnullatts",
+   "infer_arbiter_indexes"
+  ],
+  "targets": {
+   "src/backend/executor/execPartition.c": [
+    798
+   ],
+   "src/backend/optimizer/util/plancat.c": [
+    30,
+    815,
+    816,
+    922,
+    924,
+    925,
+    929,
+    930,
+    931,
+    1006,
+    1007,
+    1008,
+    1022,
+    1024,
+    1025,
+    1027,
+    1140,
+    1141,
+    1142
+   ]
+  },
+  "regress_sql": "-- ON CONFLICT ON CONSTRAINT must not use an index that differs from the\n-- named constraint's index in collation\nCREATE TABLE test_arbiter_ci (x text, y text);\nALTER TABLE test_arbiter_ci ADD CONSTRAINT test_arbiter_ci_x_key UNIQUE (x);\nCREATE UNIQUE INDEX test_arbiter_ci_x_ci\n  ON test_arbiter_ci (x COLLATE case_insensitive);\nINSERT INTO test_arbiter_ci VALUES ('abc', 'first');\nINSERT INTO test_arbiter_ci VALUES ('ABC', 'second')\n  ON CONFLICT ON CONSTRAINT test_arbiter_ci_x_key\n  DO UPDATE SET y = excluded.y;  -- error\nINSERT INTO test_arbiter_ci VALUES ('ABC', 'third')\n  ON CONFLICT ON CONSTRAINT test_arbiter_ci_x_key DO NOTHING;  -- error\nINSERT INTO test_arbiter_ci VALUES ('ABC', 'fourth')\n  ON CONFLICT ON CONSTRAINT test_arbiter_ci_x_key\n  DO SELECT RETURNING *;  -- error\nSELECT x, y FROM test_arbiter_ci;\nDROP TABLE test_arbiter_ci;\n-- a partition-local deferrable unique constraint on the arbiter columns\n-- must not be picked up as an additional arbiter for routed inserts\ncreate table parted_conflict (a int, b text, primary key (a)) partition by range (a);\ncreate table parted_conflict_1 partition of parted_conflict for values from (0) to (1000);\nalter table parted_conflict_1 add constraint parted_conflict_1_a_def unique (a) deferrable;\ninsert into parted_conflict values (40, 'forty');\ninsert into parted_conflict values (40, 'cuarenta')\n  on conflict (a) do update set b = excluded.b;\ninsert into parted_conflict values (41, 'forty-one')\n  on conflict (a) do update set b = excluded.b;\ninsert into parted_conflict values (42, 'forty-two') on conflict (a) do nothing;\nselect * from parted_conflict order by a;\ndrop table parted_conflict;\n\n-- ON CONFLICT ON CONSTRAINT has the same hazard: an index that merely covers\n-- the same columns as the named constraint's index, but is deferrable or\n-- disagrees with it about duplicates, must not join the arbiter set\ncreate table namedconstraint (a int, b text, c text);\nalter table namedconstraint add constraint namedconstraint_a_key unique (a);\nalter table namedconstraint add constraint namedconstraint_a_def unique (a) deferrable;\ncreate unique index namedconstraint_b_nnd on namedconstraint (b) nulls not distinct;\nalter table namedconstraint add constraint namedconstraint_b_key unique (b);\ninsert into namedconstraint values (1, 'x', 'first');\ninsert into namedconstraint values (2, null, 'first');\ninsert into namedconstraint values (1, 'y', 'second')\n  on conflict on constraint namedconstraint_a_key do update set c = excluded.c;\ninsert into namedconstraint values (3, null, 'second')\n  on conflict on constraint namedconstraint_b_key do update set c = excluded.c;  -- error\ninsert into namedconstraint values (4, 'z', 'third')\n  on conflict on constraint namedconstraint_a_key do nothing;\ninsert into namedconstraint values (5, null, 'third')\n  on conflict on constraint namedconstraint_b_key do nothing;  -- error\nselect * from namedconstraint order by a;\ndrop table namedconstraint;\n\n-- same, with the indexes created in the opposite order\ncreate table namedconstraint2 (a int, b text, c text);\nalter table namedconstraint2 add constraint namedconstraint2_a_def unique (a) deferrable;\nalter table namedconstraint2 add constraint namedconstraint2_a_key unique (a);\nalter table namedconstraint2 add constraint namedconstraint2_b_key unique (b);\ncreate unique index namedconstraint2_b_nnd on namedconstraint2 (b) nulls not distinct;\ninsert into namedconstraint2 values (1, 'x', 'first');\ninsert into namedconstraint2 values (2, null, 'first');\ninsert into namedconstraint2 values (1, 'y', 'second')\n  on conflict on constraint namedconstraint2_a_key do update set c = excluded.c;\ninsert into namedconstraint2 values (3, 'z', 'second')\n  on conflict on constraint namedconstraint2_a_key do nothing;\ninsert into namedconstraint2 values (4, null, 'second')\n  on conflict on constraint namedconstraint2_b_key do nothing;  -- error\n-- ON CONFLICT DO SELECT reaches the same code\ninsert into namedconstraint2 values (1, 'w', 'third')\n  on conflict on constraint namedconstraint2_a_key do select returning *;\ninsert into namedconstraint2 values (5, 'v', 'third')\n  on conflict on constraint namedconstraint2_a_key do select returning *;\ninsert into namedconstraint2 values (6, null, 'fourth')\n  on conflict on constraint namedconstraint2_b_key do select returning *;  -- error\nselect * from namedconstraint2 order by a;\ndrop table namedconstraint2;",
+  "stats": {
+   "target_lines": 20,
+   "files": 8
+  }
+ },
+ {
+  "sha": "d237a7a83668bc228f7c58f104ffb25cbb607a1a",
+  "date": "2026-09-16",
+  "subject": "Use the join collation when unique-ifying a semijoin's RHS",
+  "body": "A semijoin whose RHS is unique-ified groups the RHS on the expressions in\nSpecialJoinInfo.semi_rhs_exprs.  Those were recorded with whatever collation\nthe RHS expression itself exposes, which need not be the collation the join\ncompares with.  Neither SortGroupClause nor the pathkey machinery carries a\ncollation of its own, so both Unique-over-Sort and HashAggregate then grouped\nby the wrong equality: values the join considers equal survived, and the\nfollowing inner join emitted the outer row once per survivor.\n\nWith a non-deterministic collation on one side, \"SELECT count(*) FROM t WHERE\nc IN (SELECT c0 FROM t2)\" therefore counted more rows than the same predicate\nreports for the rows of t.\n\nLabel each RHS expression with the operator's input collation, the same\ntreatment process_equivalence() gives to equivalence class members.  Every\nconsumer of semi_rhs_exprs reads the collation off the expression, so this\nfixes the sort-based and hash-based paths together; in the branches where\ncreate_unique_path() also passes these expressions to\nrelation_has_unique_index_for(), it likewise stops a unique index built with a\ndifferent collation from being taken as proof that unique-ification can be\nskipped.  The same goes for a subquery's DISTINCT computed under a different\ncollation, since translate_sub_tlist() punts on the relabeled expressions.\n\nReported-by: Suyang Zhong <syzhong16@gmail.com>\nAuthor: Andrey Rachitskiy <pl0h0yp1@gmail.com>\nReviewed-by: Tender Wang <tndrwang@gmail.com>\nReviewed-by: Richard Guo <guofenglinux@gmail.com>\nReviewed-by: Alexander Korotkov <aekorotkov@gmail.com>\nDiscussion: https://postgr.es/m/19633-647cd4c73a84b085%40postgresql.org\nBackpatch-through: 14",
+  "files": [
+   "src/backend/optimizer/plan/initsplan.c",
+   "src/test/regress/expected/collate.icu.utf8.out",
+   "src/test/regress/sql/collate.icu.utf8.sql"
+  ],
+  "functions": [
+   "compute_semijoin_info"
+  ],
+  "targets": {
+   "src/backend/optimizer/plan/initsplan.c": [
+    2525,
+    2526,
+    2527,
+    2531
+   ]
+  },
+  "regress_sql": "-- Unique-ifying a semijoin's RHS must use the join's collation.  test3cs\n-- holds both 'abc' and 'ABC', so test1ci's 'abc' must come out once.\nBEGIN;\n\nSET LOCAL enable_seqscan TO off;\nSET LOCAL enable_material TO off;\nSET LOCAL enable_hashjoin TO off;\nSET LOCAL enable_mergejoin TO off;\nSET LOCAL enable_hashagg TO off;\n\nEXPLAIN (COSTS OFF)\nSELECT count(*) FROM test1ci\nWHERE x COLLATE case_insensitive IN (SELECT x FROM test3cs);\nSELECT count(*) FROM test1ci\nWHERE x COLLATE case_insensitive IN (SELECT x FROM test3cs);\n\nSET LOCAL enable_hashagg TO on;\nSET LOCAL enable_groupagg TO off;\n\nEXPLAIN (COSTS OFF)\nSELECT count(*) FROM test1ci\nWHERE x COLLATE case_insensitive IN (SELECT x FROM test3cs);\nSELECT count(*) FROM test1ci\nWHERE x COLLATE case_insensitive IN (SELECT x FROM test3cs);\n\nROLLBACK;",
+  "stats": {
+   "target_lines": 4,
+   "files": 3
+  }
+ },
+ {
+  "sha": "72af14bccd2127bf20ddeaf198b78de46e9e892b",
+  "date": "2026-09-15",
+  "subject": "Use hex_decode_safe() to speed up UUID input.",
+  "body": "Previously, string_to_uuid() decoded one byte at a time, calling\nisxdigit() twice and strtoul() once for every pair of hexadecimal\ndigits. Commit ec8719ccbfcd made hex_decode_safe() decode a run of\nhexadecimal digits in bulk, so add a fast path for the two common\nshapes: 32 contiguous hexadecimal digits, and the canonical\n8x-4x-4x-4x-12x form, each optionally wrapped in braces.\n\nAnything else, and any decoding error, falls back to the\nbyte-at-a-time parser, so the accepted grammar and the error messages\ndon't change. hex_decode_safe() also skips whitespace, which the UUID\ngrammar forbids, so we treat a short decode as an error too. Rejecting\nan input that has a fast-path shape therefore costs a second\nparse. But this only happens for syntax-error cases, so it's not a\nproblem in practice.\n\nReviewed-by: Bharath Rupireddy <bharath.rupireddyforpostgres@gmail.com>\nReviewed-by: Haibo Yan <tristan.yim@gmail.com>\nReviewed-by: Chao Li <li.evan.chao@gmail.com>\nReviewed-by: John Naylor <johncnaylorls@gmail.com>\nDiscussion: https://postgr.es/m/CAD21AoCqeR4UQU77Q_yOMNNzJ7AVeiO5QZT+4HnzPm4Wm-e02Q@mail.gmail.com",
+  "files": [
+   "src/backend/utils/adt/uuid.c",
+   "src/test/regress/expected/uuid.out",
+   "src/test/regress/sql/uuid.sql"
+  ],
+  "functions": [
+   "uuid_out"
+  ],
+  "targets": {
+   "src/backend/utils/adt/uuid.c": [
+    22,
+    24,
+    150,
+    212,
+    213,
+    215,
+    216,
+    217,
+    218,
+    219,
+    220,
+    229,
+    232,
+    234,
+    235,
+    238,
+    245,
+    247,
+    248,
+    254,
+    255,
+    256,
+    257,
+    258,
+    259,
+    262,
+    265,
+    266,
+    276,
+    277,
+    284,
+    285
+   ]
+  },
+  "regress_sql": "-- Test the UUID shapes for which the parser uses the fast path.\nSELECT '5b35380a-7143-4912-9b55-f322699c6770'::uuid;\nSELECT '{5b35380a-7143-4912-9b55-f322699c6770}'::uuid;\nSELECT '5b35380a714349129b55f322699c6770'::uuid;\nSELECT '{5b35380a714349129b55f322699c6770}'::uuid;\n\n-- Test that the fast path correctly rejects invalid UUID strings.\nSELECT '5b35380a714349129b55f32  99c6770'::uuid;\nSELECT '5b35380a-7143-4912-9b55-f322699c67  '::uuid;\nSELECT '  35380a-7143-4912-9b55-f322699c6770'::uuid;\nSELECT 'AZ35380a-7143-4912-9b55-f322699c6770'::uuid;\nSELECT '{AZ35380a-7143-4912-9b55-f322699c6770}'::uuid;\nSELECT '{AZ35380a714349129b55f322699c6770}'::uuid;\nSELECT '{AZ35380a714349129b55f322699c67  }'::uuid;\n\n-- The parser only measures the input far enough to classify its shape.  If it\n-- stopped measuring at one of the accepted lengths, a longer string that\n-- merely starts with a valid UUID would look like that UUID and be accepted\n-- with the rest silently ignored, so check that trailing data is rejected.\nSELECT '5b35380a714349129b55f322699c6770TRAILING'::uuid;\nSELECT '{5b35380a714349129b55f322699c6770}TRAILING'::uuid;\nSELECT '5b35380a-7143-4912-9b55-f322699c6770TRAILING'::uuid;\nSELECT '{5b35380a-7143-4912-9b55-f322699c6770}TRAILING'::uuid;",
+  "stats": {
+   "target_lines": 32,
+   "files": 3
+  }
+ },
+ {
+  "sha": "e17df18a811e082a47d68263c154ae0385cd1494",
+  "date": "2026-09-14",
+  "subject": "Fix const-folding of JSON constructors inside a simple CASE",
+  "body": "A JSON constructor with a RETURNING clause uses a CaseTestExpr as the\nplaceholder for its result in the coercion expression.  When such a\nconstructor appears in a WHEN clause of a simple CASE whose test\nexpression is a constant, eval_const_expressions substituted that\nconstant for the placeholder, so the coercion produced the CASE's test\nvalue instead of the constructor's result.  For instance,\n\n    CASE 'x' WHEN JSON_OBJECT('a': 'b' RETURNING text) THEN 1 ELSE 0 END\n\nevaluated to 1.\n\nTo fix, keep case_val out of scope while simplifying the coercion, as\nis already done for the elemexpr of an ArrayCoerceExpr.\n\nBack-patch to v16, where the SQL/JSON constructor functions were\nintroduced.\n\nAuthor: Richard Guo <guofenglinux@gmail.com>\nDiscussion: https://postgr.es/m/CAMbWs48A=VCFbteTkuCoknO1_0-Cu0aMBT0M07dm7vj1QyixDg@mail.gmail.com\nBackpatch-through: 16",
+  "files": [
+   "src/backend/optimizer/util/clauses.c",
+   "src/include/nodes/primnodes.h",
+   "src/test/regress/expected/sqljson.out",
+   "src/test/regress/sql/sqljson.sql"
+  ],
+  "functions": [
+   "eval_const_expressions_mutator"
+  ],
+  "targets": {
+   "src/backend/optimizer/util/clauses.c": [
+    3393,
+    3394,
+    3411,
+    3412,
+    3413,
+    3414,
+    3415,
+    3416,
+    3417,
+    3418,
+    3424,
+    3425,
+    3427,
+    3428,
+    3429,
+    3431,
+    3433
+   ]
+  },
+  "regress_sql": "-- the RETURNING coercion must not pick up the test value of an enclosing CASE\nSELECT CASE 'x' WHEN JSON_OBJECT('a': 'b' RETURNING text) THEN 1 ELSE 0 END;",
+  "stats": {
+   "target_lines": 17,
+   "files": 4
+  }
+ },
+ {
+  "sha": "e28cf96e9351152760a24ccb55f3f66c26961294",
+  "date": "2026-09-14",
+  "subject": "Fix stale copies of PHVs in subqueries",
+  "body": "When a subquery references an output of another subquery that gets\npulled up, and that output must be wrapped in a PlaceHolderVar because\nof an intermediate outer join, the PHV expression is pushed down into\nthe subquery.  That copy is not preprocessed along with the outer\nquery's expressions, so the two copies can diverge.  This used to be\nharmless, but since commit 2ebf25e7d join removal edits the whole\nquery tree, walking into subqueries, and can trip an assert in\nChangeVarNodes if it removes a rel whose Var survives only in such a\ncopy.\n\nTo fix, preprocess these copies at their owning query level, early in\nsubquery_planner, before anything can consume them (in particular\nbefore SubLinks are turned into SubPlans).  This covers copies pushed\ninto both LATERAL subquery RTEs and SubLink subselects, and handles\nnested copies innermost-first.  extract_lateral_references no longer\npreprocesses the copies it pulls out.\n\nCorrespondingly, the subquery's own processing must leave the contents\nof an upper-level PHV alone, since the owning level has already\npreprocessed them: eval_const_expressions returns such a PHV\nunchanged, and flatten_join_alias_vars no longer recurses into it.\n\nBack-patch to v16, as with commit 2ebf25e7d.\n\nReported-by: Tender Wang <tndrwang@gmail.com>\nAuthor: Richard Guo <guofenglinux@gmail.com>\nReviewed-by: Tom Lane <tgl@sss.pgh.pa.us>\nDiscussion: https://postgr.es/m/CAHewXN=kWGAXV537mKtSyBYobGdHhYJVDJJMXXZEmmPWE_zaPw@mail.gmail.com\nBackpatch-through: 16",
+  "files": [
+   "src/backend/optimizer/plan/initsplan.c",
+   "src/backend/optimizer/plan/planner.c",
+   "src/backend/optimizer/plan/subselect.c",
+   "src/backend/optimizer/util/clauses.c",
+   "src/backend/optimizer/util/paramassign.c",
+   "src/backend/optimizer/util/var.c",
+   "src/include/optimizer/planner.h",
+   "src/test/regress/expected/groupingsets.out",
+   "src/test/regress/expected/join.out",
+   "src/test/regress/sql/join.sql",
+   "src/tools/pgindent/typedefs.list"
+  ],
+  "functions": [
+   "extract_lateral_references",
+   "preprocess_expression",
+   "subquery_planner",
+   "group_var_eqop",
+   "preprocess_phv_expression",
+   "build_subplan",
+   "eval_const_expressions_mutator",
+   "identify_current_nestloop_params",
+   "flatten_join_alias_vars_mutator"
+  ],
+  "targets": {
+   "src/backend/optimizer/plan/initsplan.c": [
+    1139,
+    1140
+   ],
+   "src/backend/optimizer/plan/planner.c": [
+    148,
+    150,
+    151,
+    152,
+    156,
+    157,
+    158,
+    1040,
+    1041,
+    1677,
+    1678,
+    1680,
+    1682,
+    1683,
+    1684,
+    1685,
+    1688,
+    1689,
+    1690,
+    1692,
+    1693,
+    1694,
+    1696,
+    1698,
+    1699,
+    1700,
+    1701,
+    1702,
+    1703,
+    1705,
+    1707,
+    1710,
+    1711,
+    1717,
+    1718,
+    1720,
+    1721,
+    1724,
+    1725,
+    1726,
+    1727,
+    1728,
+    1730,
+    1732,
+    1733
+   ],
+   "src/backend/optimizer/plan/subselect.c": [
+    381
+   ],
+   "src/backend/optimizer/util/clauses.c": [
+    4226,
+    4227,
+    4236,
+    4237,
+    4238
+   ],
+   "src/backend/optimizer/util/paramassign.c": [
+    691
+   ],
+   "src/backend/optimizer/util/var.c": [
+    935,
+    942,
+    943,
+    952,
+    953,
+    955,
+    957,
+    958,
+    960,
+    961,
+    962,
+    963
+   ]
+  },
+  "regress_sql": "-- check handling of a removed Var that's pushed down into a subquery\n-- (fallout from the fix for bug #19560)\nexplain (verbose, costs off)\nselect c1, c2\nfrom (select case when false then remov.id end as c1\n      from int4_tbl i41 left join a remov on i41.f1 = remov.id) ss1\n     right join int4_tbl i42 on false,\n     lateral (select ss1.c1 as c2 from int4_tbl i43 offset 0) ss2;\n\n-- likewise, where the subquery is a UNION ALL whose arms are appendrel\n-- children that are not simple enough to be pulled up\nexplain (verbose, costs off)\nselect c1, c2\nfrom (select case when false then remov.id end as c1\n      from int4_tbl i41 left join a remov on i41.f1 = remov.id) ss1\n     right join int4_tbl i42 on false,\n     lateral ((select ss1.c1 as c2 from int4_tbl i43 offset 0)\n              union all\n              (select ss1.c1 from int4_tbl i44 offset 0)) ss2;\n\n-- likewise, where the PHV contains a SubPlan and the subquery has a join, so\n-- that its planner runs flatten_join_alias_vars over the outer-level PHV\nexplain (verbose, costs off)\nselect c1, c2\nfrom (select case when false then remov.id else (select i41.f1) end as c1\n      from int4_tbl i41 left join a remov on i41.f1 = remov.id) ss1\n     right join int4_tbl i42 on false,\n     lateral (select ss1.c1 as c2 from int4_tbl i43 join int4_tbl i44 on true\n              offset 0) ss2;\n\n-- likewise, where the PHV copy is pushed into a SubLink's subselect rather\n-- than a LATERAL subquery\nexplain (verbose, costs off)\nselect (select ss1.c1 from int4_tbl i43 offset 0) as c2\nfrom (select case when false then remov.id end as c1\n      from int4_tbl i41 left join a remov on i41.f1 = remov.id) ss1\n     right join int4_tbl i42 on true;\n\n-- likewise, where the pushed-down PHV's expression itself contains a SubLink,\n-- so it must be preprocessed once at the outer level rather than again while\n-- building the SubPlan that references it\nexplain (verbose, costs off)\nselect (select ss1.c1 from int4_tbl i43 offset 0) as c2\nfrom (select case when false then remov.id else (select i41.f1) end as c1\n      from int4_tbl i41 left join a remov on i41.f1 = remov.id) ss1\n     right join int4_tbl i42 on true;",
+  "stats": {
+   "target_lines": 66,
+   "files": 11
+  }
+ }
+]

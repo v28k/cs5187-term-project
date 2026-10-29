@@ -1,0 +1,33 @@
+{
+ "model": "gemini-3.6-flash",
+ "requested_model": "gemini-3.5-flash",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 16452,
+  "output_tokens": 2342,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "This commit changes foreign key (RI) checking in ri_triggers.c so that FK values requiring an implicit cast function to reach the equality operator's type are routed through SPI rather than the fast path. Function ri_check_fastpath_index now checks pg_cast to determine if a cast function is required and caches this eligibility state. Cross-type operators, binary-compatible types, and domains remain on the fast path. SQL statements reaching these paths involve creating foreign keys between cross-type columns (such as int referencing bigint) or types with implicit cast functions, followed by INSERT or UPDATE operations.",
+  "grammar_fragment": "alter_table @scope\n  : <1.5> ALTER TABLE @target(plain) ADD FOREIGN KEY \"(\" @target_col(bigint) \")\" REFERENCES \"t1\" \"(\" \"c0\" \")\" NOT VALID\n  | <1.5> ALTER TABLE @target(plain) ADD FOREIGN KEY \"(\" @target_col(int) \")\" REFERENCES \"t2\" \"(\" \"c0\" \")\" NOT VALID\n  | <1> ALTER TABLE @target(plain) ADD FOREIGN KEY \"(\" @target_col(numeric) \")\" REFERENCES \"t2\" \"(\" \"c0\" \")\" NOT VALID\n  ;",
+  "seeds": [
+   "CREATE TABLE pk_cast_t (id bigint PRIMARY KEY);\nINSERT INTO pk_cast_t VALUES (1), (2);\nCREATE TABLE fk_cast_t (a int REFERENCES pk_cast_t(id));\nINSERT INTO fk_cast_t VALUES (1), (2);",
+   "INSERT INTO t1 (c0) VALUES (999) ON CONFLICT DO NOTHING;\nALTER TABLE t0 ADD FOREIGN KEY (c0) REFERENCES t1(c0) NOT VALID;\nINSERT INTO t0 (c0, c1, c2) VALUES (999, 'test', 1.0);",
+   "CREATE DOMAIN my_int AS int;\nCREATE TABLE pk_dom (id my_int PRIMARY KEY);\nINSERT INTO pk_dom VALUES (10);\nCREATE TABLE fk_dom (a int REFERENCES pk_dom(id));\nINSERT INTO fk_dom VALUES (10);",
+   "CREATE TYPE word_enum AS ENUM ('one', 'two');\nCREATE FUNCTION word_to_int(word_enum) RETURNS int LANGUAGE sql IMMUTABLE AS $$ SELECT CASE WHEN $1 = 'one' THEN 1 ELSE 2 END $$;\nCREATE CAST (word_enum AS int) WITH FUNCTION word_to_int(word_enum) AS IMPLICIT;\nCREATE TABLE pk_enum (id int PRIMARY KEY);\nINSERT INTO pk_enum VALUES (1), (2);\nCREATE TABLE fk_enum (a word_enum REFERENCES pk_enum);\nINSERT INTO fk_enum VALUES ('one');"
+  ],
+  "features": [
+   "foreign_keys",
+   "alter_table_add_fk",
+   "ri_triggers",
+   "cross_type_fk",
+   "implicit_casts"
+  ],
+  "rewrites": []
+ },
+ "t": 1793100020.8620636
+}

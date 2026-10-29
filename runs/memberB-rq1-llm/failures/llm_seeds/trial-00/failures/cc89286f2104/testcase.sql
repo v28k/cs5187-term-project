@@ -1,0 +1,6 @@
+-- pgfuzz failure cc89286f2104 (assertion, signature strength: stack)
+-- test case 9392 from grammar
+-- SQLSTATE -: consuming input failed: server closed the connection unexpectedly
+-- failing statement: #2
+UPDATE t4 AS a1 SET c3 = (ABS (a1.c3) % 1000), c0 = COALESCE (a1.c1, 0) RETURNING *;
+SELECT 'a'::text AS c0, 'empty'::int4range AS c1, '1999-12-31'::date AS c2 FROM JSONB_ARRAY_ELEMENTS (JSONB_BUILD_ARRAY (('2000-01-01 00:00:00+00'::timestamptz)::date, '(,)'::int4range)) AS a1 (c0) WHERE (a1.c0 < ALL (SELECT a1.c0 AS c0)) INTERSECT SELECT REPLACE ('x%'::text, 'c'::text, '0'::text) AS c0, COALESCE (int4range(2, 40), '[3,)'::int4range) AS c1, GREATEST ('2024-01-26'::date, '2024-03-16'::date) AS c2 FROM JSON_TABLE (JSONB_BUILD_OBJECT ('k', CASE ((-1))::numeric WHEN TRUNC (COALESCE (0.0::numeric, 10.0::numeric)) THEN (('abc'::text || '23x'::text) ^@ NORMALIZE ('c4ca4238a0b923820dcc509a6f75849b'::text)) WHEN 10.0::numeric THEN (CONCAT ('{}'::text[], '1999-12-31'::date) ILIKE '%b%'::text) ELSE NULLIF (TRUE, (ROW (1::bigint, FALSE) < ROW ('27'::bigint, TRUE))) END), '$.a[*]' COLUMNS (c0 FOR ORDINALITY, c1 int PATH '$')) AS a2 WHERE ((ROW ((JSONB_BUILD_OBJECT ('k', 31) @@ '$.k == 1'), (('epoch'::timestamptz)::date)::timestamptz) = ROW (('{"k": 2, "a": [0]}'::jsonb @@ '$.a[*] > 1'), 'epoch'::timestamptz)) IS TRUE);

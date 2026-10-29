@@ -1,0 +1,42 @@
+Subject: returns a wrong result -- <one line: the feature involved>
+
+PostgreSQL version: 20devel (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script returns a wrong result.
+
+ERROR:  metamorphic check rls failed: 1 rows vs 1 rows
+
+Script
+------
+
+-- pgfuzz triage of 2a82e01aba28: wrong_result via metamorphic:rls
+-- the two queries below must return the same rows (as a multiset):
+VALUES ((SQRT (ABS ((SELECT SUM (10.0::float8) FROM t4 AS a1 WHERE FALSE))) + (0)::float8), (10 + LENGTH (''::text)), (SELECT JSONB_AGG ((SELECT SUM (a3.c0) FROM t1 AS a3 WHERE TRUE) ORDER BY (SELECT SUM (a3.c0) FROM t1 AS a3 WHERE TRUE)) FROM t3 AS a2));
+VALUES ((SQRT (ABS ((SELECT SUM (10.0::float8) FROM t4 AS a1 WHERE FALSE))) + (0)::float8), (10 + LENGTH (''::text)), (SELECT JSONB_AGG ((SELECT SUM (a3.c0) FROM t1 AS a3 WHERE TRUE) ORDER BY (SELECT SUM (a3.c0) FROM t1 AS a3 WHERE TRUE)) FROM (SELECT * FROM t3 WHERE (c1 IS NOT FALSE)) AS a2));
+
+Actual output
+-------------
+
+lhs:
+    NULL | 10 | [1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275]
+
+rhs:
+    NULL | 10 | [1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275, 1275]
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+Analysis
+--------
+
+No planner setting removes the disagreement: suspect an always-applied rewrite, constant folding, a planner support function, or expression evaluation.
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.

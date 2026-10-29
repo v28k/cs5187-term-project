@@ -1,0 +1,32 @@
+{
+ "model": "gemini-3.6-flash",
+ "requested_model": "gemini-3.5-flash",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 14328,
+  "output_tokens": 2707,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "Commit 0d6103e537e1 assigns a join RTE and relid to antijoins created when pulling up NOT EXISTS and NOT IN sublinks. Previously, antijoins converted from sublinks lacked a relid, causing PlaceHolderVars (such as constants or expressions evaluated at subquery outputs) referenced in outer quals to be incorrectly pushed down into the antijoin's RHS as parameterized join clauses. The grammar additions generate derived tables containing sublink antijoins attached via outer joins, projecting constants alongside table columns with outer WHERE/ON predicates comparing them.",
+  "grammar_fragment": "joined @frame\n  : <1.5> \"(\" @table LEFT JOIN derived_sublink_antijoin ON \"true\" \")\"\n  ;\n\nderived_sublink_antijoin @shape @scope\n  : \"(\" SELECT \"12345\" AS c0 \",\" @col(int) AS c1 ^from_clause WHERE \"(\" NOT EXISTS exists_sub \")\" \")\" AS @derived_alias\n  | \"(\" SELECT \"12345\" AS c0 \",\" @col(int) AS c1 ^from_clause WHERE \"(\" @col(int) NOT IN in_sub<int> \")\" \")\" AS @derived_alias\n  ;",
+  "seeds": [
+   "SELECT s.*\nFROM (VALUES (1)) AS v(z)\nLEFT JOIN (\n  SELECT 123456 AS c, t3.c0 AS x\n  FROM t3\n  WHERE NOT EXISTS (SELECT 1 FROM t0 WHERE t0.c0 = t3.c0)\n) s ON true\nWHERE s.x = s.c;",
+   "SELECT s.*\nFROM t0\nLEFT JOIN (\n  SELECT 999 AS c, t1.c0 AS x\n  FROM t1\n  WHERE t1.c0 NOT IN (SELECT t3.c0 FROM t3 WHERE t3.c0 IS NOT NULL)\n) s ON true\nWHERE s.x = s.c;",
+   "EXPLAIN (COSTS OFF)\nSELECT *\nFROM (SELECT 1 AS id) v\nLEFT JOIN (\n  SELECT 42 AS const_val, t3.c0 AS col_val\n  FROM t3\n  WHERE NOT EXISTS (SELECT 1 FROM t1 WHERE t1.c0 = t3.c0)\n) sub ON true\nWHERE sub.col_val = sub.const_val;"
+  ],
+  "features": [
+   "Sublink pull-up",
+   "Antijoin optimization",
+   "NOT EXISTS to antijoin",
+   "NOT IN to antijoin",
+   "PlaceHolderVar evaluation"
+  ],
+  "rewrites": []
+ },
+ "t": 1793100373.075952
+}

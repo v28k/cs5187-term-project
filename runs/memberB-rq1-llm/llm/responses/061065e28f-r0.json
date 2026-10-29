@@ -1,0 +1,30 @@
+{
+ "model": "gemini-3-flash-preview",
+ "requested_model": "gemini-3-flash-preview",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 14004,
+  "output_tokens": 5451,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "The commit modifies ri_LockPKTuple in ri_triggers.c to use the snapshot's command ID rather than the current command ID when locking rows for foreign key validation. This change ensures that the fast-path RI check remains consistent even if the command counter is advanced during the execution of the scan. This typically occurs if a custom operator's equality function performs DML side effects during an index scan. The grammar fragment introduces REFERENCES clauses in CREATE TABLE and ALTER TABLE to trigger RI enforcement. These constraints, combined with INSERT and UPDATE statements, exercise the logic that locks PK rows to prevent concurrent modifications. Seeds provide specific operator class configurations with side-effecting functions to hit the corrected command ID logic.",
+  "grammar_fragment": "new_col : <0.5> @new_col(int) REFERENCES @table(t1) \"(\" \"c0\" \")\" ; alter_table : <0.5> ALTER TABLE @target(plain) ADD FOREIGN KEY \"(\" @target_col(int) \")\" REFERENCES @table(t1) \"(\" \"c0\" \")\" ;",
+  "seeds": [
+   "BEGIN; CREATE TABLE fp_pk (id int PRIMARY KEY, v int); CREATE FUNCTION fp_side_effect(int, int) RETURNS bool LANGUAGE plpgsql AS 'BEGIN UPDATE fp_pk SET v = v + 1 WHERE id = $1; RETURN $1 = $2; END'; CREATE OPERATOR === (LEFTARG = int, RIGHTARG = int, FUNCTION = fp_side_effect); CREATE OPERATOR CLASS fp_ops FOR TYPE int USING btree AS OPERATOR 3 ===, OPERATOR 1 <, OPERATOR 2 <=, OPERATOR 4 >=, OPERATOR 5 >, FUNCTION 1 btint4cmp(int, int); CREATE UNIQUE INDEX ON fp_pk (id fp_ops); INSERT INTO fp_pk VALUES (1, 0); CREATE TABLE fp_fk (a int REFERENCES fp_pk (id)); INSERT INTO fp_fk VALUES (1); ROLLBACK;",
+   "ALTER TABLE t0 ADD FOREIGN KEY (c0) REFERENCES t1 (c0); INSERT INTO t0 (c0, c1) VALUES (1, 'test'); UPDATE t0 SET c0 = 1 WHERE c1 = 'test';"
+  ],
+  "features": [
+   "FOREIGN KEY",
+   "RI Triggers",
+   "Custom Operators",
+   "Row Locking"
+  ],
+  "rewrites": []
+ },
+ "t": 1793105032.95754
+}

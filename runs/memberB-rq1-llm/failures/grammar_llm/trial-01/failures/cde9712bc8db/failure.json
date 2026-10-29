@@ -1,0 +1,463 @@
+{
+  "v": 1,
+  "signature": "cde9712bc8db",
+  "strength": "stack",
+  "key": "assertion|ExecInitExpr<ExecInitTableFuncScan<ExecInitNode<ExecInitNestLoop<ExecInitNode",
+  "outcome": "assertion",
+  "sqlstate": null,
+  "message": "consuming input failed: server closed the connection unexpectedly",
+  "culprit": 1,
+  "culprit_sql": "SELECT 0.5::float8 AS c0, a2.c0 AS c1 FROM (v0 AS a1 CROSS JOIN JSON_TABLE (JSONB_SET (JSONB_BUILD_OBJECT ('k', 10, 'a', JSONB_BUILD_ARRAY ((-11), (ROW (42.5::numeric, '30'::int) < ROW (42.5::numeric, '8'::int)))), '{a,0}', '{\"k\": 1, \"a\": [1, 2]}'::jsonb), '$.a[*]' COLUMNS (c0 FOR ORDINALITY, c1 int PATH '$')) AS a2)",
+  "details": {
+    "assertion": {
+      "expr": "list_length(rcexpr->inputcollids) == nopers",
+      "file": "execExpr.c",
+      "line": 2078
+    },
+    "signal": 6,
+    "signal_name": "Aborted",
+    "connection_lost": true,
+    "backtrace": [
+      "ExceptionalCondition",
+      "ExecInitExpr",
+      "ExecInitTableFuncScan",
+      "ExecInitNode",
+      "ExecInitNestLoop",
+      "ExecInitNode",
+      "standard_ExecutorStart",
+      "ExecutorStart",
+      "PortalStart",
+      "PostgresMain",
+      "postmaster_child_launch",
+      "PostmasterMain",
+      "main",
+      "__libc_start_main",
+      "_start"
+    ]
+  },
+  "known_bugs": [],
+  "first_t": 2079.799,
+  "testcase_id": 28873,
+  "origin": "grammar",
+  "meta": {
+    "op": "fresh",
+    "trees": [
+      {
+        "rule": "setup_stmt",
+        "tree": {
+          "s": "setup_stmt",
+          "a": 16,
+          "k": [
+            {
+              "s": "set_stmt",
+              "a": 608,
+              "k": [
+                null,
+                null,
+                null,
+                null,
+                {
+                  "s": "#grp",
+                  "a": 609,
+                  "k": [
+                    null
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "rule": "stmt",
+        "tree": {
+          "s": "stmt",
+          "a": 0,
+          "k": [
+            {
+              "s": "query",
+              "a": 20,
+              "k": [
+                {
+                  "s": "select_core",
+                  "a": 25,
+                  "k": [
+                    null,
+                    {
+                      "s": "#rep",
+                      "a": -1,
+                      "k": []
+                    },
+                    {
+                      "s": "@items",
+                      "a": -1,
+                      "k": [
+                        {
+                          "s": "select_item",
+                          "a": 52,
+                          "k": [
+                            {
+                              "s": "expr",
+                              "a": 128,
+                              "k": [
+                                {
+                                  "s": "@lit",
+                                  "a": -1,
+                                  "k": [],
+                                  "t": "float8",
+                                  "v": "0.5::float8"
+                                }
+                              ],
+                              "t": "float8"
+                            }
+                          ],
+                          "t": "float8"
+                        },
+                        {
+                          "s": "select_item",
+                          "a": 52,
+                          "k": [
+                            {
+                              "s": "expr",
+                              "a": 127,
+                              "k": [
+                                {
+                                  "s": "@col",
+                                  "a": -1,
+                                  "k": [],
+                                  "t": "int",
+                                  "v": {
+                                    "tuple": [
+                                      "a2",
+                                      "srf",
+                                      "c0"
+                                    ]
+                                  }
+                                }
+                              ],
+                              "t": "int"
+                            }
+                          ],
+                          "t": "int"
+                        }
+                      ],
+                      "v": {
+                        "tuple": [
+                          "float8",
+                          "int"
+                        ]
+                      }
+                    },
+                    {
+                      "s": "from_clause",
+                      "a": 83,
+                      "k": [
+                        null,
+                        {
+                          "s": "from_item",
+                          "a": 88,
+                          "k": [
+                            {
+                              "s": "joined",
+                              "a": 95,
+                              "k": [
+                                null,
+                                {
+                                  "s": "@table",
+                                  "a": -1,
+                                  "k": [],
+                                  "v": "v0"
+                                },
+                                null,
+                                null,
+                                {
+                                  "s": "srf_item",
+                                  "a": 119,
+                                  "k": [
+                                    null,
+                                    null,
+                                    {
+                                      "s": "expr",
+                                      "a": 329,
+                                      "k": [
+                                        null,
+                                        null,
+                                        {
+                                          "s": "jobj",
+                                          "a": 398,
+                                          "k": [
+                                            null,
+                                            null,
+                                            null,
+                                            null,
+                                            {
+                                              "s": "expr",
+                                              "a": 128,
+                                              "k": [
+                                                {
+                                                  "s": "@lit",
+                                                  "a": -1,
+                                                  "k": [],
+                                                  "t": "int",
+                                                  "v": "10"
+                                                }
+                                              ],
+                                              "t": "int"
+                                            },
+                                            null,
+                                            null,
+                                            null,
+                                            null,
+                                            null,
+                                            {
+                                              "s": "expr",
+                                              "a": 128,
+                                              "k": [
+                                                {
+                                                  "s": "@lit",
+                                                  "a": -1,
+                                                  "k": [],
+                                                  "t": "int",
+                                                  "v": "(-11)"
+                                                }
+                                              ],
+                                              "t": "int"
+                                            },
+                                            null,
+                                            {
+                                              "s": "expr",
+                                              "a": 278,
+                                              "k": [
+                                                null,
+                                                null,
+                                                null,
+                                                {
+                                                  "s": "expr",
+                                                  "a": 128,
+                                                  "k": [
+                                                    {
+                                                      "s": "@lit",
+                                                      "a": -1,
+                                                      "k": [],
+                                                      "t": "numeric",
+                                                      "v": "42.5::numeric"
+                                                    }
+                                                  ],
+                                                  "t": "numeric"
+                                                },
+                                                null,
+                                                {
+                                                  "s": "expr",
+                                                  "a": 128,
+                                                  "k": [
+                                                    {
+                                                      "s": "@lit",
+                                                      "a": -1,
+                                                      "k": [],
+                                                      "t": "int",
+                                                      "v": "'30'::int"
+                                                    }
+                                                  ],
+                                                  "t": "int"
+                                                },
+                                                null,
+                                                {
+                                                  "s": "cmp",
+                                                  "a": 374,
+                                                  "k": [
+                                                    null
+                                                  ]
+                                                },
+                                                null,
+                                                null,
+                                                {
+                                                  "s": "expr",
+                                                  "a": 128,
+                                                  "k": [
+                                                    {
+                                                      "s": "@lit",
+                                                      "a": -1,
+                                                      "k": [],
+                                                      "t": "numeric",
+                                                      "v": "42.5::numeric"
+                                                    }
+                                                  ],
+                                                  "t": "numeric"
+                                                },
+                                                null,
+                                                {
+                                                  "s": "expr",
+                                                  "a": 128,
+                                                  "k": [
+                                                    {
+                                                      "s": "@lit",
+                                                      "a": -1,
+                                                      "k": [],
+                                                      "t": "int",
+                                                      "v": "'8'::int"
+                                                    }
+                                                  ],
+                                                  "t": "int"
+                                                },
+                                                null,
+                                                null
+                                              ],
+                                              "t": "bool",
+                                              "tv": {
+                                                "X": "numeric",
+                                                "Y": "int"
+                                              }
+                                            },
+                                            null,
+                                            null
+                                          ]
+                                        },
+                                        null,
+                                        {
+                                          "s": "#grp",
+                                          "a": 331,
+                                          "k": [
+                                            null
+                                          ]
+                                        },
+                                        null,
+                                        {
+                                          "s": "expr",
+                                          "a": 128,
+                                          "k": [
+                                            {
+                                              "s": "@lit",
+                                              "a": -1,
+                                              "k": [],
+                                              "t": "jsonb",
+                                              "v": "'{\"k\": 1, \"a\": [1, 2]}'::jsonb"
+                                            }
+                                          ],
+                                          "t": "jsonb"
+                                        },
+                                        null
+                                      ],
+                                      "t": "jsonb"
+                                    },
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    {
+                                      "s": "@define_alias",
+                                      "a": -1,
+                                      "k": []
+                                    }
+                                  ]
+                                },
+                                null
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "s": "#rep",
+                      "a": -1,
+                      "k": []
+                    }
+                  ]
+                },
+                {
+                  "s": "#rep",
+                  "a": -1,
+                  "k": []
+                },
+                {
+                  "s": "#rep",
+                  "a": -1,
+                  "k": []
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "owners": [
+      0,
+      1
+    ],
+    "generator": {
+      "grammar": "/home/gow/cs5187-term-project/src/configs/../grammar/postgres.pgg",
+      "schema": "/home/gow/cs5187-term-project/src/configs/../corpus/schema.yaml",
+      "extra_grammars": [
+        "/home/gow/cs5187-term-project/src/configs/../../results/llm/fragments/0d6103e537.pgg",
+        "/home/gow/cs5187-term-project/src/configs/../../results/llm/fragments/6aecabcd5e.pgg",
+        "/home/gow/cs5187-term-project/src/configs/../../results/llm/fragments/b84ad0cd90.pgg",
+        "/home/gow/cs5187-term-project/src/configs/../../results/llm/fragments/c993d9f7c8.pgg"
+      ],
+      "fingerprint": "f2b7b2b38b89"
+    }
+  },
+  "statements": [
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 0.901509996765526,
+      "rows": null
+    },
+    {
+      "status": "connection_lost",
+      "sqlstate": null,
+      "message": "consuming input failed: server closed the connection unexpectedly",
+      "duration_ms": 575.2807050012052,
+      "rows": null
+    }
+  ],
+  "server_log": [
+    "TRAP: failed Assert(\"list_length(rcexpr->inputcollids) == nopers\"), File: \"execExpr.c\", Line: 2078, PID: 923985",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(ExceptionalCondition+0x14b)[0x5640f48f0e36]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(+0x88c63f)[0x5640f3fcf63f]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(+0x88f2c1)[0x5640f3fd22c1]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(+0x889840)[0x5640f3fcc840]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(+0x88f2c1)[0x5640f3fd22c1]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(+0x889840)[0x5640f3fcc840]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(+0x88f2c1)[0x5640f3fd22c1]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(+0x889840)[0x5640f3fcc840]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(+0x88e465)[0x5640f3fd1465]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(ExecInitExpr+0x126)[0x5640f3fc9435]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(ExecInitTableFuncScan+0x33b)[0x5640f409a01d]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(ExecInitNode+0x58a)[0x5640f400e8a7]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(ExecInitNestLoop+0xee)[0x5640f408a10d]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(ExecInitNode+0x766)[0x5640f400ea83]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(+0x8b6fb9)[0x5640f3ff9fb9]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(standard_ExecutorStart+0x5a8)[0x5640f3ff8023]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(ExecutorStart+0xa8)[0x5640f3ff7a66]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(PortalStart+0x40a)[0x5640f4555920]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(+0xe04506)[0x5640f4547506]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(PostgresMain+0x15c8)[0x5640f4552b0b]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(+0xdfb7c4)[0x5640f453e7c4]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(postmaster_child_launch+0x2c1)[0x5640f436a809]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(+0xc3450f)[0x5640f437750f]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(+0xc2ee18)[0x5640f4371e18]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(PostmasterMain+0x2b2e)[0x5640f43710e5]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(main+0x626)[0x5640f40f2ca5]",
+    "/lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x73020fa29d90]",
+    "/lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x73020fa29e40]",
+    "postgres: postgres postgres 127.0.0.1(45902) SELECT(_start+0x25)[0x5640f3a4fe95]",
+    "2026-10-27 22:37:15.498 IST [25994] LOG:  client backend (PID 923985) was terminated by signal 6: Aborted",
+    "2026-10-27 22:37:15.498 IST [25994] DETAIL:  Failed process was running: SELECT 0.5::float8 AS c0, a2.c0 AS c1 FROM (v0 AS a1 CROSS JOIN JSON_TABLE (JSONB_SET (JSONB_BUILD_OBJECT ('k', 10, 'a', JSONB_BUILD_ARRAY ((-11), (ROW (42.5::numeric, '30'::int) < ROW (42.5::numeric, '8'::int)))), '{a,0}', '{\"k\": 1, \"a\": [1, 2]}'::jsonb), '$.a[*]' COLUMNS (c0 FOR ORDINALITY, c1 int PATH '$')) AS a2)",
+    "2026-10-27 22:37:15.498 IST [25994] LOG:  terminating any other active server processes",
+    "2026-10-27 22:37:15.540 IST [25994] LOG:  all server processes terminated; reinitializing",
+    "2026-10-27 22:37:15.581 IST [942190] LOG:  database system was interrupted; last known up at 2026-10-27 22:36:15 IST",
+    "2026-10-27 22:37:15.581 IST [942190] LOG:  database system was not properly shut down; automatic recovery in progress",
+    "2026-10-27 22:37:15.582 IST [942190] LOG:  redo starts at 0/571322C8",
+    "2026-10-27 22:37:15.833 IST [942190] LOG:  invalid record length at 0/57A6B768: expected at least 24, got 0",
+    "2026-10-27 22:37:15.833 IST [942190] LOG:  redo done at 0/57A6B730 system usage: CPU: user: 0.13 s, system: 0.10 s, elapsed: 0.25 s",
+    "2026-10-27 22:37:15.851 IST [25994] LOG:  database system is ready to accept connections"
+  ],
+  "extra": {}
+}

@@ -1,0 +1,33 @@
+{
+ "model": "gemini-3-flash-preview",
+ "requested_model": "gemini-3-flash-preview",
+ "provider": "google-gemini",
+ "via": "pgfuzz manual mode + gemini_driver.py",
+ "usage": {
+  "input_tokens": 15604,
+  "output_tokens": 7091,
+  "cache_read_input_tokens": 0,
+  "cache_creation_input_tokens": 0
+ },
+ "cost_usd": 0.0,
+ "billing": "Gemini API free tier",
+ "data": {
+  "rationale": "The commit moves the optimizer callback (qp_callback) to a point after the join-removal and self-join elimination (SJE) restart loop in query_planner(). This ensures that Aggref.aggpresorted flags, which are set during qp_callback to optimize pathkeys for grouping and aggregation, are not left in a stale or inconsistent state if the planner restarts due to a join being removed. The fix is reached by queries combining self-joins or removable joins on unique columns with multiple DISTINCT aggregates, which are the primary users of the aggpresorted optimization.",
+  "grammar_fragment": "agg<bigint>\n  : <0.8> SUM \"(\" DISTINCT expr<int> \")\"\n  ;\n\nagg<numeric>\n  : <0.8> SUM \"(\" DISTINCT expr<bigint> \")\"\n  | <0.8> AVG \"(\" DISTINCT expr<int> \")\"\n  ;\n\nset_stmt\n  : <0.5> SET LOCAL \"enable_self_join_elimination\" \"=\" (ON | OFF)\n  ;",
+  "seeds": [
+   "SELECT count(DISTINCT a1.c1), sum(DISTINCT a2.c1) FROM t1 a1 JOIN t1 a2 ON a1.c0 = a2.c0;",
+   "SELECT count(DISTINCT a1.c1), count(DISTINCT a1.c0), sum(DISTINCT a2.c1) FROM t1 a1 LEFT JOIN t1 a2 ON a1.c0 = a2.c0;",
+   "SET LOCAL enable_self_join_elimination = ON; SELECT a1.c1, count(DISTINCT a1.c0), sum(DISTINCT a2.c1) FROM t1 a1 JOIN t1 a2 ON a1.c0 = a2.c0 GROUP BY a1.c1 ORDER BY 1;",
+   "EXPLAIN (COSTS OFF) SELECT count(DISTINCT a1.c1), sum(DISTINCT a2.c1) FROM t1 a1 JOIN t1 a2 USING (c0);"
+  ],
+  "features": [
+   "self-join elimination",
+   "join removal",
+   "distinct aggregates",
+   "pathkeys",
+   "aggpresorted"
+  ],
+  "rewrites": []
+ },
+ "t": 1793104693.2712672
+}

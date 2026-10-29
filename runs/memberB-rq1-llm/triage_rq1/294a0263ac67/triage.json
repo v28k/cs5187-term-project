@@ -1,0 +1,233 @@
+{
+ "signature": "294a0263ac67",
+ "source": "results/rq1/grammar_llm/trial-02/failures/294a0263ac67",
+ "outcome": "wrong_result",
+ "oracle": "plan-variant",
+ "reproduced": "3/3",
+ "original": {
+  "statements": 2,
+  "culprit_tokens": 64
+ },
+ "tree_reduction": {
+  "tokens_after": 51,
+  "runs": 28,
+  "replays": 46
+ },
+ "reduced": {
+  "statements": 1,
+  "culprit_tokens": 23
+ },
+ "runs": 433,
+ "seconds": 0.6,
+ "observed": {
+  "query": {
+   "columns": [
+    "c3",
+    "?column?"
+   ],
+   "rows": [
+    [
+     "7 days",
+     "22"
+    ],
+    [
+     "392:00:00",
+     "0"
+    ],
+    [
+     "329:00:00",
+     "0"
+    ],
+    [
+     "252:00:00",
+     "0"
+    ],
+    [
+     "539:00:00",
+     "0"
+    ],
+    [
+     "35:00:00",
+     "0"
+    ],
+    [
+     "420:00:00",
+     "0"
+    ],
+    [
+     "7 days",
+     "54"
+    ],
+    [
+     "259:00:00",
+     "0"
+    ],
+    [
+     "497:00:00",
+     "0"
+    ],
+    [
+     "168:00:00",
+     "0"
+    ],
+    [
+     "532:00:00",
+     "0"
+    ],
+    [
+     "56:00:00",
+     "0"
+    ],
+    [
+     "567:00:00",
+     "0"
+    ],
+    [
+     "609:00:00",
+     "0"
+    ],
+    [
+     "427:00:00",
+     "0"
+    ],
+    [
+     "322:00:00",
+     "0"
+    ],
+    [
+     "301:00:00",
+     "0"
+    ],
+    [
+     "133:00:00",
+     "0"
+    ],
+    [
+     "595:00:00",
+     "0"
+    ],
+    [
+     "448:00:00",
+     "0"
+    ],
+    [
+     "49:00:00",
+     "0"
+    ],
+    [
+     "7 days",
+     "50"
+    ],
+    [
+     "7 days",
+     "26"
+    ],
+    [
+     "7 days",
+     "44"
+    ],
+    [
+     "455:00:00",
+     "0"
+    ],
+    [
+     "7 days",
+     "6"
+    ],
+    [
+     "7 days",
+     "58"
+    ],
+    [
+     "434:00:00",
+     "0"
+    ],
+    [
+     "413:00:00",
+     "0"
+    ]
+   ],
+   "row_count": 131
+  }
+ },
+ "localization": {
+  "default": {
+   "query": {
+    "hash": "b2a1af7141b0b440ce41e3ec",
+    "rows": 131
+   }
+  },
+  "reference": null,
+  "variants": {
+   "nestloop_only": {
+    "changes_answer": false
+   },
+   "hashjoin_only": {
+    "changes_answer": false
+   },
+   "mergejoin_only": {
+    "changes_answer": false
+   },
+   "no_hashagg": {
+    "changes_answer": true
+   },
+   "no_sort_opt": {
+    "changes_answer": false
+   },
+   "index_scans": {
+    "changes_answer": false
+   },
+   "seq_scans": {
+    "changes_answer": false
+   },
+   "no_memoize_material": {
+    "changes_answer": false
+   },
+   "parallel": {
+    "changes_answer": false
+   },
+   "partitionwise": {
+    "changes_answer": false
+   },
+   "no_partition_pruning": {
+    "changes_answer": false
+   },
+   "geqo": {
+    "changes_answer": false
+   },
+   "no_join_reorder": {
+    "changes_answer": false
+   },
+   "tiny_work_mem": {
+    "changes_answer": false
+   },
+   "no_reordering": {
+    "changes_answer": false
+   },
+   "no_self_join_elim": {
+    "changes_answer": false
+   },
+   "no_eager_agg": {
+    "changes_answer": false
+   },
+   "jit": {
+    "changes_answer": false
+   }
+  },
+  "verdict": {
+   "kind": "planner",
+   "variants": [
+    "no_hashagg"
+   ],
+   "settings": [
+    "enable_hashagg"
+   ],
+   "suspects": {
+    "enable_hashagg": "executor/nodeAgg.c (hash), optimizer/plan/planner.c"
+   },
+   "summary": "the answer depends on planner settings: no_hashagg; the code paths these switch are the first suspects"
+  }
+ },
+ "test_server": "20devel",
+ "verdict": "TODO: real | duplicate | false_positive | not_a_bug | flaky"
+}

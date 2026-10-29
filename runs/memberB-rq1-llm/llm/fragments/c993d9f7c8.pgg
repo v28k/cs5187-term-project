@@ -1,0 +1,6 @@
+# c993d9f7c8 Refuse RI fast-path row locks in read-only transactions
+new_col : <0.5> @new_col(int) "REFERENCES" @table(t1) "(" "c0" ")" fk_timing ;
+fk_timing : "DEFERRABLE INITIALLY DEFERRED" | "DEFERRABLE INITIALLY IMMEDIATE" ;
+create_table : <0.5> "CREATE TEMP TABLE" @new_table "(" new_col{1,3/","} ")" ";" @fill ;
+stmt : <0.2> deferred_fk_ro_block ;
+deferred_fk_ro_block @scope : "BEGIN" ";" (insert_stmt | update_stmt) ";" "SET TRANSACTION READ ONLY" ";" "COMMIT" ;

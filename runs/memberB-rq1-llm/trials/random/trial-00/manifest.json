@@ -1,0 +1,105 @@
+{
+  "v": 1,
+  "experiment": "rq1",
+  "config": "random",
+  "label": "Random/Mutation",
+  "trial": 0,
+  "seed": 102262610911860692,
+  "worker": 0,
+  "budget": {
+    "seconds": 3600.0,
+    "testcases": null
+  },
+  "generator": {
+    "plugin": "generator.random_generator.generator:RandomGenerator",
+    "params": {
+      "schema": "/home/gow/cs5187-term-project/src/configs/../corpus/schema.yaml",
+      "min_mutations": 1,
+      "max_mutations": 4,
+      "pure_random_fraction": 0.05
+    },
+    "name": "random",
+    "schema": "/home/gow/cs5187-term-project/src/configs/../corpus/schema.yaml",
+    "seeds": 21,
+    "min_mutations": 1,
+    "max_mutations": 4,
+    "pure_random_fraction": 0.05,
+    "guided": false
+  },
+  "executor": {
+    "plugin": "pgfuzz.reference.pg_executor:PostgresExecutor",
+    "params": {
+      "dsn": "host=127.0.0.1 port=5450 dbname=postgres user=postgres",
+      "isolation": "savepoint",
+      "statement_timeout_ms": 3000,
+      "setup_sql": [
+        "/home/gow/cs5187-term-project/src/configs/../corpus/schema.sql",
+        "/home/gow/cs5187-term-project/src/configs/../corpus/rls.sql"
+      ],
+      "reset_sql": [
+        "/home/gow/cs5187-term-project/src/configs/../corpus/schema.sql",
+        "/home/gow/cs5187-term-project/src/configs/../corpus/rls.sql"
+      ],
+      "server_log": "/home/gow/pgfuzz/data/cov-0/postgresql.log",
+      "coverage_command": "bash /home/gow/cs5187-term-project/src/configs/../../scripts/rq1_servers.sh coverage 0",
+      "coverage_reset_command": "bash /home/gow/cs5187-term-project/src/configs/../../scripts/rq1_servers.sh coverage 0 reset",
+      "differential": {
+        "per_query": 2
+      },
+      "metamorphic": true,
+      "plan_shapes": {
+        "every": 1
+      }
+    },
+    "name": "postgres",
+    "isolation": "savepoint",
+    "statement_timeout_ms": 3000,
+    "server_log": "/home/gow/pgfuzz/data/cov-0/postgresql.log",
+    "coverage": true,
+    "differential": true,
+    "metamorphic": true,
+    "plan_shapes_every": 1,
+    "diff_per_query": 2,
+    "server_version": "20devel",
+    "version": "PostgreSQL 20devel on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
+    "debug_assertions": "on",
+    "data_checksums": "on",
+    "plan_variants": [
+      "geqo",
+      "hashjoin_only",
+      "index_scans",
+      "mergejoin_only",
+      "nestloop_only",
+      "no_eager_agg",
+      "no_hashagg",
+      "no_join_reorder",
+      "no_memoize_material",
+      "no_partition_pruning",
+      "no_reordering",
+      "no_self_join_elim",
+      "no_sort_opt",
+      "parallel",
+      "partitionwise",
+      "seq_scans",
+      "tiny_work_mem"
+    ],
+    "plan_variants_dropped": [
+      "jit"
+    ]
+  },
+  "known_bugs": {
+    "catalog": "/home/gow/cs5187-term-project/src/known_bugs/known_bugs.yaml",
+    "entries": 0
+  },
+  "coverage_interval_s": 300.0,
+  "snapshot_interval_s": 30.0,
+  "started_at": "2026-10-27T13:02:31+00:00",
+  "env": {
+    "pgfuzz": "0.1.0",
+    "python": "3.10.12",
+    "platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "git_commit": "f283bff87e21061458569a2f2c15490f774ba732-dirty"
+  }
+}

@@ -1,0 +1,39 @@
+Subject: raises an internal error (XX000) -- <one line: the feature involved>
+
+PostgreSQL version: 20devel (built with --enable-cassert)
+Also checked on: <latest release: run the script there too>
+Platform: <OS, compiler>
+
+Description
+-----------
+
+The following script raises an internal error (XX000).
+
+ERROR:  corrupt MVNDistinct entry
+
+Script
+------
+
+-- pgfuzz triage of 84e36fe21cff: internal_error via metamorphic:expr
+CREATE STATISTICS (NDISTINCT) ON c0, c1 FROM ti;
+ANALYZE ti;
+-- the two queries below must return the same rows (as a multiset):
+SELECT NULL FROM ti a1, LATERAL (SELECT a1.c0) a2 GROUP BY ROLLUP (a1.c0, a2);
+SELECT NULL FROM ti a1, LATERAL (SELECT (SELECT (a1.c0))) a2 GROUP BY ROLLUP (a1.c0, a2);
+
+Actual output
+-------------
+
+lhs:
+    ERROR: XX000 corrupt MVNDistinct entry
+
+rhs:
+    ERROR: XX000 corrupt MVNDistinct entry
+
+Expected
+--------
+
+<what should happen, and why: SQL standard / documentation section>
+
+<If bisected: first bad commit (scripts/bisect_pg.sh).>
+Found by a grammar-based fuzzer; the script above is its automatically reduced test case.

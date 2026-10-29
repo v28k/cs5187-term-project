@@ -1,0 +1,9 @@
+# 0d6103e537 Give antijoins made from sublinks a relid
+joined @frame
+  : <1.5> "(" from_item LEFT JOIN derived_sublink_antijoin ON "true" ")"
+  ;
+
+derived_sublink_antijoin @shape @scope
+  : "(" SELECT "12345" AS "c0" "," @col(int) AS "c1" ^from_clause WHERE "(" NOT EXISTS exists_sub ")" ")" AS @derived_alias
+  | "(" SELECT "12345" AS "c0" "," @col(int) AS "c1" ^from_clause WHERE "(" @col(int) NOT IN in_sub<int> ")" ")" AS @derived_alias
+  ;
