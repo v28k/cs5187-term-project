@@ -81,3 +81,11 @@ partitioned table + correlated subquery in max()) has a different trigger and wa
   Patch posted: pass `&mtstate->ps` there. We applied the same one-line change to
   master 4848fd675: the reproducer succeeds, a MERGE taking the UPDATE path with the
   subquery updates correctly, and `make check` passes (239/239).
+* **BUG #19803 (N2), 29 Oct 2026:** David Rowley confirmed it. Cause: a child rel
+  keeps partial paths (e.g. from `set_subquery_pathlist()`) after
+  `set_append_rel_pathlist()` sets `consider_parallel = false`, and
+  `add_paths_to_append_rel()` uses them. Draft patch
+  (`nullify_partial_pathlist_when_unsetting_consider_parallel.patch`): clear
+  `childrel->partial_pathlist` there. Applied as is to master 4848fd675 (cassert): the
+  reproducer returns its row, also with `debug_parallel_query = on`; the original fuzzer
+  test case runs with no TRAP; `make check` passes (239/239).
