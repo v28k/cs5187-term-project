@@ -1,54 +1,41 @@
 \section{Related Work}
 \label{sec:related}
 
-\paragraph{Metamorphic oracles for database systems.} Closest to us is the
-work of Rigger and Su: pivoted query synthesis~\cite{rigger2020pqs},
-NoREC~\cite{rigger2020norec} and TLP~\cite{rigger2020tlp}, all in SQLancer,
-and equivalent expression transformation by Jiang and
-Su~\cite{jiang2024eet}. These tools found hundreds of bugs in widely used
-systems. They build the follow-up query from strings that their own small
-generators produced. We share their oracles, but apply them to typed
-derivation trees of a grammar that covers much more of \pg, at any query
-level, and we report the precision of each oracle on that larger language.
+\paragraph{Metamorphic oracles for database systems.} Closest to us is the work
+of Rigger and Su: pivoted query synthesis~\cite{rigger2020pqs},
+NoREC~\cite{rigger2020norec} and TLP~\cite{rigger2020tlp} in SQLancer, and
+equivalent expression transformation by Jiang and Su~\cite{jiang2024eet}. These
+tools found hundreds of bugs, but they build the follow-up query from strings
+that their own small generators produced. We share their oracles and apply them
+to typed derivation trees of a grammar that covers much more of \pg, at any
+query level, and we report the precision of each oracle on that larger language.
 
 \paragraph{Guidance for database fuzzing.} Query plan
-guidance~\cite{ba2023qpg} steers SQLancer toward queries with new plan shapes.
-SQUIRREL~\cite{zhong2020squirrel} mutates an intermediate representation of
-SQL with coverage feedback to find crashes, and SQLRight~\cite{liang2022sqlright}
-combines such coverage-guided mutation with the logic-bug oracles of SQLancer.
-CERT~\cite{ba2024cert} finds performance issues by checking that a more
-restrictive query never gets a larger cardinality estimate; we include its
-check as one oracle. Directed greybox fuzzing~\cite{bohme2017aflgo} steers a
-fuzzer toward chosen code locations. We use plan shapes as one of four reasons
-to keep a test case and learn alternative weights from feedback, and we direct
-the campaign toward the commits that changed the code under test, at the level
-of SQL features rather than branches.
+guidance~\cite{ba2023qpg} steers SQLancer toward new plan shapes;
+SQUIRREL~\cite{zhong2020squirrel} mutates an intermediate representation of SQL
+with coverage feedback to find crashes, and SQLRight~\cite{liang2022sqlright}
+adds the logic-bug oracles of SQLancer. CERT~\cite{ba2024cert} checks that a more
+restrictive query never gets a larger cardinality estimate; we include its check.
+Directed greybox fuzzing~\cite{bohme2017aflgo} steers toward chosen code. We direct
+the campaign toward recent commits at the level of SQL features rather than
+branches.
 
 \paragraph{Grammar-based and differential SQL testing.} RAGS~\cite{slutz1998rags}
-generated random SQL and compared the results of several database systems.
-SQLsmith~\cite{sqlsmith} generates random queries from the catalog of a
-running \pg and has found many crashes. We compare one server with itself
-under 18 plan variants and with its last release, which avoids most dialect
-differences, and we need a typed grammar instead of the catalog because the
-oracles must know the type and scope of every node.
+compared the results of several database systems on random SQL, and
+SQLsmith~\cite{sqlsmith} generates queries from the catalog of a running \pg. We
+compare one server with itself under 18 plan variants and with its last
+release, which avoids most dialect differences, and we need a typed grammar
+because the oracles must know the type and scope of every node.
 
-\paragraph{LLMs for fuzzing.} Fuzz4All~\cite{xia2024fuzz4all} uses an LLM as
-the input generator for compilers and language tools, and updates its prompt
-during fuzzing. We use the LLM differently: it writes grammar alternatives
-for one commit, a server-side \gate rejects what does not run or does not
-reach the changed lines, and the grammar then produces the test cases. The
-LLM is called a few times per commit, not once per test case, and it can
-also extend the oracle with equivalence rewrites, which the gate tests on
-values and on live queries before use.
+\paragraph{LLMs for fuzzing.} Fuzz4All~\cite{xia2024fuzz4all} uses an LLM as the
+input generator; we call it a few times per commit for grammar alternatives and
+rewrites, behind a server-side \gate.
 
-\paragraph{Benchmarks and evaluation of fuzzers.} Magma~\cite{hazimeh2020magma}
-ports real bugs into fixed versions of real programs and measures which
-fuzzers trigger them; Klees et al.~\cite{klees2018evaluating} showed how
-fuzzing evaluations go wrong without repeated trials and statistics. We follow
-both: our benchmark reverts real fixes in one server, attributes each finding
-to its bug by replay on single-bug servers, and every arm runs repeated trials.
-
-\paragraph{Test-case reduction.} Delta debugging~\cite{zeller2002dd} and
-hierarchical delta debugging~\cite{misherghi2006hdd} reduce failing inputs.
-We use both and add paired reduction for metamorphic checks, where the two
-queries of a check must shrink together to stay equivalent.
+\paragraph{Benchmarks, evaluation and reduction.} Magma~\cite{hazimeh2020magma}
+ports real bugs into real programs, and Klees et al.~\cite{klees2018evaluating}
+showed how fuzzing evaluations go wrong without repeated trials; our benchmark
+reverts real fixes in one server, attributes each finding by replay on
+single-bug servers, and every arm runs repeated trials. We reduce failures with
+delta debugging~\cite{zeller2002dd} and hierarchical delta
+debugging~\cite{misherghi2006hdd} and add paired reduction for metamorphic
+checks, where the two queries must shrink together to stay equivalent.

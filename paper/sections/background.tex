@@ -1,17 +1,14 @@
 \section{Background}
 \label{sec:background}
 
-\paragraph{Derivation tree.} A grammar derives a query by choosing one
+\paragraph{Derivation tree and wrong result.} A grammar derives a query by choosing one
 alternative per rule. The \emph{derivation tree} \Tree{\Q} of a query \Q
 records these choices: each inner node is a rule with the alternative it took,
 and the leaves are SQL tokens. Reading the leaves from left to right gives the
-text of \Q.
-
-\paragraph{Wrong result.} A query has a wrong result when the server returns a
-multiset of rows \Res{\Q} that differs from what the SQL standard and the \pg
-documentation define, without an error. Typical causes are planner rules that
-are correct only under an assumption that does not hold, for example that a
-column cannot be NULL.
+text of \Q. A query has a \emph{wrong result} when the server returns a
+multiset \Res{\Q} that differs from what the SQL standard and the \pg
+documentation define, without an error; typical causes are planner rules that
+assume, for example, that a column cannot be NULL.
 
 \paragraph{Metamorphic oracle.} A metamorphic oracle builds a second query
 $\Q'$ with a known relation to \Q, usually $\Res{\Q} = \Res{\Q'}$, and reports a
@@ -23,13 +20,11 @@ $\Res{\Q} = \Res{\Part{\Q}{p}} \uplus \Res{\Part{\Q}{\neg p}} \uplus
 when $p$ is evaluated in the select list, where the planner cannot use it to
 choose a plan.
 
-\paragraph{Plan variant.} \pg lets a session switch planner methods off, for
-example \texttt{SET enable\_hashjoin = off}. A \emph{plan variant} is the
-same query under such a setting. All plan variants of a deterministic query
-must return the same multiset. This is differential testing inside one
-server.
-
-\paragraph{Assertion build.} \pg built with \texttt{--enable-cassert} checks
-internal invariants; a failed \texttt{Assert} aborts the backend and logs a
-\texttt{TRAP} line. Release builds skip these checks, so such a failure often
-means silent corruption or a wrong result in production.
+\paragraph{Plan variant and assertion build.} A session can switch planner
+methods off, for example \texttt{SET enable\_hashjoin = off}; a \emph{plan
+variant} is the same query under such a setting, and all plan variants of a
+deterministic query must return the same multiset (differential testing inside
+one server). \pg built with \texttt{--enable-cassert} aborts the backend on a
+failed internal \texttt{Assert} and logs a \texttt{TRAP} line; release builds
+skip the check, so such a failure often means a silent wrong result in
+production.

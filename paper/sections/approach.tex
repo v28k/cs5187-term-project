@@ -7,10 +7,8 @@ that oracles can rewrite single nodes of known type and position instead of
 SQL text. The tree has four jobs: generation builds it, mutation re-derives
 one subtree, the oracles rewrite one typed node, and triage reduces it by
 replacing subtrees with their smallest derivation. The fuzzing loop (Steps
-1--4) runs thousands of test cases per minute; its expensive part is running
-each query several times, once per oracle. The LLM loop (Step 5) runs a few
-times per commit, before the campaign, and extends both the grammar and the
-oracle.
+1--4) runs thousands of test cases per minute; the LLM loop (Step 5) runs a few
+times per commit, before the campaign.
 
 \begin{figure*}[t]
   \centering
@@ -27,213 +25,171 @@ oracle.
 \subsection{Step 1: Derive Test Cases from a Typed Grammar}
 \label{sec:grammar}
 
-We wrote a grammar for the SQL that \pg~18 and master accept, in a small
-format of our own (\pgg). It has 78 rules with 421 alternatives over 13 SQL
-types. A rule may be parameterised by a type, as in \texttt{expr<T>}, so a
-derivation only combines expressions that type-check. Weights on alternatives
-set how often each is chosen, and \emph{builtins} written in Python handle
-what a context-free grammar cannot: \texttt{@col(T)} picks a visible column of
-type $T$ in the current scope, \texttt{@table} binds a fresh alias, and
-\texttt{@group\_keys} turns the current query level into a grouped one, after
-which only grouped columns and aggregates are visible. The schema has 9
-relations with partitions, inheritance, a view, indexes of four access
-methods (B-tree, GIN, GiST, BRIN) and NULLs in most columns.
+We wrote a grammar for the SQL that \pg~18 and master accept, in a small format
+of our own (\pgg): 78 rules with 421 alternatives over 13 SQL types. A rule may
+be parameterised by a type, as in \texttt{expr<T>}, so a derivation only
+combines expressions that type-check. Weights set how often each alternative is
+chosen, and \emph{builtins} written in Python handle what a context-free
+grammar cannot: \texttt{@col(T)} picks a visible column of type $T$ in the
+current scope, \texttt{@table} binds a fresh alias, and \texttt{@group\_keys}
+makes the current query level grouped, after which only grouped columns and
+aggregates are visible. The schema has 9 relations with partitions, inheritance,
+a view, indexes of four access methods and NULLs in most columns.
 
 A test case has up to two setup statements (DDL, DML, \texttt{ANALYZE},
 \texttt{SET LOCAL} of a planner setting) followed by one or two queries. While
 deriving, the engine wraps the tokens of every node in invisible markers, so
 after rendering it knows the exact token span of each node. Half of the test
-cases are new derivations; the other half replay a test case from the corpus
-and re-derive one subtree. A test case enters the corpus when it produces a new
-bug signature, covers a new SQL feature, a new pair of features, or a new plan shape, the digest of the
+cases are new derivations; the others replay a corpus test case and re-derive one
+subtree. A test case enters the corpus when it produces a new bug signature, a
+new SQL feature, a new pair of features, or a new plan shape, the digest of the
 node types in \texttt{EXPLAIN} output~\cite{ba2023qpg}.
 
-\paragraph{Feedback-weighted alternatives.} Every alternative carries a
-multiplicative weight. When a test case enters the corpus, the
-weights of all alternatives in its trees grow by $e^{\eta(1-\bar r)}$; when a
-statement fails, the weights of its tree shrink by $e^{\eta(-0.5-\bar r)}$,
-where $\bar r$ is a running average of the reward and $\eta=0.1$. Weights stay
-in $[0.2, 5]$, so no alternative disappears.
-
-\paragraph{Literals from the data.} Random constants rarely select a real
-share of rows: \texttt{c0 = 4711} selects nothing and \texttt{c0 < 4711}
-everything. \tool asks the server once for the minimum, maximum and the
-10--90\% quantiles of every column. Some literals then come from this
-\emph{data profile}: the boundaries of the observed interval and of the type
-(min$-1$, max$+1$, 0, $-0$, NaN, $\pm$Infinity, the empty array), and, through
-the builtin \texttt{@dlit(T)}, a quantile of the column that the predicate
-compares, so that \texttt{col < @dlit} selects between 10\% and 90\% of the
-rows.
-
-We do not claim grammar-based generation as new; the typing, the scoping
-builtins and the node spans are what the later steps need.
+\paragraph{Feedback and data.} Every alternative carries a multiplicative
+weight that grows when a test case that used it enters the corpus and shrinks
+when its statement fails (rate $\eta=0.1$, range $[0.2,5]$). Some literals come
+from a \emph{data profile} (minimum, maximum and quantiles of every column,
+type edges such as $-0$, NaN, $\pm$Infinity and the empty array), so predicates
+select a real share of rows. Grammar-based generation is not new; the typing,
+scoping builtins and node spans are what the later steps need.
 
 \subsection{Step 2: Attach Oracles as Tree Rewrites}
 \label{sec:oracles}
 
 For each query, \tool picks up to one metamorphic check and stores it with
 the test case as a pair of queries that must return the same multiset. All
-checks are built on the derivation tree:
-\begin{description}
-  \item[TLP on WHERE.] \tool picks a \texttt{SELECT} whose result is used as
-    a multiset: the query itself, a derived table, a CTE body, a
-    set-operation arm, or an \texttt{IN}, \texttt{EXISTS} or \texttt{LATERAL}
-    subquery. Its \texttt{WHERE p} is partitioned into $p$, \texttt{NOT p} and
-    \texttt{p IS NULL}, and the three copies are combined with
-    \texttt{UNION ALL}. Because the
-    rewrite edits one node, it also works inside a nested query, where
-    text-based TLP does not apply.
-  \item[TLP on HAVING.] The same on the \texttt{HAVING} clause. The
-    unpartitioned side keeps \texttt{HAVING TRUE}: without \texttt{GROUP BY},
-    a \texttt{HAVING} clause is what makes a level a single-group aggregate.
-  \item[NoREC.] \texttt{count(*)} with \texttt{WHERE p} against the sum of
-    \texttt{CASE WHEN p THEN 1 ELSE 0 END} over the same \texttt{FROM}.
-  \item[TLP on aggregates.] A global aggregate whose items are all
-    \texttt{MIN}, \texttt{MAX}, \texttt{SUM}, \texttt{COUNT}, \texttt{BIT\_*}
-    or \texttt{BOOL\_*} calls equals the combination over the three
-    partitions: the \texttt{MIN} of the \texttt{MIN}s, the \texttt{SUM} of the
-    \texttt{COUNT}s, and so on.
-  \item[Expression rewrites.] One typed expression node $e$ becomes an
-    equivalent form: \texttt{COALESCE(e,e)}, \texttt{(SELECT e)},
-    \texttt{CASE WHEN TRUE THEN e END}, $e+0$ and $e \cdot 1$ for numbers,
-    \texttt{e || ''} for text, and \texttt{NOT NOT p}, \texttt{p AND TRUE},
-    \texttt{p OR FALSE} and \texttt{CASE WHEN p THEN TRUE ELSE FALSE END}
-    for predicates.
-  \item[Predicate rewrites.] \texttt{x IN (a, b)} becomes
-    \texttt{(x = a) OR (x = b)}, which \pg~18 turns back into
-    \texttt{= ANY} (the OR-to-ANY transformation); \texttt{a < b} becomes
-    \texttt{NOT (a >= b)}, which three-valued logic keeps exact; and
-    \texttt{x BETWEEN l AND h} becomes \texttt{x >= l AND x <= h}.
-  \item[NOT NULL conjunct.] \texttt{WHERE p} becomes
-    \texttt{WHERE p AND c IS NOT NULL} for a NOT NULL column $c$ that $p$
-    already uses, which targets the planner's NOT NULL simplifications. The
-    rewrite is skipped under outer joins and for generated columns, where a NOT
-    NULL column can still be NULL.
-  \item[ORDER BY removal.] The statement's own \texttt{ORDER BY} is dropped;
-    the result is compared as a multiset.
-  \item[CTE materialisation.] \texttt{MATERIALIZED} is toggled on one CTE.
-  \item[Table fence.] One table reference becomes
-    \texttt{(SELECT * FROM t OFFSET 0)}, which stops the planner from pushing
-    predicates into it, removing it, or pruning its partitions.
-  \item[Row-level security.] Five tables carry a row-level security policy.
-    The query runs as a restricted role, under the policies, and as a
-    superuser with every protected table $t$ replaced by
-    \texttt{(SELECT * FROM t WHERE \textit{policy})}. A difference means that
-    the policies let a row through or hide one they should not. One file
-    defines the policies for both the server and the rewrite.
-  \item[Cardinality estimates.] Following CERT~\cite{ba2024cert}, adding the
-    \texttt{WHERE} clause to a query must not raise the planner's row
-    estimate. This check compares \texttt{EXPLAIN} estimates, not results; a
-    violation is a \emph{performance} candidate, reported apart from bugs.
-\end{description}
+checks are built on the derivation tree.
+
+\paragraph{Partitioning and counting.} \emph{TLP on \texttt{WHERE}} picks a
+\texttt{SELECT} whose result is used as a multiset (the query itself, a
+derived table, a CTE body, a set-operation arm, or an \texttt{IN},
+\texttt{EXISTS} or \texttt{LATERAL} subquery) and partitions its
+\texttt{WHERE p} into $p$, \texttt{NOT p} and \texttt{p IS NULL}, combined
+with \texttt{UNION ALL}. Because the rewrite edits one node, it also works in
+a nested query, where text-based TLP does not apply. \emph{TLP on
+\texttt{HAVING}} does the same; the unpartitioned side keeps \texttt{HAVING
+TRUE}, because without \texttt{GROUP BY} a \texttt{HAVING} clause is what makes a
+level a single-group aggregate. \emph{TLP on aggregates} equates a global
+\texttt{MIN}, \texttt{MAX}, \texttt{SUM}, \texttt{COUNT}, \texttt{BIT\_*} or
+\texttt{BOOL\_*} with the combination over the three partitions (the
+\texttt{MIN} of the \texttt{MIN}s, the \texttt{SUM} of the \texttt{COUNT}s).
+\emph{NoREC} compares \texttt{count(*)} with \texttt{WHERE p} against the sum
+of \texttt{CASE WHEN p THEN 1 ELSE 0 END}.
+
+\paragraph{Equivalent forms of one node.} \emph{Expression rewrites} replace
+one typed expression $e$ by \texttt{COALESCE(e,e)}, \texttt{(SELECT e)},
+\texttt{CASE WHEN TRUE THEN e END}, $e+0$ or $e \cdot 1$ (numbers),
+\texttt{e || ''} (text), or \texttt{NOT NOT p}, \texttt{p AND TRUE},
+\texttt{p OR FALSE} (predicates). \emph{Predicate rewrites} turn
+\texttt{x IN (a, b)} into \texttt{(x = a) OR (x = b)}, which \pg~18 turns back
+into \texttt{= ANY}, \texttt{a < b} into \texttt{NOT (a >= b)}, which
+three-valued logic keeps exact, and \texttt{BETWEEN} into two comparisons.
+\emph{NOT NULL conjunct} turns \texttt{WHERE p} into \texttt{WHERE p AND c IS
+NOT NULL} for a NOT NULL column $c$ that $p$ uses, which targets the planner's
+NOT NULL simplifications; it is skipped under outer joins and for generated
+columns, where such a column can still be NULL. \emph{ORDER BY removal} drops
+the statement's own \texttt{ORDER BY}, \emph{CTE materialisation} toggles
+\texttt{MATERIALIZED}, and the \emph{table fence} turns one table reference
+into \texttt{(SELECT * FROM t OFFSET 0)}, which stops the planner from pushing
+predicates into it, removing it, or pruning its partitions.
+
+\paragraph{Security and estimates.} For \emph{row-level security}, five tables
+carry a policy defined in one file used by both the server and the rewrite.
+The query runs as a restricted role, under the policies, and as a superuser
+with every protected table $t$ replaced by \texttt{(SELECT * FROM t WHERE
+\textit{policy})}; a difference means that the policies let a row through or
+hide one they should not. Following CERT~\cite{ba2024cert}, adding the
+\texttt{WHERE} clause to a query must not raise the planner's row estimate;
+this check compares \texttt{EXPLAIN} estimates, and a violation is a
+\emph{performance} candidate, reported apart from bugs.
+
 A check is attached only if its rewrite is sound for that query
-(Section~\ref{sec:problem}): no \texttt{LIMIT} without \texttt{ORDER BY}, no
-volatile function, no order-dependent aggregate, and, for partitioning under
-\texttt{DISTINCT} or grouping, only key types whose equal values print the same
-text.
+(Section~\ref{sec:problem}).
 
 \subsection{Step 3: Run the Test Case Several Ways}
 \label{sec:run}
 
 The server runs each test case in a transaction with one savepoint per
-statement and rolls it back at the end, so test cases cannot affect each
-other. For each query that is deterministic, \tool also runs:
-(i)~both sides of the attached check;
-(ii)~the query under two of 18 \emph{plan variants} (for example hash join
-only, no hash aggregation, forced parallel plans, partitionwise join on, no
-eager aggregation, JIT on), chosen at random per query;
-and (iii)~the whole test case on a server of the last release, \pg~18.6, in a
-database of its own for each worker (the \emph{cross-version oracle}).
-Results are compared as order-insensitive digests of the result text. The
-digests drop choices that no plan controls: trailing zeros of equal
-\texttt{numeric} values (\texttt{2.0} and \texttt{2.00}), the sign of float
-zero, and, for aggregates over floats, the last digits of finite values.
+statement and rolls it back at the end, so test cases cannot affect each other.
+For each deterministic query \tool also runs (i)~both sides of the attached
+check; (ii)~the query under two of 18 \emph{plan variants} (for example hash
+join only, no hash aggregation, forced parallel plans, partitionwise join, no
+eager aggregation, JIT), chosen at random per query; and (iii)~the whole test
+case on a server of the last release, \pg~18.6, in a database of its own for
+each worker (the \emph{cross-version oracle}). Results are compared as
+order-insensitive digests that drop choices no plan controls: trailing zeros of
+equal \texttt{numeric} values, the sign of float zero, the last digits of finite
+floats in aggregates, and the text of equal \texttt{interval} values.
 
 \subsection{Step 4: Classify, De-duplicate, Triage}
 \label{sec:triage}
 
-The oracle reads the statement results and the server log. A \texttt{TRAP}
-line is an assertion failure; a lost connection without one is a crash; an
-error of class \texttt{XX} is an internal error; a confirmed mismatch of any
-digest is a wrong result. A metamorphic mismatch counts only if it repeats when
-both sides run again. Crash evidence in the server log counts only if it
-carries the process id of the test case's own backend (or of a parallel
-worker of its query), so a crash caused by another session is never blamed on
-the test case that happened to be running. Each candidate gets a \emph{signature}: the assertion
-location, the normalised backtrace or error message, or, for wrong results,
-the oracle and the shape of the query. Only the first test case per signature
-is saved.
+The oracle reads the statement results and the server log. A \texttt{TRAP} line
+is an assertion failure; a lost connection without one is a crash; an error of
+class \texttt{XX} is an internal error; a confirmed mismatch of any digest is a
+wrong result (a metamorphic mismatch counts only if it repeats when both sides
+run again). Crash evidence counts only if it carries the process id of the test
+case's own backend or its parallel workers. Each candidate gets a
+\emph{signature}: the assertion location, the normalised backtrace or error
+message, or, for wrong results, the oracle and the shape of the query; only the
+first test case per signature is saved.
 
-Triage then reproduces the candidate three times on a fresh connection and
-reduces it in two stages. \emph{Tree reduction} works on the derivation trees
-that every failure of the grammar arm stores: it drops a statement, drops one
-repetition, or replaces a subtree by the smallest derivation of the same rule
-and type, and replays the trees through the generator, which re-binds names,
-aliases and types. Every candidate is therefore valid SQL, and the server's
-time goes to the question whether the failure remains. \emph{Token reduction}
-follows: it removes whole statements with delta
-debugging~\cite{zeller2002dd}, then removes clauses, list items, and
-parenthesised groups of the failing statement level by level over its
-parenthesis tree~\cite{misherghi2006hdd}, and finally single tokens. A
-reduction step is kept only if the same failure occurs: the same assertion,
-the same normalised message, or the same oracle and plan variant. For a
-metamorphic candidate both queries of the check are reduced together, so they
-stay a valid pair. We do not claim these reduction algorithms as new.
+Triage reproduces the candidate three times on a fresh connection and reduces
+it in two stages. \emph{Tree reduction} works on the derivation trees that every
+failure of the grammar arm stores: it drops a statement, drops one repetition,
+or replaces a subtree by the smallest derivation of the same rule and type, and
+replays the trees through the generator, which re-binds names, aliases and
+types. Every candidate is therefore valid SQL, and the server's time goes to the
+question whether the failure remains. \emph{Token reduction} follows: delta
+debugging~\cite{zeller2002dd} removes statements, then clauses, list items and
+parenthesised groups level by level over the parenthesis
+tree~\cite{misherghi2006hdd}, then single tokens. A step is kept only if the same
+failure occurs (same assertion, normalised message, or oracle and plan variant);
+for a metamorphic candidate both queries are reduced together, so they stay a
+valid pair.
 
 \paragraph{Localization.} For a reduced wrong result, \tool runs the queries
-again under every plan variant. If a variant removes the disagreement, the
-bug is in the code path that setting switches, and the report names the
-setting and its source files. If no variant removes it, the cause is an
-always-applied rewrite, constant folding, a planner support function, or
-expression evaluation. The output is a short reproducer, the rows each side
-returned, the localization, a verdict template, and a draft report in the
-shape that the \pg bug form asks for.
+under every plan variant. If a variant removes the disagreement, the bug is in
+the code path that setting switches, and the report names the setting and its
+source files; if none does, the cause is an always-applied rewrite, constant
+folding, a planner support function, or expression evaluation. The output is a
+short reproducer, the rows each side returned, the localization and a draft
+report in the shape of the \pg bug form.
 
 \subsection{Step 5: Extend the Grammar from Recent Commits}
 \label{sec:llm}
 
 \paragraph{Step 5a: propose.} \tool lists the commits of \pg master that change
-the optimiser, the executor, the parser or the SQL-callable functions and that
-add regression tests. For each one it builds a digest: the message, the
-changed functions, the SQL that the commit added to the tests, and the
-\emph{diff-coverage targets}, the changed lines of each C file. An LLM gets
-the digest together with a fixed system prompt: the \pgg format, the
-builtins, the conventions of the grammar (every operator parenthesised,
-columns only through \texttt{@col}, no volatile functions), the schema and the
-whole current grammar. Because the system prompt is the same for every commit,
-it is cached. The model answers with structured output: a rationale, a grammar
-fragment of new alternatives, one to five seed test cases, the feature names it
-targets, and up to three \emph{equivalence rewrites}: templates over one
-expression of a given type, such as
-\texttt{CASE WHEN \{e\} IS NULL THEN NULL ELSE \{e\} END}, that the model claims
-equal \texttt{\{e\}} for every value. The commit miner never shows the model a
-fix that the benchmark of Section~\ref{sec:rq3} reverts.
+the optimiser, executor, parser or SQL-callable functions and add regression
+tests. For each it builds a digest: the message, the changed functions, the SQL
+the commit added to the tests, and the \emph{diff-coverage targets}, the changed
+lines of each C file. An LLM gets the digest with a fixed, cached system prompt
+(the \pgg format, the builtins, the conventions of the grammar, the schema and
+the whole current grammar) and answers with structured output: a rationale, a
+fragment of new alternatives, one to five seed test cases, the features it
+targets, and up to three \emph{equivalence rewrites}, templates over one
+expression of a given type such as \texttt{CASE WHEN \{e\} IS NULL THEN NULL
+ELSE \{e\} END} that the model claims equal \texttt{\{e\}} for every value. The
+commit miner never shows the model a fix that the benchmark of
+Section~\ref{sec:rq3} reverts.
 
-\paragraph{Step 5b: validate.} No model output reaches the campaign unless
-the server agrees with it. The \gate checks, in order:
-(i)~\emph{parse}: the fragment parses together with the grammar, adds no
-types, and uses only known builtins;
-(ii)~\emph{reachability}: when \tool samples 150 test cases with the new
-alternatives boosted, they are used at least five times;
-(iii)~\emph{validity}: at least 60\% of the statements that use them run
-without error on the server;
-(iv)~\emph{seeds}: each seed runs without error;
-and (v)~\emph{diff coverage}: with a gcov build of the server, the sample
-executes more of the commit's changed lines than the same sample without the
-fragment. If a check fails, its findings (the parse error, the most frequent
-error messages, the lines still uncovered) go back to the model, which repairs
-its answer, for up to three rounds. Every round is a line in a ledger with the
-tokens it used, its cost and the full report of the gate.
+\paragraph{Step 5b: validate.} No model output reaches the campaign unless the
+server agrees. The \gate checks in order: (i)~\emph{parse}: the fragment parses
+with the grammar, adds no types and uses only known builtins;
+(ii)~\emph{reachability}: in a sample of 150 test cases with the new alternatives
+boosted, they are used at least five times; (iii)~\emph{validity}: at least 60\%
+of the statements that use them run without error; (iv)~\emph{seeds}: each seed
+runs; and (v)~\emph{diff coverage}: on a gcov build, the sample executes more of
+the commit's changed lines than the same sample without the fragment. A failed
+check sends its findings (the parse error, the most frequent error messages, the
+uncovered lines) back to the model for up to three repair rounds; every round is
+a ledger line with its tokens, cost and the gate's report.
 
-A proposed rewrite is a claim about semantics, so the gate tests it twice.
-First, the server evaluates \texttt{rewrite(v) IS NOT DISTINCT FROM v} for NULL,
-the edge values of the type and quantiles of the data. Then \tool applies the
-rewrite alone to the expressions of 150 test cases, with confirmation re-runs.
-It accepts the rewrite only if no value and no query shows a difference.
-Sampling alone is not enough: \texttt{\{e\} IS TRUE} passed 109 sampled checks,
-because most predicates sit where NULL and false filter the same rows, and the
-value probe rejected it with $e = \texttt{NULL}$. An accepted rewrite becomes a
-new expression rewrite of the oracle in Step~2.
-
-The gate is also a small fuzzing campaign aimed at the commit: a crash or
-wrong result found while sampling is recorded like any other candidate.
+A proposed rewrite is a claim about semantics, so the gate tests it twice. The
+server evaluates \texttt{rewrite(v) IS NOT DISTINCT FROM v} for NULL, the edge
+values of the type and quantiles of the data; then \tool applies the rewrite
+alone to the expressions of 150 test cases, with confirmation re-runs. The
+rewrite is accepted only if no value and no query shows a difference, and it
+then becomes an expression rewrite of Step~2. Neither test varies the
+collation, so the gate also rejects a template with an explicit
+\texttt{COLLATE} (Section~\ref{sec:rq4}).
