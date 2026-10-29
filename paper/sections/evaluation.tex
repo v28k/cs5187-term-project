@@ -113,14 +113,30 @@ oracle, because these do not depend on the generator.
 \end{description}
 
 \subsection{Setup}
-Each arm runs \num{5} trials of one hour on one worker each, four workers in
-parallel, on \num{machine}. Following Klees et al.~\cite{klees2018evaluating},
-and Arcuri and Briand~\cite{arcuri2011practical}, we report medians with
-interquartile ranges and 95\% bootstrap confidence intervals, compare arms
-with the two-sided Mann--Whitney U test, and give the Vargha--Delaney
-$\hat{A}_{12}$ effect size~\cite{vargha2000a12}. Each coverage worker writes its gcov counters to its
-own directory, so parallel trials do not mix coverage. The LLM is Claude Opus
-5.5 with structured output and a cached system prompt of about 9{,}000 tokens.
+Each arm runs 5 trials of one hour, with four workers in parallel and one
+server per worker. \rqref{1}, \rqref{2} and \rqref{4} ran on one laptop (WSL2,
+24 logical cores), \rqref{3} on another; the arms of one experiment never share
+a machine, so throughput and coverage are comparable within an experiment.
+The reference server for the cross-version oracle is \pg 18.6. Following
+Klees et al.~\cite{klees2018evaluating}, and Arcuri and
+Briand~\cite{arcuri2011practical}, we report medians, compare arms with the
+two-sided Mann--Whitney U test, and give the Vargha--Delaney
+$\hat{A}_{12}$ effect size~\cite{vargha2000a12}. With 5 trials per arm the
+smallest possible two-sided $p$ is 0.008, so we read effect sizes, not only
+$p$. Each coverage worker writes its gcov counters to its own directory, so
+parallel trials do not mix coverage; coverage is sampled every 300 seconds, so
+the first point of every curve is the server's start-up coverage.
+
+\paragraph{The language model.} The pipeline calls the model through a client
+with an API mode and a manual mode (the prompt is written to a file, the answer
+is read from a file). We had no access to Claude for the evaluation, so every
+answer was produced by Google Gemini Flash models on the free tier: 9
+answers by \texttt{gemini-3.6-flash}, 2 by \texttt{gemini-3.8-flash} and 14 by
+\texttt{gemini-3-flash-preview}, the last two taking over when a model's daily
+quota ran out or it was overloaded. The free tier limits requests per day, so
+the \rqref{4} run uses 10 of the 25 mined commits. The tool is unchanged by this: only the process that answers the manual
+prompts differs. The results of \rqref{4} are therefore results for these
+models, and a stronger model may do better.
 
 \subsection{Component Checks}
 \label{sec:components}
@@ -170,55 +186,191 @@ first probe value, NULL.
 
 \subsection{\rqref{1}: Reach}
 \label{sec:rq1}
-\num{Table: median (IQR) validity, lines, branches, features, plan shapes per
-arm, with $\hat{A}_{12}$ against \arm{Random}; figure: coverage over time.}
 
-After 270 seconds of a smoke run on the injected server (one trial per arm),
-each grammar arm had produced 101 distinct SQL features and more than
-2{,}000 distinct plan shapes, the random arm 17 features and 17 plan shapes.
-Of the 19{,}846 statements the \arm{Grammar} arm sent, 19{,}780 (99.7\%) ran
-without error.
-\num{Replace with the full campaign.}
+Table~\ref{tab:rq1} gives the medians of the seven arms and
+Figure~\ref{fig:rq1} the growth over time.
+
+\begin{table}[t]
+  \centering
+  \small
+  \caption{\rqref{1}: median of 5 one-hour trials per arm on an instrumented
+  \pg master. Valid is the share of statements that run without error; lines
+  and branches are of the backend (gcov); features are of a catalogue of 148.}
+  \label{tab:rq1}
+  \input{tables/rq1}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.49\linewidth]{figures/rq1_lines}
+  \includegraphics[width=0.49\linewidth]{figures/rq1_plans}
+  \caption{\rqref{1}: lines covered (left) and distinct plan shapes (right) over
+  time, median and interquartile band of 5 trials per arm.}
+  \label{fig:rq1}
+\end{figure}
+
+\begin{observation}
+\label{obs:grammar}
+The typed grammar reaches far more than random mutation: 36.7\% against 22.2\%
+of lines ($\hat{A}_{12}=1.00$, $p=0.008$), 101 against 23 SQL features, and
+99.3\% against 26.0\% valid statements, although the random arm runs 15 times
+more test cases.
+\end{observation}
+
+\begin{observation}
+\label{obs:oracles-reach}
+The oracles do not add line coverage (36.7\% to 36.2\%, $p=0.42$) but they
+roughly double the plan shapes (20{,}279 to 34{,}313, $\hat{A}_{12}=0.84$,
+$p=0.095$, so with 5 trials this is an effect size, not a significant
+difference). The feedback weights contribute: without them the same arm
+reaches 23{,}997 plan shapes ($\hat{A}_{12}=0.80$, $p=0.15$), at the price of
+validity (96.3\% against 99.4\%, $p=0.016$).
+\end{observation}
+
+Oracles also cost throughput: the plan-variant runs and metamorphic checks
+lower the statements per second from 67 to 40.
 
 \subsection{\rqref{2}: Bugs and Oracle Precision}
 \label{sec:rq2}
-\num{Table: candidates and verdicts per oracle (from the triage ledger).}
 
-So far \tool found two bugs that were not known. The first is the wrong result
-of Figure~\ref{fig:motivating}, found by the \texttt{(SELECT e)} expression
-rewrite. The second is an assertion failure: \texttt{JSON\_TABLE} does not
-assign collations to its context item and \texttt{PASSING} arguments, and a
-row comparison over such a value fails an assertion in the executor
-(\pg~17, 18 and master). The four-minute smoke run of RQ3 found the second
-bug again without help.
+Across the \rqref{1} and \rqref{3} campaigns, plus the earlier hunt and smoke
+runs, \tool reported 93 distinct bug candidates (after de-duplication by
+signature). We triaged all of them (Section~\ref{sec:triage}) and
+Table~\ref{tab:rq2} gives the verdicts per oracle.
 
-Triage of the smoke run also found two false-positive classes in our own
-oracles, which we fixed before the campaign. TLP on \texttt{HAVING} dropped the
-clause on the unpartitioned side, which turns a single-group aggregate into a
-plain query; and \texttt{DISTINCT} over \texttt{numeric} may keep
-\texttt{21.0000000000000000} or \texttt{21.00000000000000000000} depending on
-the plan, which are equal values. The smoke runs also exposed a harness
-error: when another session crashed the server, the crash was blamed on the
-test case that happened to be running. \tool now reads the backend process
-id from every \texttt{TRAP} and signal line of the log and ignores evidence
-from other backends. Over all 18 candidates triaged so far, 3 are real and
-13 are false positives or intended changes, all of them from 6 classes that
-we fixed; \num{final precision per oracle, before and after fixes}.
+\begin{table}[t]
+  \centering
+  \small
+  \caption{\rqref{2}: verdict of every triaged candidate per oracle. Duplicate:
+  a real bug that had already been reported upstream. False positives include
+  one intended change between versions. Flaky: did not reproduce in three
+  re-runs. Open: not decided yet.}
+  \label{tab:rq2}
+  \input{tables/rq2}
+\end{table}
+
+\paragraph{Bugs.} Four bugs found by \tool were not known when we found
+them. (1)~The wrong result of Figure~\ref{fig:motivating}, found by the
+\texttt{(SELECT e)} expression rewrite (reported as BUG~\#19793, with a patch).
+(2)~\texttt{JSON\_TABLE} does not assign collations to its context item and
+\texttt{PASSING} arguments (BUG~\#19768); the grammar arm found it in 10
+signatures. (3)~\texttt{MERGE} into a partitioned table fails with ``SubPlan
+found with no parent plan'' (BUG~\#19802), found by the \arm{Grammar} arm and
+\textbf{confirmed by a \pg committer} who posted a patch. (4)~A parallel
+\texttt{Append} assertion (BUG~\#19803), found by the \arm{+LLM fragments} arm
+through a TLP check, \textbf{confirmed by a committer and fixed on master}. The
+oracles also rediscovered four bugs that others had reported days earlier: a
+wrong result of self-join elimination under \texttt{ROLLUP} (BUG~\#19800, found
+by toggling \texttt{enable\_self\_join\_elimination}, present in the release
+18.6), a corrupt \texttt{MVNDistinct} entry (BUG~\#19772, found by the
+\texttt{(SELECT e)} rewrite), BUG~\#19784 and a \texttt{to\_char} bug whose
+consequence is an assertion in \texttt{NORMALIZE} (BUG~\#19771, fixed upstream).
+
+\begin{observation}
+\label{obs:wrong}
+Plan-variant and metamorphic oracles found real wrong results in released
+versions that no crash oracle can see (BUG~\#19793 and \#19800).
+\end{observation}
+
+\paragraph{Precision.} Of the 93 candidates, 28 (30\%) did not reproduce in
+three re-runs and 6 are open. Of the 59 decided, 7 are real, 15 are duplicates
+of real bugs and 37 are false positives, so the precision is $7/44=0.16$ without
+duplicates and $22/59=0.37$ if duplicates count as true positives. The false
+positives come from few classes, and most of the work was in finding them. Six classes
+were found in the smoke and development runs and fixed before the campaigns
+(Section~\ref{sec:triage}). The campaigns revealed four more, which we fixed
+\emph{after} the runs, tested on the stored reproducers and with unit tests, but
+did not re-measure in a new campaign.
+\begin{enumerate}
+  \item \emph{Equal intervals with different text} (16 candidates): \texttt{MODE()}, \texttt{UNION}
+    and \texttt{INTERSECT ALL} over \texttt{interval}. Not ties: the 357 keys of one
+    candidate were equal values, printed as \texttt{00:00:00} or
+    \texttt{6 days -144:00:00} depending on the join order. The digest now compares
+    intervals by \pg's own equality.
+  \item \emph{Order-sensitive aggregates with a key that is not the value}, such as
+    \texttt{JSONB\_AGG(x ORDER BY NULL)} (2). \texttt{eligible()} now requires the
+    key to be the aggregated value.
+  \item \emph{State divergence in the cross-version oracle} (5): \texttt{LAG(\ldots)
+    IGNORE NULLS} exists only on master, so an \texttt{INSERT} using it succeeds
+    there and fails on 18.6, and every later comparison differs. The oracle now
+    stops comparing after a state-changing statement succeeds on one server only.
+  \item \emph{An LLM rewrite that is not an identity} (1), discussed in
+    Section~\ref{sec:rq4}.
+\end{enumerate}
+After these fixes every decided candidate left is real. Five RLS candidates
+and one \texttt{corr()} case remain open.
 
 \subsection{\rqref{3}: Re-injected Bugs}
 \label{sec:rq3}
-\num{Table from \texttt{pgfuzz bench attribute}: trials and median time per
-bug and arm.}
 
-In a 15-minute smoke run (one trial per arm), \arm{Grammar+Oracles} and
-\arm{+LLM} each found the internal error of fix \texttt{dfcf6fa7} (dummy
-\texttt{Append} paths for set operations) after about 160 seconds;
-\arm{Random} and \arm{Grammar} found no benchmark bug. The error message of
-this bug is shared by fix \texttt{8b29b8da}; replay on the two solo servers
-assigned it to the right one. \num{Full result.}
+\begin{table}[t]
+  \centering
+  \small
+  \caption{\rqref{3}: trials (of 5) in which an arm found each re-injected bug,
+  with the median time to the first finding. The rows below list, per symptom,
+  how many bugs an arm found at all. Only bugs found by some arm have their own
+  row; 18 of 20 were found by none.}
+  \label{tab:rq3}
+  \input{tables/rq3}
+\end{table}
+
+\begin{observation}
+\label{obs:rq3}
+With one hour and five trials, the arms found few of the benchmark bugs:
+\arm{Random} 0 of 20, \arm{Grammar} 1, \arm{Grammar+Oracles} 2 and \arm{+LLM}
+2. No arm found any of the 8 wrong-result bugs.
+\end{observation}
+
+The grammar arms found the internal error of fix \texttt{dfcf6fa7} in nearly
+every trial (458, 509 and 1{,}109 seconds); \arm{Random} never did. The two arms
+with the oracles also found the assertion of \texttt{11b56ee2}, once each. We
+do not read much into this difference: it is one trial in five. The
+benchmark therefore does \emph{not} show an advantage of the oracles, and our
+claim that oracles see what a crash fuzzer cannot rests on \rqref{2}, not on
+this table. Three things limit \rqref{3}. One hour is short for bugs that need
+a specific combination of features. Attribution is conservative: a failure
+counts for bug $i$ only if it reproduces on solo server $i$; of the 30
+wrong-result failures of this campaign, 11 reproduce on the fixed server
+(bugs of the base commit and false positives of \rqref{2}) and 19 reproduce on
+none of the servers, and none reproduces on a solo server. And five
+trials cannot separate arms that find a bug in one trial in five.
 
 \subsection{\rqref{4}: The LLM Extension}
 \label{sec:rq4}
-\num{Ledger summary: commits, acceptance after round 1/2/3, rejections by
-gate check, diff coverage gain, tokens, cost; and the ablation of the three
-LLM arms on \rqref{1}--\rqref{3}.}
+
+\begin{table}[t]
+  \centering
+  \small
+  \caption{\rqref{4}: the commit-directed extension with Gemini Flash models
+  (Section~\ref{sec:subjects}); the whole run cost nothing.}
+  \label{tab:rq4}
+  \input{tables/rq4}
+\end{table}
+
+Table~\ref{tab:rq4} shows the ledger. The gate accepts 4 of 10 commits
+(2 in the first round, 1 in the second, 1 in the third); of the 25 rounds, 16
+were rejected because too few of the fragment's statements ran on the server,
+which is the check that stops an invalid proposal from reaching the fuzzer.
+
+\begin{observation}
+\label{obs:llm}
+The LLM arms add SQL features (101 to 104--106, $\hat{A}_{12}=1.00$,
+$p=0.004$) but no coverage: lines drop from 36.2\% to 35.7\% ($p=0.42$), plan
+shapes from 34{,}313 to 26{,}375, and validity from 96.3\% to 95.3\%.
+\end{observation}
+
+The extension covers 34 more changed lines over the 10 commits, which is
+small. Using only the seeds gives the best validity of the three arms (98.3\%)
+with as many features as using both, and it had the most bug candidates (median 3 against 1, $p=0.29$,
+not significant); the arm with fragments only found BUG~\#19803. So the
+extension is cheap and safe, but with these models its benefit is modest.
+
+\paragraph{The gate is not enough for rewrites.} The gate accepted all 7
+proposed equivalence rewrites, and one of them,
+\texttt{NULLIF(\{e\}, NULL::text COLLATE "POSIX")}, is not an identity: it
+changes the collation, so \texttt{UPPER} of the rewritten expression differs.
+It caused a false positive in \rqref{3}. The value probe evaluates the rewrite
+on values and the live checks on test cases, but neither varies the collation.
+The gate now rejects an explicit \texttt{COLLATE}. This is the same lesson as
+Observation~\ref{obs:sampling}: testing a claimed equivalence on samples is
+not proof.

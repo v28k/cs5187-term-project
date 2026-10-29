@@ -14,8 +14,15 @@ query level, and triage reduces failures on the same trees. Plan variants and
 the last release serve as two more oracles. An LLM reads recent commits and
 proposes grammar alternatives and equivalence rewrites, which a validation
 gate accepts only if the server runs them, they reach the changed lines, and
-a rewrite never changes a result. \tool found
-two previously unknown bugs, a wrong result and an assertion failure, and
-\num{RQ1--RQ4 results}. The main lesson is that oracle precision, not
-generator reach, limits a wrong-result fuzzer: a richer grammar also reaches
-the corners where two ``equivalent'' queries are not.
+a rewrite never changes a result. In five one-hour trials per
+configuration, the typed grammar covers 36.7\% of backend lines against 22.2\%
+for random mutation, and the oracles double the plan shapes reached. \tool
+found four previously unknown bugs: two were confirmed by \pg committers and
+one of them is fixed, and it rediscovered four more that others had just
+reported. Of 93 triaged candidates, 7 are real and 15 duplicate real bugs; the
+false positives come from a few classes, which we fixed. The LLM adds SQL
+features but no coverage, and one rewrite it proposed passed our gate although
+it is not an identity. On the benchmark of 23 real bugs, the arms found
+2 of 20 at best. The main lesson is that oracle precision, not generator reach,
+limits a wrong-result fuzzer: a richer grammar also reaches the corners where
+two ``equivalent'' queries are not.

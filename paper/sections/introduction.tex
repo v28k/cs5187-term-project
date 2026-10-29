@@ -91,11 +91,16 @@ We present \tool, a grammar-aware fuzzer for \pg built on three ideas:
 localizes wrong results to a planner path or to an always-applied rewrite,
 and drafts the upstream report (Section~\ref{sec:triage}).
 
-\num{First results.} In a four-minute smoke run on a server with the 23 bugs
-put back, \tool rediscovered an assertion failure in \texttt{JSON\_TABLE}
-that we had found earlier on master, and its triage exposed two false-positive
-classes in our own oracles, which we fixed (Section~\ref{sec:rq2}).
-\num{RQ1--RQ4 numbers follow from the full campaigns.} The lesson so far is
+\paragraph{Results.} The typed grammar reaches 36.7\% of backend lines in an
+hour against 22.2\% for random mutation, with 99\% valid statements against
+26\% (\rqref{1}); the oracles double the distinct plan shapes. \tool found four
+previously unknown bugs, of which two are confirmed by \pg committers and one is
+fixed on master, and it rediscovered four more that had been reported days
+earlier (\rqref{2}). Of 93 triaged candidates, 7 are real and 15 duplicate real
+bugs; the false positives come from a small number of classes. On the
+benchmark of 23 re-injected bugs, no arm found more than 2 of 20 in one hour
+(\rqref{3}). The LLM extension adds SQL features but no coverage, and the
+gate accepted one rewrite that is not an identity (\rqref{4}). The lesson is
 that oracle precision, not generator power, limits a wrong-result fuzzer: a
 generator that reaches more of SQL also reaches more corner cases where two
 ``equivalent'' queries are not equivalent.
@@ -113,7 +118,8 @@ generator that reaches more of SQL also reaches more corner cases where two
     (Section~\ref{sec:llm}).
   \item A benchmark of 23 real \pg bugs put back into one server, with a
     single-bug server per bug for attribution (Section~\ref{sec:rq3}).
-  \item Two previously unknown \pg bugs, one wrong result and one assertion
-    failure, with patches (\num{upstream status}; Section~\ref{sec:rq2}), and
-    the tool and all data (Section~\ref{sec:data}).
+  \item Four previously unknown \pg bugs, two confirmed by committers and one
+    fixed upstream, and an evaluation that reports where the approach does not
+    help (Section~\ref{sec:rq2}), with the tool and all data
+    (Section~\ref{sec:data}).
 \end{itemize}

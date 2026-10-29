@@ -4,7 +4,7 @@
 \paragraph{Internal threats.} Fuzzing is random, and one run proves little.
 We guard against this as follows:
 \begin{itemize}
-  \item every arm runs \num{5} trials with the same per-trial seeds, and we
+  \item every arm runs 5 trials with the same per-trial seeds, and we
     report medians, interquartile ranges, Mann--Whitney U tests and
     $\hat{A}_{12}$ effect sizes~\cite{klees2018evaluating,vargha2000a12};
   \item arms share the server build, schema, executor, oracles and budget, so
@@ -14,11 +14,22 @@ We guard against this as follows:
   \item a metamorphic mismatch counts only if it repeats, and every candidate
     is reproduced three times on a fresh connection before triage.
 \end{itemize}
-Our own oracles can be wrong. Two false-positive classes reached the smoke
-run (Section~\ref{sec:rq2}); we fixed them and added regression tests, but
-others may remain. We therefore report the verdict of every candidate, not
-only the real bugs. Verdicts are made by us and may contain mistakes; we
-release the reduced reproducers so that others can check them. An accepted
+Our own oracles can be wrong. Ten false-positive classes reached triage:
+six before the campaigns and four in them (Section~\ref{sec:rq2}). We fixed
+the last four \emph{after} the campaigns and checked the fix on the stored
+reproducers and with unit tests, but did not re-run the campaigns, so the
+precision after the fixes is not a measurement. Six candidates are still open
+and more classes may remain. We therefore report the verdict of every
+candidate, not only the real bugs. Verdicts are made by us, some from the
+reduced reproducer without a further run, and may contain mistakes; we
+release the reduced reproducers so that others can check them. Five trials per
+arm are few: differences with $p$ above 0.008 are effect sizes, not
+significant results, and several of our conclusions rest on them.
+The two laptops of the campaigns differ, so \rqref{1} and \rqref{3} are not
+comparable in absolute throughput. One worker's server failed crash recovery
+during \rqref{1}, which cost 14 trials; they were re-run with the same seeds,
+and one laptop was suspended for several hours, which does not change a
+trial's monotonic one-hour budget but leaves a gap in wall-clock timestamps. An accepted
 LLM rewrite is tested, not proven: the value probe and 150 test cases can miss
 an input on which it is not an identity. Such a rewrite would show up as a
 false-positive class in triage, which we report like any other. Attribution in
