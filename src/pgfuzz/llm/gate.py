@@ -178,7 +178,10 @@ class Gate:
                 problem = (f"unknown type {typ!r} (use a %type name: {', '.join(sorted(types))})" if typ not in types
                            else "the template must contain {e}" if "{e}" not in tpl
                            else "unbalanced parentheses" if tpl.count("(") != tpl.count(")")
-                           else "volatile function" if self._VOLATILE.search(tpl) else None)
+                           else "volatile function" if self._VOLATILE.search(tpl)
+                           else "explicit COLLATE: the rewrite would change the collation its input is compared "
+                                "or folded with (an identity must keep it)" if re.search(r"\bCOLLATE\b", tpl, re.I)
+                           else None)
                 if problem:
                     info.append({**rec, "accepted": False, "reason": problem})
                     continue

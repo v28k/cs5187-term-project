@@ -44,6 +44,16 @@ from pgfuzz.eval.differential import xversion_eligible
 from pgfuzz.reference.pg_executor import PostgresExecutor
 
 
+_STATE_VERBS = frozenset({"INSERT", "UPDATE", "DELETE", "MERGE", "CREATE", "ALTER", "DROP", "TRUNCATE", "COPY",
+                          "REFRESH", "ANALYZE", "VACUUM", "CLUSTER", "REINDEX", "WITH"})
+
+
+def _changes_state(sql: str) -> bool:
+    """Could this statement change table contents or the schema? (WITH may hide a DML.)"""
+    words = sql.lstrip().split(None, 1)
+    return bool(words) and words[0].upper().strip("(") in _STATE_VERBS
+
+
 class CrossVersionExecutor(Executor):
     name = "xversion"
 
@@ -61,7 +71,7 @@ class CrossVersionExecutor(Executor):
                 reference[k] = test[k]
         self.test = PostgresExecutor(**test)
         self.ref = PostgresExecutor(**reference)
-        self.xstats = {"compared": 0, "mismatch": 0, "test_only_ok": 0, "ref_only_ok": 0, "ref_failures": 0}
+        self.xstats = {"diverged": 0, "compared": 0, "mismatch": 0, "test_only_ok": 0, "ref_only_ok": 0, "ref_failures": 0}
 
     @property
     def diff_stats(self) -> dict[str, Any]:
@@ -95,13 +105,18 @@ class CrossVersionExecutor(Executor):
             self.xstats["ref_failures"] += 1
             res.extra["xversion_error"] = f"{type(e).__name__}: {e}"
             return res
+        diverged = False       # a state-changing statement ran on one server only: the tables now differ
         for sql, st, rt in zip(testcase.statements, res.statements, ref.statements):
             t_ok, r_ok = st.status is StatementStatus.OK, rt.status is StatementStatus.OK
             if t_ok and not r_ok:
                 self.xstats["test_only_ok"] += 1
             elif r_ok and not t_ok:
                 self.xstats["ref_only_ok"] += 1
-            if not (t_ok and r_ok) or st.result_hash is None or rt.result_hash is None or not xversion_eligible(sql):
+            if t_ok != r_ok and _changes_state(sql):
+                diverged = True        # e.g. a PG19-only construct inside an INSERT ... SELECT
+                self.xstats["diverged"] = self.xstats.get("diverged", 0) + 1
+            if diverged or not (t_ok and r_ok) or st.result_hash is None or rt.result_hash is None \
+                    or not xversion_eligible(sql):
                 continue
             self.xstats["compared"] += 1
             if st.result_hash != rt.result_hash:

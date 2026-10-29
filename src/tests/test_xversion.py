@@ -47,3 +47,18 @@ def test_intended_changes_are_not_compared_across_versions():
 
     assert not xversion_eligible("SELECT CORR(1.0 / 3, 1.0 / 3) FROM t2")
     assert xversion_eligible("SELECT COVAR_POP(c0, 0::float8) FROM t2")
+
+
+def test_comparison_stops_after_a_statement_succeeds_on_one_server_only():
+    # LAG(...) IGNORE NULLS exists on master only: the INSERT changes one server's table, so the
+    # later SELECT would differ without any bug (seen in the RQ3 campaign)
+    x = _xv([{"status": S.OK}, {"status": S.OK, "rows": 2, "result_hash": "a"}],
+            [{"status": S.ERROR, "sqlstate": "42601"}, {"status": S.OK, "rows": 1, "result_hash": "b"}])
+    res = x.execute(TestCase(["INSERT INTO t2 (c2) SELECT 1", "SELECT a1.c0 FROM t2 AS a1"]))
+    assert oracle.classify(res).outcome is Outcome.OK
+    assert x.xstats["diverged"] == 1 and x.xstats["compared"] == 0
+    # a SELECT that only one server accepts changes nothing: later statements are still compared
+    y = _xv([{"status": S.OK}, {"status": S.OK, "rows": 2, "result_hash": "a"}],
+            [{"status": S.ERROR, "sqlstate": "42601"}, {"status": S.OK, "rows": 1, "result_hash": "b"}])
+    res = y.execute(TestCase(["SELECT 1 FROM t2 AS a1", "SELECT a1.c0 FROM t2 AS a1"]))
+    assert oracle.classify(res).outcome is Outcome.WRONG_RESULT and y.xstats["compared"] == 1

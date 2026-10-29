@@ -182,3 +182,17 @@ def test_client_keeps_rewrites(tmp_path):
     (tmp_path / "responses" / "k.json").write_text(json.dumps({"rationale": "", "grammar_fragment": "", "seeds": [],
         "features": [], "rewrites": [{"name": "n", "type": "int", "template": "{e}", "why": ""}, {"name": "x"}]}))
     assert len(c.ask("k", "S", []).data["rewrites"]) == 1
+
+
+def test_gate_rejects_a_rewrite_that_changes_the_collation():
+    # The RQ3 campaign's one LLM false positive: NULLIF({e}, NULL::text COLLATE "POSIX") passed the value
+    # probe and 150 sampled checks, but UPPER('e-acute') differs under another collation.
+    from types import SimpleNamespace
+
+    from pgfuzz.llm.gate import Gate, GateConfig
+
+    g = object.__new__(Gate)
+    g.grammar_path, g.cfg = str(GRAMMAR), GateConfig()
+    g.ex = SimpleNamespace(mm_enabled=False, mm_confirm=False)
+    accepted, info = g.check_rewrites([{"name": "posix", "type": "text", "template": 'NULLIF({e}, NULL::text COLLATE "POSIX")'}])
+    assert not accepted and not info[0]["accepted"] and "COLLATE" in info[0]["reason"]

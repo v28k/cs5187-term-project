@@ -10,13 +10,13 @@
   outcome: assertion
   verdict: real
   note: "BUG-01: JSON_TABLE does not assign collations to context item / PASSING (17, 18, master)"
-  upstream: "not filed yet (docs/bughunt/BUG-01-json_table-collation.md)"
+  upstream: "BUG #19768 (filed 16 Oct 2026)"
 - signature: tc112-sample-seed7
   oracle: metamorphic:expr
   outcome: wrong_result
   verdict: real
   note: "BUG-02: range containment support function returns true/false for a NULL element (17, 18, master)"
-  upstream: "not filed yet (docs/bughunt/BUG-02-range-containment-null.md)"
+  upstream: "BUG #19793 (filed 23 Oct 2026, patch sent)"
 - signature: 11abedc85d0c
   oracle: plan-variant
   outcome: wrong_result
@@ -113,3 +113,446 @@
   outcome: internal_error
   verdict: flaky
   note: "XX000 Append child's targetlist doesn't match Append, on the injected server; 0/3 on the injected server, master and every solo server. Keep for a later look"
+
+# ---- Campaign candidates of the final runs (RQ1 on member B's machine, RQ3 on member A's), triaged 28-29 Oct 2026.
+# Classified from the triage output and reduced reproducers; the new false-positive classes below are NOT fixed in the tool yet.
+
+- signature: 015482844f3d
+  oracle: metamorphic:rls
+  outcome: wrong_result
+  verdict: TODO
+  note: "RLS check: restricted role and policy-filtered superuser query disagree on the reduced case; the reduced query aggregates over uncorrelated subqueries on RLS tables; cause not determined yet (not a constant ORDER BY: the sort key equals the aggregated value); verify at the end"
+- signature: 0a63efb279c0
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: 0a9d2595b187
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "MODE() WITHIN GROUP over intervals: equal values with different text (00:00:00 vs 6 days -144:00:00); which representative is returned depends on the join order"
+  fixed: true
+
+- signature: 18f0529fb3a5
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "MODE() WITHIN GROUP over intervals: equal values with different text (00:00:00 vs 6 days -144:00:00); which representative is returned depends on the join order"
+  fixed: true
+
+- signature: 1961e6f50009
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "MODE() WITHIN GROUP over intervals: equal values with different text (00:00:00 vs 6 days -144:00:00); which representative is returned depends on the join order"
+  fixed: true
+
+- signature: 1a3d32e70e0c
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: false_positive
+  note: "LAG(...) IGNORE NULLS is PG19-only syntax: the INSERT succeeds on master and fails on 18.6, so the two servers' tables diverge for the rest of the test case"
+  fixed: true
+
+- signature: 1d6e4fd4cf5b
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: 22f5c7294dc6
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: false_positive
+  note: "LAG(...) IGNORE NULLS is PG19-only syntax: the INSERT succeeds on master and fails on 18.6, so the two servers' tables diverge for the rest of the test case"
+  fixed: true
+
+- signature: 23e696368d4a
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: 255e08379e82
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "order-sensitive aggregate with ORDER BY NULL: a constant key does not define an order"
+  fixed: true
+
+- signature: 275e49476af8
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: 28a639c0f92c
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: false_positive
+  note: "LAG(...) IGNORE NULLS is PG19-only syntax: the INSERT succeeds on master and fails on 18.6, so the two servers' tables diverge for the rest of the test case"
+  fixed: true
+
+- signature: 294a0263ac67
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "UNION over intervals: equal values with different text (7 days vs 168:00:00)"
+  fixed: true
+
+- signature: 2a82e01aba28
+  oracle: metamorphic:rls
+  outcome: wrong_result
+  verdict: TODO
+  note: "RLS check: restricted role and policy-filtered superuser query disagree on the reduced case; the reduced query aggregates over uncorrelated subqueries on RLS tables; cause not determined yet (not a constant ORDER BY: the sort key equals the aggregated value); verify at the end"
+- signature: 2c5e24d151f2
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "MODE() WITHIN GROUP over intervals: equal values with different text (00:00:00 vs 6 days -144:00:00); which representative is returned depends on the join order"
+  fixed: true
+
+- signature: 2fddf94021a5
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: 33a7ff0b4100
+  oracle: assertion
+  outcome: assertion
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage; signature is the shm_toc assertion of upstream BUG #19766"
+- signature: 34bfff77ad1b
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "MODE() WITHIN GROUP over intervals: equal values with different text (00:00:00 vs 6 days -144:00:00); which representative is returned depends on the join order"
+  fixed: true
+
+- signature: 37148893be33
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "MODE() WITHIN GROUP over intervals: equal values with different text (00:00:00 vs 6 days -144:00:00); which representative is returned depends on the join order"
+  fixed: true
+
+- signature: 381a793a6668
+  oracle: assertion
+  outcome: assertion
+  verdict: duplicate
+  note: "BUG-01: JSON_TABLE does not assign collations (assertion execExpr.c:2078)"
+  upstream: "BUG #19768"
+- signature: 39f6aff66a57
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "MODE() WITHIN GROUP over intervals: equal values with different text (00:00:00 vs 6 days -144:00:00); which representative is returned depends on the join order"
+  fixed: true
+
+- signature: 3d7440d06a82
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "MODE() WITHIN GROUP over intervals: equal values with different text (00:00:00 vs 6 days -144:00:00); which representative is returned depends on the join order"
+  fixed: true
+
+- signature: 3dc78dd95f41
+  oracle: internal_error
+  outcome: internal_error
+  verdict: real
+  note: "MERGE into a partitioned table: SubPlan found with no parent plan; confirmed upstream (Tender Wang), patch posted"
+  upstream: "BUG #19802"
+- signature: 3f83ff1c49e0
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: false_positive
+  note: "LAG(...) IGNORE NULLS is PG19-only syntax: the INSERT succeeds on master and fails on 18.6, so the two servers' tables diverge for the rest of the test case"
+  fixed: true
+
+- signature: 448f485d72d5
+  oracle: assertion
+  outcome: assertion
+  verdict: real
+  note: "re-injected benchmark bug rb-11b56ee2 (assertion pathkeys.c)"
+- signature: 485efe9af4d4
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: 4878fcb5fe4b
+  oracle: assertion
+  outcome: assertion
+  verdict: duplicate
+  note: "BUG-01: JSON_TABLE does not assign collations (assertion execExpr.c:2078)"
+  upstream: "BUG #19768"
+- signature: 4b8b72f7a937
+  oracle: assertion
+  outcome: assertion
+  verdict: duplicate
+  note: "BUG-01: JSON_TABLE does not assign collations (assertion execExpr.c:2078)"
+  upstream: "BUG #19768"
+- signature: 4dd0f9bd9afc
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: 509c35b5c8cb
+  oracle: metamorphic:tlp_where
+  outcome: assertion
+  verdict: duplicate
+  note: "BUG-01: JSON_TABLE does not assign collations (assertion execExpr.c:2078)"
+  upstream: "BUG #19768"
+- signature: 53f867a5bcc8
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: 64f173382883
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: 65cd1cb9b0bf
+  oracle: plan-variant
+  outcome: performance
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: 686d5e233140
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: 68e520951660
+  oracle: assertion
+  outcome: assertion
+  verdict: duplicate
+  note: "BUG-01: JSON_TABLE does not assign collations (assertion execExpr.c:2078)"
+  upstream: "BUG #19768"
+- signature: 7ca8a780a4bc
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: 7cad44367934
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: 7f006d106be6
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "MODE() WITHIN GROUP over intervals: equal values with different text (00:00:00 vs 6 days -144:00:00); which representative is returned depends on the join order"
+  fixed: true
+
+- signature: 82444bc96f83
+  oracle: metamorphic:rls
+  outcome: wrong_result
+  verdict: TODO
+  note: "RLS check: restricted role and policy-filtered superuser query disagree on the reduced case; the reduced query aggregates over uncorrelated subqueries on RLS tables; cause not determined yet (not a constant ORDER BY: the sort key equals the aggregated value); verify at the end"
+- signature: 83bdce4a0403
+  oracle: assertion
+  outcome: assertion
+  verdict: real
+  note: "re-injected benchmark bug rb-11b56ee2 (assertion pathkeys.c)"
+- signature: 84e36fe21cff
+  oracle: metamorphic:expr
+  outcome: internal_error
+  verdict: duplicate
+  note: "corrupt MVNDistinct entry with GROUP BY ROLLUP; found by the e vs (SELECT e) rewrite; reported upstream before our run"
+  upstream: "BUG #19772"
+- signature: 886c0db769c0
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: 8a0e13634ebf
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: duplicate
+  note: "self-join elimination returns wrong values for expressions over a removed relation's column under ROLLUP/grouping sets (differs with enable_self_join_elimination); same root cause as the upstream report"
+  upstream: "BUG #19800"
+- signature: 8a4e039bb76f
+  oracle: metamorphic:tlp_where
+  outcome: assertion
+  verdict: real
+  note: "Parallel Append assertion (parallel_aware but child not parallel safe); found by the LLM-fragment arm through a TLP check; confirmed (David Rowley), fixed in abda2a2c"
+  upstream: "BUG #19803"
+- signature: 8c5a13443e88
+  oracle: assertion
+  outcome: assertion
+  verdict: duplicate
+  note: "BUG-01: JSON_TABLE does not assign collations (assertion execExpr.c:2078)"
+  upstream: "BUG #19768"
+- signature: 90ecfa669ba3
+  oracle: metamorphic:tlp_where
+  outcome: wrong_result
+  verdict: false_positive
+  note: "INTERSECT ALL / GROUP BY over intervals: equal values with different text"
+  fixed: true
+
+- signature: 9492d3bdd347
+  oracle: plan-variant
+  outcome: internal_error
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: a1fa96efeba7
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "MODE() WITHIN GROUP over intervals: equal values with different text (00:00:00 vs 6 days -144:00:00); which representative is returned depends on the join order"
+  fixed: true
+
+- signature: a2b1d87d6765
+  oracle: metamorphic:rls
+  outcome: wrong_result
+  verdict: TODO
+  note: "RLS check: restricted role and policy-filtered superuser query disagree on the reduced case; the reduced query aggregates over uncorrelated subqueries on RLS tables; cause not determined yet (not a constant ORDER BY: the sort key equals the aggregated value); verify at the end"
+- signature: a819a7520c99
+  oracle: metamorphic:expr
+  outcome: wrong_result
+  verdict: false_positive
+  note: "LLM-proposed rewrite NULLIF({e}, NULL::text COLLATE \"POSIX\") is not an identity: it changes the collation, so UPPER('é') differs; the rewrite gate accepted it (it tests values, not collations)"
+  fixed: true
+
+- signature: b0171fcfb39a
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: ba7274037f5f
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: c51c4dacc7f1
+  oracle: internal_error
+  outcome: internal_error
+  verdict: duplicate
+  note: "reported upstream before our run"
+  upstream: "BUG #19784"
+- signature: c5a5ed497011
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: TODO
+  note: "corr(1.0/3,1.0/3) is NULL serially but 1 with partitionwise/parallel partial aggregation on master (float8_regr_combine recomputes Sxx from rounded means); candidate new bug, still to verify and search upstream"
+- signature: c7cb42ade92c
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: false_positive
+  note: "LAG(...) IGNORE NULLS is PG19-only syntax: the INSERT succeeds on master and fails on 18.6, so the two servers' tables diverge for the rest of the test case"
+  fixed: true
+
+- signature: cc7181e74014
+  oracle: assertion
+  outcome: assertion
+  verdict: duplicate
+  note: "BUG-01: JSON_TABLE does not assign collations (assertion execExpr.c:2078)"
+  upstream: "BUG #19768"
+- signature: cc89286f2104
+  oracle: assertion
+  outcome: assertion
+  verdict: duplicate
+  note: "BUG-01: JSON_TABLE does not assign collations (assertion execExpr.c:2078)"
+  upstream: "BUG #19768"
+- signature: d1f574d66122
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: d36c7e921d92
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "MODE() WITHIN GROUP over intervals: equal values with different text (00:00:00 vs 6 days -144:00:00); which representative is returned depends on the join order"
+  fixed: true
+
+- signature: d9d8b441903e
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: db02c93fef27
+  oracle: metamorphic:tlp_where
+  outcome: wrong_result
+  verdict: false_positive
+  note: "INTERSECT ALL / GROUP BY over intervals: equal values with different text"
+  fixed: true
+
+- signature: dc18174656f6
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: duplicate
+  note: "self-join elimination returns wrong values for expressions over a removed relation's column under ROLLUP/grouping sets (differs with enable_self_join_elimination); same root cause as the upstream report"
+  upstream: "BUG #19800"
+- signature: dd35fab1c86e
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: de1cf51162c1
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: e1f8b06fdb26
+  oracle: metamorphic:rls
+  outcome: wrong_result
+  verdict: TODO
+  note: "RLS check: restricted role and policy-filtered superuser query disagree on the reduced case; the reduced query aggregates over uncorrelated subqueries on RLS tables; cause not determined yet (not a constant ORDER BY: the sort key equals the aggregated value); verify at the end"
+- signature: e4d122d7026f
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "order-sensitive aggregate with ORDER BY NULL: a constant key does not define an order"
+  fixed: true
+
+- signature: ec8b42ef87ac
+  oracle: assertion
+  outcome: assertion
+  verdict: duplicate
+  note: "BUG-01: JSON_TABLE does not assign collations (assertion execExpr.c:2078)"
+  upstream: "BUG #19768"
+- signature: ecf5c8cfe1e4
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: ed62d088103f
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "MODE() WITHIN GROUP over intervals: equal values with different text (00:00:00 vs 6 days -144:00:00); which representative is returned depends on the join order"
+  fixed: true
+
+- signature: efa9efb8acc1
+  oracle: assertion
+  outcome: assertion
+  verdict: duplicate
+  note: "NORMALIZE(TO_CHAR('NaN'::numeric,'FM999990.00')) asserts on the base commit 26bd08fb; fixed upstream by 776df8a6 (to_char output for formats ending in a decimal point, BUG #19771); crash confirmed on base, absent on 126976a8"
+  upstream: "BUG #19771 (fixed in 776df8a6)"
+- signature: f03cf100a032
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: f6f5012e736d
+  oracle: assertion
+  outcome: assertion
+  verdict: duplicate
+  note: "BUG-01: JSON_TABLE does not assign collations (assertion execExpr.c:2078)"
+  upstream: "BUG #19768"
+- signature: f7f40a5ab8df
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: f8f3de89048d
+  oracle: cross-version
+  outcome: wrong_result
+  verdict: flaky
+  note: "did not reproduce (0/3) when re-run by triage"
+- signature: ffdfcbe7d92d
+  oracle: plan-variant
+  outcome: wrong_result
+  verdict: false_positive
+  note: "MODE() WITHIN GROUP over intervals: equal values with different text (00:00:00 vs 6 days -144:00:00); which representative is returned depends on the join order"
+  fixed: true

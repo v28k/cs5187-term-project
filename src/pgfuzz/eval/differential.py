@@ -20,6 +20,7 @@ order legitimately changes the last digits).
 from __future__ import annotations
 
 import hashlib
+import re
 import zlib
 from typing import Any, Iterable, Sequence
 
@@ -75,6 +76,7 @@ _AGG_OR_WINDOW = frozenset(
 # PostgreSQL type OIDs of float4, float8 and their arrays.
 FLOAT_OIDS = frozenset({700, 701, 1021, 1022})
 NUMERIC_OID = 1700
+INTERVAL_OID = 1186
 
 
 def eligible(sql: str) -> bool:
@@ -101,6 +103,82 @@ def eligible(sql: str) -> bool:
         # ARRAY(SELECT ...) collects rows in scan order, like an unordered array_agg.
         if (x == "ARRAY" and w[i + 1] == "(" and i + 2 < len(w) and w[i + 2] in ("SELECT", "VALUES", "TABLE", "(")
                 and not _has_order_by_inside(w, i + 1)):
+            return False
+    if not _aggs_ordered_by_argument(sql):
+        return False
+    return True
+
+
+_ORDERED_AGG = re.compile(r"\b(" + "|".join(sorted(_ORDER_SENSITIVE_AGGS, key=len, reverse=True)) + r")\s*\(", re.I)
+_ORDER_KEY_SUFFIX = re.compile(r"\s+(ASC|DESC|NULLS\s+(FIRST|LAST)|USING\s+\S+)\b.*$", re.I | re.S)
+
+
+def _balanced(sql: str, open_idx: int) -> int:
+    """Index of the parenthesis closing the one at ``open_idx`` (quotes respected), or -1."""
+    depth, quote = 0, ""
+    for j in range(open_idx, len(sql)):
+        c = sql[j]
+        if quote:
+            if c == quote:
+                quote = ""
+        elif c in "'\"":
+            quote = c
+        elif c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+            if depth == 0:
+                return j
+    return -1
+
+
+def _split_top(text: str, sep: str) -> list[str]:
+    """Split ``text`` at ``sep`` outside parentheses and quotes (``sep`` is a keyword phrase or a comma)."""
+    out, depth, quote, last, i = [], 0, "", 0, 0
+    pat = re.compile(r"\s" + re.escape(sep) + r"\s", re.I) if sep != "," else None
+    while i < len(text):
+        c = text[i]
+        if quote:
+            if c == quote:
+                quote = ""
+        elif c in "'\"":
+            quote = c
+        elif c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+        elif depth == 0:
+            if pat is None and c == ",":
+                out.append(text[last:i])
+                last = i + 1
+            elif pat is not None and (m := pat.match(text, i - 1 if i else 0)) and i > 0 and text[i - 1].isspace():
+                out.append(text[last:i - 1])
+                last = m.end() - 1
+                i = last
+                continue
+        i += 1
+    out.append(text[last:])
+    return out
+
+
+def _aggs_ordered_by_argument(sql: str) -> bool:
+    """An order-sensitive aggregate with an ORDER BY is deterministic only if that order is
+    total on what it aggregates: its first sort key is its own first argument (the form the
+    grammar's ``@sorted_agg`` writes), so ties are equal values. ``ORDER BY NULL``, a constant
+    subquery, or another column leave the element order to the plan."""
+    for m in _ORDERED_AGG.finditer(sql):
+        close = _balanced(sql, m.end() - 1)
+        if close < 0:
+            continue
+        inner = sql[m.end():close]
+        parts = _split_top(inner, "ORDER BY")
+        if len(parts) < 2:
+            continue                      # no ORDER BY: _has_order_by_inside decides
+        first_arg = _split_top(parts[0], ",")[0]
+        first_arg = re.sub(r"^\s*(DISTINCT|ALL)\s+", "", first_arg, flags=re.I)
+        first_key = _ORDER_KEY_SUFFIX.sub("", _split_top(parts[1], ",")[0])
+        norm = lambda t: re.sub(r"\s+", " ", t).strip().upper()   # noqa: E731
+        if norm(first_arg) != norm(first_key):
             return False
     return True
 
@@ -156,7 +234,33 @@ def _canon(v: Any, oid: int | None) -> str:
         return "0" if t in ("-0", "") else t
     if oid in (700, 701) and t in ("-0", "0"):
         return "0"
+    if oid == INTERVAL_OID:
+        total = _interval_micros(t)
+        return t if total is None else f"interval:{total}"
     return t
+
+
+_INTERVAL_FIELD = re.compile(r"([+-]?\d+)\s+(year|mon|day)s?\b")
+_INTERVAL_TIME = re.compile(r"([+-])?(\d+):(\d\d):(\d\d)(?:\.(\d{1,6}))?\s*$")
+
+
+def _interval_micros(t: str) -> int | None:
+    """Value of an interval in the default output style as microseconds, using PostgreSQL's own
+    equality (a month is 30 days, a day is 24 hours), so ``1 day`` and ``24:00:00`` agree.
+    None if the text is not in that style (infinity, other IntervalStyle)."""
+    rest, total = t.strip(), 0
+    for m in _INTERVAL_FIELD.finditer(rest):
+        n = int(m.group(1))
+        total += n * {"year": 360, "mon": 30, "day": 1}[m.group(2)] * 86_400_000_000
+    tm = _INTERVAL_TIME.search(rest)
+    if tm:
+        us = ((int(tm.group(2)) * 60 + int(tm.group(3))) * 60 + int(tm.group(4))) * 1_000_000
+        us += int((tm.group(5) or "0").ljust(6, "0"))
+        total += -us if tm.group(1) == "-" else us
+    if not tm and not _INTERVAL_FIELD.search(rest):
+        return None
+    leftover = _INTERVAL_TIME.sub("", _INTERVAL_FIELD.sub("", rest)).strip()
+    return total if not leftover else None
 
 
 def _float_class(v: Any) -> str:
@@ -171,7 +275,7 @@ def result_digest(rows: Iterable[Sequence[Any]], type_oids: Sequence[int] | None
     executor loads every type as text, i.e. PostgreSQL's own output format).
     Returns ``(None, n)`` if there are more than ``max_rows`` rows."""
     masked = {i for i, oid in enumerate(type_oids or []) if oid in FLOAT_OIDS} if mask_floats else set()
-    kinds = [oid if oid in (NUMERIC_OID, *FLOAT_OIDS) else None for oid in (type_oids or [])]
+    kinds = [oid if oid in (NUMERIC_OID, INTERVAL_OID, *FLOAT_OIDS) else None for oid in (type_oids or [])]
     canon = []
     n = 0
     for row in rows:

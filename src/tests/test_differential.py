@@ -15,6 +15,14 @@ from pgfuzz.eval.differential import eligible
         ("SELECT ARRAY (SELECT a4.c1 FROM t4 AS a4 EXCEPT ALL SELECT 16) AS c0 FROM t2 AS a1", False),
         ("SELECT ARRAY (SELECT a4.c1 FROM t4 AS a4 ORDER BY 1) AS c0 FROM t2 AS a1", True),
         ("SELECT ARRAY[1, 2] AS c0 FROM t2 AS a1", True),
+        # the sort key must be the aggregated value itself, so that ties are equal values
+        ("SELECT JSONB_AGG (a3 ORDER BY NULL) FROM t4 AS a3", False),
+        ("SELECT ARRAY_AGG (a3.c0 ORDER BY (SELECT 1)) FROM t4 AS a3", False),
+        ("SELECT ARRAY_AGG ((SELECT 1) ORDER BY (SELECT 1)) FROM t4 AS a3", True),   # all elements equal
+        ("SELECT ARRAY_AGG (a1.c0 ORDER BY a1.c1) FROM t0 AS a1", False),
+        ("SELECT ARRAY_AGG (a1.c0 ORDER BY a1.c0 DESC NULLS LAST) FROM t0 AS a1", True),
+        ("SELECT ARRAY_AGG (DISTINCT a1.c0 ORDER BY a1.c0) FROM t0 AS a1", True),
+        ("SELECT string_agg(a1.c1, ',' ORDER BY a1.c1), JSON_AGG (a1.c0 ORDER BY 1) FROM t0 AS a1", False),
     ],
 )
 def test_eligible(sql, expected):
@@ -50,3 +58,17 @@ def test_crash_of_another_backend_is_not_ours():
     res = ExecResult([StatementResult(S.CONNECTION_LOST, "57P02", "terminating connection because of crash")],
                      extra={"foreign_crash": [1115]})
     assert not oracle.classify(res).is_bug_candidate
+
+
+def test_equal_intervals_with_different_text_have_one_digest():
+    from pgfuzz.eval.differential import _interval_micros, result_digest
+
+    iv = 1186
+    # MODE() and UNION may return either representative of equal intervals (seen in the RQ1 campaign)
+    assert result_digest([["00:00:00"]], [iv])[0] == result_digest([["6 days -144:00:00"]], [iv])[0]
+    assert result_digest([["7 days"]], [iv])[0] == result_digest([["168:00:00"]], [iv])[0]
+    assert result_digest([["1 mon"]], [iv])[0] == result_digest([["30 days"]], [iv])[0]
+    assert result_digest([["1 day"]], [iv])[0] != result_digest([["1 day 00:00:00.000001"]], [iv])[0]
+    assert result_digest([["-1 days +02:00:00"]], [iv])[0] != result_digest([["1 day 02:00:00"]], [iv])[0]
+    assert _interval_micros("infinity") is None          # unknown style: compared as text
+    assert result_digest([["infinity"]], [iv])[0] != result_digest([["-infinity"]], [iv])[0]
