@@ -144,8 +144,11 @@ decided candidate left is real (the paper must say this is post hoc and not re-m
 Hunt on master 633dee1b (2 Nov): 4 workers with the Grammar+Oracles configuration, plus targeted
 fuzzers for eager aggregation (about 2,000 queries), extended statistics (1,500) and outer joins / LATERAL.
 Only E-02 was real. The other candidates did not reproduce: four wrong results (three RLS, one plan
-variant) gave identical results on re-run, and the "crash" entries were connection losses caused by
-the hang oracle's server restarts (no assertion or signal in any server log).
+variant) gave identical results on re-run, and the "crash" entries were connection losses from server
+restarts (no assertion or signal in any server log). The restarts came from worker processes of an
+earlier, stopped run that kept fuzzing the same servers: their DDL held locks, statements waited past
+the hang oracle's limit, and the oracle restarted the server. Lesson for the harness: stop all worker
+processes before re-using servers.
 
 ## Things to do before submission (open)
 
