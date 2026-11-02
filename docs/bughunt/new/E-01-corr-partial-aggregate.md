@@ -2,7 +2,7 @@
 
 Status: **reproduced (base 26bd08fb, 126976a8, newest master 633dee1b), root-caused,
 patch with regression test, `make check` 239/239 on 633dee1b + patch. Duplicate search:
-none found on pgsql-bugs or in master's git log (2 Nov 2026). READY TO FILE.**
+none found on pgsql-bugs or in master's git log (2 Nov 2026). FILED as BUG #19826 (2 Nov 2026), patch sent as a reply.**
 Found by our fuzzer (plan-variant oracle, campaign candidate `c5a5ed497011`).
 
 ## Summary
