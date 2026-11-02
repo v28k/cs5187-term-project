@@ -35,27 +35,24 @@ server.
 \subsection{Configurations}
 \label{sec:baselines}
 
-Every configuration (\emph{arm}) uses the same server, schema, executor,
-oracles, time budget and per-trial seed; the arms differ only in the generator
-and in what it can attach. \arm{Random} is a mutation-based generator that
-edits seed queries at the token level and cannot attach metamorphic checks.
+The configurations (\emph{arms}) share server, schema, executor, oracles,
+budget and per-trial seeds and differ only in the generator. \arm{Random}
+mutates seed queries at the token level and attaches no metamorphic checks.
 \arm{Grammar} is Step 1 alone. \arm{Grammar+Oracles} adds Steps 2--4: metamorphic
 checks (including RLS and CERT) on half the queries, plan-shape guidance,
 feedback weights and data-profile literals; \arm{Grammar+Oracles, flat} is the
 same without the weights. \arm{+LLM} adds the fragments, seeds and rewrites that
 passed the \gate, and \arm{+LLM fragments} and \arm{+LLM seeds} use one of
-them. The LLM never sees the 23 benchmark fixes: the commit miner excludes
-them. All arms run with the plan-variant oracle and, in \rqref{3}, the
-cross-version oracle, because these do not depend on the generator.
+them. The commit miner excludes the 23 benchmark fixes. All arms use the
+plan-variant oracle and, in \rqref{3}, the cross-version oracle.
 
 \subsection{Setup}
 \label{sec:setup}
-\tool is about 10{,}500 lines of Python with 148 unit tests and a 628-line
-grammar; it drives \pg through \texttt{psycopg} and reads the server log for
-assertion and crash evidence. Each arm runs 5 trials of one hour, with four workers in parallel and one
-server per worker. \rqref{1}, \rqref{2} and \rqref{4} ran on one laptop (WSL2,
-24 logical cores), \rqref{3} on another; the arms of one experiment never share
-a machine, so throughput and coverage are comparable within an experiment.
+\tool is about 10{,}500 lines of Python with 151 unit tests; it drives \pg
+through \texttt{psycopg} and reads the server log for assertion and crash
+evidence. Each arm runs 5 one-hour trials with four workers, one server each.
+\rqref{1}, \rqref{2} and \rqref{4} ran on one laptop (WSL2, 24 logical cores),
+\rqref{3} on another, so each experiment is compared on one machine.
 The cross-version reference is \pg 18.6. Following
 Klees et al.~\cite{klees2018evaluating}, and Arcuri and
 Briand~\cite{arcuri2011practical}, we report medians, compare arms with the
@@ -64,15 +61,11 @@ $\hat{A}_{12}$ effect size~\cite{vargha2000a12}. With 5 trials per arm the
 smallest possible two-sided $p$ is 0.008, so we read effect sizes, not only
 $p$. Coverage is sampled every 300 seconds per worker, so the first point of every curve is the server's start-up coverage.
 
-\paragraph{The language model.} The client has an API mode and a manual mode (the
-prompt is written to a file and the answer read from a file). We had no access to
-Claude for the evaluation, so a script answered the manual prompts with Google
-Gemini Flash models on the free tier: 9 answers by \texttt{gemini-3.6-flash}, 2 by
-\texttt{gemini-3.8-flash} and 14 by \texttt{gemini-3-flash-preview}, each taking
-over when the previous model's daily quota ran out or it was overloaded. The quota
-limits the \rqref{4} run to 10 of the 25 mined commits. The tool is unchanged;
-the results of \rqref{4} are results for these models, and a stronger model may
-do better.
+\paragraph{The language model.} In the client's manual mode a script answered
+the prompts with Google Gemini Flash models on the free tier (9 answers by
+\texttt{gemini-3.6-flash}, 2 by \texttt{gemini-3.8-flash}, 14 by
+\texttt{gemini-3-flash-preview}); the daily quota limited \rqref{4} to 10 of the
+25 mined commits. The results of \rqref{4} hold for these models.
 
 \subsection{\rqref{1}: Reach}
 \label{sec:rq1}
@@ -139,21 +132,48 @@ Table~\ref{tab:rq2} gives the verdicts per oracle.
   \input{tables/rq2}
 \end{table}
 
-\paragraph{Bugs.} Four bugs found by \tool were not known when we found them.
-(1)~The wrong result of Figure~\ref{fig:motivating}, found by the \texttt{(SELECT
-e)} rewrite (BUG~\#19793, with a patch). (2)~\texttt{JSON\_TABLE} does not assign
-collations to its context item and \texttt{PASSING} arguments (BUG~\#19768; 10
-signatures). (3)~\texttt{MERGE} into a partitioned table fails with ``SubPlan
-found with no parent plan'' (BUG~\#19802), found by \arm{Grammar} and
-\textbf{confirmed by a \pg committer} who posted a patch. (4)~A parallel
-\texttt{Append} assertion (BUG~\#19803), found by \arm{+LLM fragments} through a
-TLP check, \textbf{confirmed by a committer and fixed on master}. The oracles
-also rediscovered four bugs that others had reported days earlier: a wrong
-result of self-join elimination under \texttt{ROLLUP} (BUG~\#19800, found by
-toggling \texttt{enable\_self\_join\_elimination}, present in 18.6), a corrupt
-\texttt{MVNDistinct} entry (\#19772, via the \texttt{(SELECT e)} rewrite),
-\#19784, and a \texttt{to\_char} bug whose consequence is an assertion in
-\texttt{NORMALIZE} (\#19771, fixed upstream).
+\paragraph{Bugs.} Table~\ref{tab:bugs} lists the nine bugs we reported. Five
+came from the fuzzing campaigns; four came from the targeted bug hunt that
+accompanied them, in which we audited recent planner and executor features with
+differential probes. Four reports were answered by \pg developers, two bugs are
+confirmed by committers, and two are fixed on master; one of the two fixes was
+written by an author. The oracles also found three bugs reported by others days
+before us, which we count as duplicates: a wrong result of self-join
+elimination under \texttt{ROLLUP} in 18.6 (\#19800, a plan variant), \#19772
+(the \texttt{(SELECT e)} rewrite) and \#19784.
+
+\begin{table}[t]
+  \centering
+  \footnotesize
+  \caption{The nine bugs we reported upstream, the oracle that recognises each,
+  and their state on 2~November~2026. All reproduce on the base build
+  \texttt{26bd08fb}, which predates both fixes.}
+  \label{tab:bugs}
+  \begin{tabular}{@{}llll@{}}
+    \toprule
+    Bug & Report & Oracle & State \\
+    \midrule
+    \texttt{JSON\_TABLE} assigns no collations & \#19768 & assertion & reported, patch \\
+    \texttt{range @> NULL} folded to a constant & \#19793 & \texttt{(SELECT e)} rewrite & reported, patch \\
+    \texttt{MERGE}: SubPlan with no parent & \#19802 & internal error & confirmed, patch \\
+    parallel \texttt{Append} assertion & \#19803 & TLP (\arm{+LLM fragments}) & fixed \\
+    \texttt{to\_char(NaN)} breaks \texttt{NORMALIZE} & \#19771 & assertion & fixed \\
+    \texttt{NOT IN} anti-join ignores a cast & pgsql-bugs & TLP & reported, patch \\
+    \texttt{IGNORE NULLS} frame never returns & pgsql-bugs & hang & answered \\
+    duplicate statistics expression & pgsql-bugs & assertion & reported, patch \\
+    non-finite imported MCV frequencies & pgsql-hackers & CERT estimate & patch \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Rediscovery.} We added each reproducer as a seed that carries its own
+check (for a wrong result, the query that must agree), extended the grammar with
+what the four hunt bugs need (statistics on expressions, statistics import with
+boundary values, a user-defined implicit cast, \texttt{IGNORE NULLS} over
+whole-partition frames), and added a \emph{hang} oracle that restarts a server
+whose statement outlives its \texttt{statement\_timeout} by ten seconds. One
+150-second trial of \arm{Grammar+Oracles} on the base build then reported all
+nine bugs, each matched to its catalogue entry, at unchanged validity (99.3\%).
 
 \begin{observation}
 \label{obs:wrong}
@@ -165,19 +185,15 @@ versions that no crash oracle can see (BUG~\#19793 and \#19800).
 three re-runs and 6 are open. Of the 59 decided, 7 are real, 15 are duplicates
 of real bugs and 37 are false positives, so the precision is $7/44=0.16$ without
 duplicates and $22/59=0.37$ if duplicates count as true positives. The false
-positives come from few classes. Six were found in development and fixed
-before the campaigns; the campaigns revealed four more, fixed \emph{after} the
-runs and tested on the stored reproducers and unit tests, but not re-measured.
-(1)~\emph{Equal intervals with different text} (16 candidates: \texttt{MODE()},
-\texttt{UNION}, \texttt{INTERSECT ALL}): the keys were equal values printed as
-\texttt{00:00:00} or \texttt{6 days -144:00:00} depending on join order; the
-digest now uses \pg's own interval equality. (2)~\emph{Order-sensitive
-aggregates whose key is not the value}, such as \texttt{JSONB\_AGG(x ORDER BY
-NULL)} (2). (3)~\emph{State divergence in the cross-version oracle} (5): an
-\texttt{INSERT} using \texttt{LAG(\ldots) IGNORE NULLS}, which exists only on
-master, succeeds there and fails on 18.6, so later comparisons differ; the
-oracle now stops comparing after such a statement. (4)~\emph{An LLM rewrite that
-is not an identity} (Section~\ref{sec:rq4}). After these fixes every decided
+positives come from few classes: six were fixed before the campaigns, and four
+that the campaigns revealed were fixed \emph{after} them, tested on the stored
+reproducers but not re-measured.
+They are equal \texttt{interval} values printed differently depending on
+join order (16 candidates; the digest now uses \pg's interval equality),
+order-sensitive aggregates sorted by a key that is not the value, such as
+\texttt{ORDER BY NULL} (2), state that diverges in the cross-version oracle
+after an \texttt{INSERT} only master accepts (5), and an LLM rewrite that is not
+an identity (Section~\ref{sec:rq4}). After these fixes every decided
 candidate left is real; five RLS candidates and one \texttt{corr()} case remain
 open.
 
@@ -215,13 +231,11 @@ five trials cannot separate arms that find a bug in one trial in five.
 \subsection{\rqref{4}: The LLM Extension}
 \label{sec:rq4}
 
-The ledger of the Gemini Flash run (Section~\ref{sec:setup}) shows that the gate
-accepts 4 of 10 commits (2 in the first round, 1 in the second, 1 in the third).
-Of the 25 rounds, 16 were rejected because too few of the fragment's statements
-ran on the server, 2 each because the fragment was never derived or did not
-parse, and 1 on seeds or coverage; the mean validity of a proposal is 36.5\%.
-The run used 328{,}000 input, 171{,}000 output and 47{,}000 cached tokens and
-cost nothing on the free tier, and all 7 proposed rewrites passed the gate.
+The gate accepted 4 of 10 commits (2 in the first round, 2 after repair). Of
+the 25 rounds, 16 failed because too few statements ran (mean validity of a
+proposal 36.5\%), 4 because the fragment was not derived or did not parse, and
+1 on seeds or coverage. The run used 328{,}000 input and 171{,}000 output tokens
+at no cost on the free tier.
 
 \begin{observation}
 \label{obs:llm}
@@ -230,15 +244,11 @@ $p=0.004$) but no coverage: lines drop from 36.2\% to 35.7\% ($p=0.42$), plan
 shapes from 34{,}313 to 26{,}375, and validity from 96.3\% to 95.3\%.
 \end{observation}
 
-The extension covers only 34 more changed lines over the 10 commits. Seeds
-alone give the best validity of the three arms (98.3\%) with as many features as
-both; the fragments-only arm found BUG~\#19803. The extension is cheap and
-safe, but with these models its benefit is modest.
+It covers only 34 more changed lines over the 10 commits, but the
+fragments-only arm found BUG~\#19803: with these models the benefit is modest.
 
-\paragraph{The gate is not enough for rewrites.} The gate accepted all 7
-proposed equivalence rewrites, and one of them,
-\texttt{NULLIF(\{e\}, NULL::text COLLATE "POSIX")}, is not an identity: it
-changes the collation, so \texttt{UPPER} of the rewritten expression differs.
-It caused a false positive in \rqref{3}. The value probe evaluates the rewrite
-on values and the live checks on test cases, but neither varies the collation.
-The gate now rejects an explicit \texttt{COLLATE}. Testing a claimed equivalence on samples is not proof.
+\paragraph{The gate is not enough for rewrites.} All 7 proposed rewrites passed
+the gate, but \texttt{NULLIF(\{e\}, NULL::text COLLATE "POSIX")} is not an
+identity: it changes the collation, and caused a false positive in \rqref{3}.
+Neither the value probe nor the live checks vary the collation; the gate now
+rejects an explicit \texttt{COLLATE}. Testing an equivalence on samples is not proof.
