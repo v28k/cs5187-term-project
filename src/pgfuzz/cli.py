@@ -105,8 +105,8 @@ def cmd_selftest(a: argparse.Namespace) -> int:
 
 
 def cmd_replay(a: argparse.Namespace) -> int:
-    from pgfuzz.core.sqlsplit import split_statements
     from pgfuzz.core.types import TestCase
+    from pgfuzz.grammar.generator import parse_seed
     from pgfuzz.eval import oracle, signature
     from pgfuzz.eval.known_bugs import KnownBugCatalog
     from pgfuzz.runner import load_config
@@ -118,8 +118,8 @@ def cmd_replay(a: argparse.Namespace) -> int:
     found = 0
     try:
         for i, f in enumerate(a.files):
-            stmts = split_statements(Path(f).read_text(encoding="utf-8"))
-            tc = TestCase(stmts, origin="replay", id=i)
+            stmts, checks = parse_seed(Path(f).read_text(encoding="utf-8"))
+            tc = TestCase(stmts, origin="replay", id=i, meta={"checks": checks} if checks else {})
             for _ in range(a.repeat):
                 res = ex.execute(tc)
                 cls = oracle.classify(res)

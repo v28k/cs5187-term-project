@@ -133,6 +133,7 @@ class GrammarGenerator(Generator):
         self.fragments_loaded: list[str] = []
         self.fragments_rejected: dict[str, str] = {}
         self.seed_cases: list[list[str]] = []
+        self.seed_checks: list[list[dict[str, Any]]] = []
         self.seen_plans: set[str] = set()
         self.corpus: list[_Entry] = []
         self.pending: dict[int, _Built] = {}
@@ -156,9 +157,10 @@ class GrammarGenerator(Generator):
             from pgfuzz.core.sqlsplit import split_statements
 
             for p in self.seed_paths:
-                stmts = split_statements(Path(p).read_text(encoding="utf-8"))
+                stmts, checks = parse_seed(Path(p).read_text(encoding="utf-8"))
                 if stmts:
                     self.seed_cases.append(stmts)
+                    self.seed_checks.append(checks)
         bad = validate_schema(self.schema, set(self.grammar.types))
         if bad:
             raise ValueError(f"{self.schema_path}: {bad}")
@@ -283,7 +285,11 @@ class GrammarGenerator(Generator):
         if self.seed_cases and self.rng.random() < self.seed_prob:
             self.ops["seed"] += 1
             self.n_testcases += 1
-            return TestCase(list(self.rng.choice(self.seed_cases)), origin=self.name, meta={"op": "seed"})
+            k = self.rng.randrange(len(self.seed_cases))
+            meta: dict[str, Any] = {"op": "seed"}
+            if self.seed_checks[k]:
+                meta["checks"] = [dict(c) for c in self.seed_checks[k]]
+            return TestCase(list(self.seed_cases[k]), origin=self.name, meta=meta)
         built = None
         for _ in range(4):
             if self.corpus and self.rng.random() < self.mutate_prob:
@@ -492,3 +498,35 @@ def _split(tokens: list[str]) -> list[list[str]]:
         else:
             parts[-1].append(t)
     return [p for p in parts if p]
+
+
+_SEED_CHECK = re.compile(r"^--\s*pgfuzz:check\s+(\S+)\s+(.+)$", re.M)
+
+
+def parse_seed(text: str) -> tuple[list[str], list[dict[str, Any]]]:
+    """Statements of a seed file, plus the metamorphic checks it declares.
+
+    A line ``-- pgfuzz:check <kind> <sql>`` attaches a check to the statement before
+    it: ``<sql>`` must return the same multiset of rows (for ``cert``: ``<sql>`` is the
+    unrestricted query whose row estimate the statement must not exceed). This lets a
+    seed carry the oracle that recognises a wrong result, as the grammar's own checks do.
+    """
+    from pgfuzz.core.sqlsplit import split_statements
+
+    stmts: list[str] = []
+    checks: list[dict[str, Any]] = []
+    pos = 0
+    for m in _SEED_CHECK.finditer(text):
+        stmts += split_statements(text[pos:m.start()])
+        if not stmts:
+            raise ValueError("pgfuzz:check before the first statement")
+        kind, other = m.group(1), m.group(2).strip().rstrip(";")
+        if kind == "cert":
+            checks.append({"stmt": len(stmts) - 1, "kind": kind, "lhs": other, "rhs": stmts[-1], "mask": False,
+                           "lhs_role": None})
+        else:
+            checks.append({"stmt": len(stmts) - 1, "kind": kind, "lhs": None, "rhs": other, "mask": False,
+                           "lhs_role": None})
+        pos = m.end()
+    stmts += split_statements(text[pos:])
+    return stmts, checks
