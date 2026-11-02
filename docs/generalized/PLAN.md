@@ -1,57 +1,95 @@
-# Generalizing the fuzzer: plan (branch `generalized`, started 2 Nov 2026)
+# Plan: a high-level, target-independent SQL engine fuzzer and an A* paper (deadline ~January 2027)
 
-## Goal
+Branch `generalized`. Rules for working on it: `docs/generalized/HANDOFF.md` section 1.
+Keep the **Status** column below current and log every session in `docs/generalized/PROGRESS.md`.
 
-Turn the PostgreSQL fuzzer into a **target-independent, grammar- and oracle-driven fuzzer for
-SQL engines**, evaluate it on several engines, find and fix new bugs (GitHub issues and PRs
-where the project accepts them), and write a paper for a top software-engineering / testing
-venue with a deadline around January 2027 (check the CFPs; ISSTA usually has a late-January
-deadline; ICSE and FSE have later cycles).
+## 1. Goal and paper claims
 
-## The paper's claim (what must be true at the end)
+Build on everything the PostgreSQL project produced (typed grammar and derivation trees,
+tree-based metamorphic oracles, plan-variant / cross-version / CERT / hang oracles, tree +
+token reduction, localization, the precision ledger, the engine-gated LLM extension, the
+re-injected bug benchmark) and turn it into **one fuzzer for many SQL engines**, then show
+that the approach finds new bugs across engines with measured oracle precision.
 
-1. **One tree, many engines.** Typed derivation trees plus a small per-engine *dialect overlay*
-   give valid SQL on every target; the same tree-based oracles (TLP, NoREC, expression rewrites,
-   plan variants, cross-version, hang, CERT) apply unchanged.
-2. **Oracle precision is measured, not assumed,** on every target (verdict ledger per target).
-3. **Knowledge transfer by LLM, gated by the engine:** an LLM turns an engine's own regression
-   tests and recent commits into grammar fragments; a server-side gate (parse, use, validity,
-   coverage) accepts them.
-4. **Bugs:** new, confirmed and fixed bugs on several engines, with PRs where possible.
+Target venue: a top software-engineering / testing / security venue with a deadline around
+January 2027 (ISSTA usually has a late-January deadline; also check ICSE, FSE, ASE, OOPSLA,
+CCS/USENIX Security CFPs and pick with the owner). Format: ACM `acmart` (the course paper in
+`paper/` is a starting point but needs a new framing and new evaluation).
 
-## Targets (in order)
+Claims the paper must support (each needs an experiment):
+1. **Portability.** One typed grammar core plus a small dialect overlay per engine gives
+   ≥95 % valid statements on each engine; the tree-based oracles apply unchanged.
+2. **Effectiveness.** New, confirmed bugs on several engines (target: ≥15 confirmed,
+   several fixed, across ≥3 engines), including wrong results that crash-only fuzzers miss.
+3. **Better than the state of the art** in the same budget on shared engines: more bugs and/or
+   more coverage and plan diversity than SQLancer (and SQLsmith, Squirrel/SQLRight where they run).
+4. **Measured precision.** Per-engine, per-oracle precision ledgers; the false-positive classes
+   and the soundness rules that remove them generalize across engines.
+5. **Knowledge transfer.** An LLM turns each engine's own regression tests / docs / recent
+   commits into grammar fragments; an engine-side gate accepts only valid, reaching fragments;
+   ablation shows what this adds (features, coverage, bugs) and what it costs.
+6. **Ground truth.** A re-injected-bug benchmark for at least one more engine (e.g. DuckDB
+   fixes) shows detection rates and time to bug per oracle family.
 
-| Target | Why | How we run it | Where bugs go |
+## 2. Architecture target ("high-level fuzzer")
+
+```
+  dialect overlays ──► typed grammar core ──► derivation trees ──► oracle attachers (TLP, NoREC,
+  (per engine)          (+ LLM fragments)       (+ seeds, corpus)    rewrites, plan variants, x-version,
+                                                                      x-engine, CERT, hang)
+                                     │
+                  Target adapter: executor (crash-isolated), error taxonomy, knobs/variants,
+                  version pairs, EXPLAIN parser, coverage hook, reset/state, timeouts
+                                     │
+     triage: reproduce, tree+token reduction, localization, dedup across engines, filing package
+                                     │
+     feedback: plan shapes, coverage (where cheap), bandit weights, corpus; dashboards and ledgers
+```
+
+## 3. Tasks
+
+| ID | Task | Acceptance criteria | Status |
 |---|---|---|---|
-| PostgreSQL | existing, 11 reports, 3 fixed | server (cassert build) | pgsql-bugs, patches |
-| DuckDB | very active, fast fixes, nightlies on pip | in-process, in a worker subprocess (survives aborts) | GitHub issues and PRs |
-| Apache DataFusion | Rust, very PR-friendly, many open SQL corners | build `datafusion-cli` from `main` (cargo) or python bindings | GitHub issues and PRs |
-| SQLite | reference for a cross-engine oracle; hard target | stdlib `sqlite3` / CLI from trunk | forum (no PRs) |
-| later, if time | MySQL/MariaDB, CockroachDB, TiDB | server | GitHub / JIRA |
+| G1 | **Target abstraction**: a `Target` spec (YAML + small Python adapter) = executor, dialect overlay(s), schema, error→outcome taxonomy, plan-variant knobs, version pair for cross-version, EXPLAIN shape extractor, reset strategy. Port PostgreSQL to it without behaviour change. | `pytest` green; PostgreSQL configs give the same validity as before; adding an engine = new adapter + overlay + schema only. | todo |
+| G2 | **Dialect overlays** in the grammar DSL: `%drop <rule> "<text>"`, `%droptype <T>`, `%rename`, plus added rules; portable `core.pgg` + `postgres.pgg` / `duckdb.pgg` / `datafusion.pgg` / `sqlite.pgg` overlays. | each engine ≥95 % valid in `sample --execute` (300 test cases); unit tests for the directives. | todo |
+| G3 | **DuckDB target** (nightly): executor exists (`pgfuzz/targets/duckdb_executor.py`); finish overlay, DuckDB-specific features (lists, structs, maps, lambdas, QUALIFY, ASOF/POSITIONAL joins, PIVOT, GROUP BY ALL, window EXCLUDE…), plan variants from `duckdb_optimizers()`, cross-version (last release vs nightly in two workers), unit tests. | first campaign 4×1 h runs clean (no harness errors); candidates triaged. | in progress |
+| G4 | **DataFusion target** (`main`): needs `cargo build` permission (ask owner) or start with pip `datafusion`; executor via Python bindings in a worker process (panics = crash), optimizer-rule toggles as variants, overlay. | ≥95 % valid; campaign; candidates triaged. | todo |
+| G5 | **SQLite target** + **cross-engine differential oracle** on the portable subset with normalisation (NULL ordering, integer division, float formatting, type affinity, collations); disagreements go through triage; measure its precision honestly. | ledger per pair of engines. | todo |
+| G6 | **LLM knowledge transfer from test suites**: parse each engine's regression tests (DuckDB `test/sql/*.test`, DataFusion `*.slt`, SQLite `test/*.test`, PostgreSQL `regress/sql`) and recent commits; the LLM proposes grammar fragments + rewrites; the existing gate (parse, use, validity, coverage/plan-shape gain) validates on the target; ledger. Model: whatever the owner has (Claude or Gemini via the client's API/manual modes). | ablation numbers per engine. | todo |
+| G7 | **Harness hardening**: process groups so stopping a run kills all workers; per-target crash/hang isolation; cross-engine signature de-duplication; automatic triage → filing-package draft (section 1d of HANDOFF). | no orphaned workers; triage produces `report.md`/`issue.md` drafts. | todo |
+| G8 | **Evaluation design**: RQs, ≥10 trials × fixed budget (e.g. 12 h or 24 h for bug-finding, 1 h for reach), baselines (SQLancer on PostgreSQL/DuckDB/SQLite/DataFusion; SQLsmith where it runs), statistics (Mann–Whitney U, Vargha–Delaney A12, bootstrap CIs), coverage builds where affordable (DuckDB/SQLite with gcov), scripts that regenerate every table and plot. | `configs/eval/*.yaml`, `scripts/eval/*`, dry runs pass. | todo |
+| G9 | **Bug campaigns** on DuckDB nightly, DataFusion main, SQLite trunk (+ others if time: MySQL/MariaDB, CockroachDB, TiDB, Turso/libSQL): triage, validate, **filing packages only** (owner files). | `docs/bughunt/<target>/…` packages; bug table kept current. | todo |
+| G10 | **Re-injected bug benchmark for DuckDB** (revert recent DuckDB fixes that have regression tests, as for PostgreSQL RQ3). | verified benchmark + attribution script. | todo |
+| G11 | **Paper**: new title and framing, related work (SQLancer TLP/NoREC/PQS/CERT/DQP, SQLRight, Squirrel, Griffin, Sedar, Radar, DQE, EET, SQLsmith, Fuzz4All, WhiteFox/LLM fuzzers, grammar fuzzers), approach, evaluation, threats, artifact (anonymised mirror), AI-use statement (owner decides). Draft by mid-December, full version early January. | paper builds, page limit of the chosen venue. | todo |
 
-## Tasks
+## 4. Improvisation ideas (do them when they help; record decisions in PROGRESS.md)
 
-| # | Task | Output |
-|---|---|---|
-| G1 | **Target abstraction**: a `Target` description = executor adapter + dialect overlay + schema + planner knobs (plan variants) + error taxonomy (which errors are bugs) + version for cross-version. Port PostgreSQL to it without behaviour change (all 151 tests pass). | `pgfuzz/targets/`, `targets/postgres/` |
-| G2 | **Dialect layering of the grammar**: split `postgres.pgg` into a portable core (`core.pgg`) and overlays (`postgres.pgg`, `duckdb.pgg`, `datafusion.pgg`, `sqlite.pgg`); `include`/override support in the grammar DSL. | grammar files, DSL change, tests |
-| G3 | **DuckDB target**: executor in a crash-isolating subprocess, error classification (`INTERNAL Error`, `FATAL`, aborts/signals), plan variants via DuckDB settings and optimizer switches, cross-version against the last release, schema + data. | first DuckDB campaign |
-| G4 | **DataFusion target**: build `main`, executor via `datafusion-cli` or Python bindings, error classification (`Internal error`, panics), optimizer-rule toggles as plan variants. | first DataFusion campaign |
-| G5 | **SQLite target** and **cross-engine differential oracle** on the portable subset, with normalisation of known semantic differences (gated by triage). | new oracle + precision |
-| G6 | **LLM grammar extension from test suites**: mine each engine's regression tests (DuckDB `test/sql/*.test`, DataFusion `*.slt`, PostgreSQL `regress/sql`) and recent commits; LLM proposes fragments; the gate validates on the target. | ledger per target |
-| G7 | **Harness hardening**: kill orphaned workers on stop, crash/hang isolation per target, signature de-duplication across targets, auto-triage + report drafts for GitHub. | robustness |
-| G8 | **Evaluation design for the paper**: RQs across targets; baselines SQLancer (supports DuckDB, PostgreSQL, SQLite, DataFusion) and SQLsmith where possible; ≥10 trials × fixed budget; coverage where builds allow; re-injected bug benchmark for one more engine (DuckDB fixes). | configs, scripts |
-| G9 | **Bug campaigns** on DuckDB nightly and DataFusion main; triage, issues, PRs with fixes. | issues / PRs |
-| G10 | **Paper rewrite** for the venue (new title, framing, related work on SQLancer, SQLRight, Squirrel, Griffin, Sedar, THANOS-like and LLM fuzzers), artifact. | draft by mid January |
+- **Adaptive oracle scheduling**: bandit over oracle kinds by observed precision × yield per engine.
+- **Feature-coverage feedback without a coverage build**: plan shapes + SQL feature pairs + error-message
+  novelty as corpus criteria (works on any engine).
+- **Differential across releases** of the same engine (nightly vs last release) is cheap and precise;
+  use it on every engine with pip/binary releases.
+- **Query-plan guidance** (QPG-style) using each engine's EXPLAIN (DuckDB `EXPLAIN (FORMAT json)`,
+  DataFusion `EXPLAIN`).
+- **Auto-reduction to the engine's native test format** (sqllogictest / .slt) so filing packages include a
+  ready test.
+- **Soundness rules as data**: per-engine semantic quirks (e.g. DuckDB integer division, NULL ordering,
+  float output) as declarative normalisers instead of code.
+- **Crash/sanitizer builds** where allowed (DuckDB debug build with assertions catches far more than the
+  release wheel; ask the owner before building external code).
 
-## Order of work
+## 5. Timeline (adjust with the owner)
 
-1. G1 + G3 first (DuckDB gives the fastest bug feedback), then G7, then G4, G2 in parallel as needed.
-2. Bug campaigns (G9) start as soon as a target runs; findings go into `docs/bughunt/<target>/`.
-3. G6, G5, G8 next; G10 continuously, final push in January.
+| When | Milestone |
+|---|---|
+| Nov, week 1–2 | G1, G2, G3 (DuckDB ≥95 % valid, first campaigns), G7 basics |
+| Nov, week 3–4 | G4 DataFusion, G5 SQLite + cross-engine oracle, G9 campaigns running continuously |
+| Dec, week 1–2 | G6 LLM transfer, G10 DuckDB benchmark, G8 evaluation scripts; start long runs |
+| Dec, week 3–4 | full evaluation runs, triage, filing packages; paper draft (G11) |
+| Jan 2027 | final experiments, paper polish, artifact; submit |
 
-## Rules
+## 6. Rules recap
 
-- Report a bug only after: reproduce ×3 on the newest nightly/main, minimal self-contained
-  reproducer, duplicate search (issues + recent commits), root cause when possible.
-- One target never breaks another: the PostgreSQL configs and results stay reproducible.
+Owner files all bugs and PRs; you prepare packages. Public repo on your GitHub, push after every
+finished part, owner's commit identity, no Claude/AI mentions, tests green, PROGRESS.md updated.
+Full details: `docs/generalized/HANDOFF.md`.

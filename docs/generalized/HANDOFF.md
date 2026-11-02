@@ -26,23 +26,65 @@ doing anything. Then read `docs/generalized/PLAN.md`, `docs/RESULTS_ANALYSIS.md`
 
 ## 1. Rules the owner gave (follow them exactly)
 
-1. **Commit identity:** `git -c user.name=v28k -c user.email=samruddhi.sonawane6116@gmail.com commit ...`
-2. **No mention of Claude, Anthropic or "AI" in commit messages or in files you write**
-   (no Co-Authored-By trailers, no "generated with" lines). The paper's AI statement is
-   the only exception and is the owner's decision (section 6, P2).
-3. **Push to GitHub as soon as a task or a part of it is done.** Small commits.
-4. **Never commit API keys.**
-5. Do not mention individual member names on slides (team-level); names are fine in reports.
-6. When you find a new bug: tell the owner, write a report in `docs/bughunt/new/` (or
-   `docs/bughunt/<target>/`), with a minimal reproducer `.sql`, a patch if possible, and
-   exact filing text, and push it. The owner files PostgreSQL bugs himself
-   (https://www.postgresql.org/account/submitbug/), then replies with the patch.
-7. Validate every bug before reporting: reproduce ×3 on the newest code, minimal
-   self-contained reproducer, duplicate search (upstream git log + mailing list / issues),
-   root cause, versions affected. Be strict: one solid report beats five doubtful ones.
-8. Work fast but do not degrade quality; the owner has little time.
-9. When the owner says "stop everything", stop all background jobs **and** orphaned
-   worker processes (see gotchas), then report.
+### 1a. Who does what
+- **The owner (Venu) files every bug and opens every PR himself.** You must NOT open GitHub issues,
+  must NOT open pull requests, must NOT post on any mailing list, forum or issue tracker, and must NOT
+  comment on anyone's issues. This is the owner's contribution record, not yours.
+- You prepare everything so the owner can file in minutes (section 1d), push it, and tell him.
+- **PostgreSQL bug hunting is finished.** Do not hunt PostgreSQL any more; PostgreSQL stays as one
+  target in the evaluation only (its results already exist).
+- The owner and his team review your repository **periodically** and tell you what to change.
+  Keep it reviewable: small commits, clear messages, a progress log (section 1c).
+
+### 1b. Repository and commits
+1. Create a **new public repository on your own GitHub account** named `generalized-sql-fuzzer`
+   (or similar), containing the full history of branch `generalized` of
+   https://github.com/v28k/cs5187-term-project:
+   `git clone -b generalized https://github.com/v28k/cs5187-term-project && cd cs5187-term-project &&
+   git remote rename origin upstream && gh repo create <you>/generalized-sql-fuzzer --public --source . --push`
+   (or create it on the web and `git remote add origin ... && git push -u origin generalized`).
+   Make `generalized` its default branch. Send the owner the URL.
+2. Commit with the owner's identity, because it is his work:
+   `git -c user.name=v28k -c user.email=samruddhi.sonawane6116@gmail.com commit -m "..."`
+3. **Never mention Claude, Anthropic or "AI" in commit messages or in files** (no Co-Authored-By trailers,
+   no "generated with" lines). Normal technical commit messages only.
+4. **Commit and push as soon as a task or a meaningful part of it is done** (at least every hour of work):
+   code + tests + docs together; never leave finished work uncommitted. Never force-push.
+5. Never commit API keys, tokens or passwords; never commit large binaries (>20 MB) or build directories.
+6. Keep `cd src && python -m pytest -q` green on every commit; add tests for every new component.
+
+### 1c. Progress log (for the periodic reviews)
+Keep `docs/generalized/PROGRESS.md` up to date: one dated entry per work session with what was done,
+numbers measured (validity, throughput, candidates, bugs), what is next, and open questions for the owner.
+Keep the task table in `docs/generalized/PLAN.md` current (status column).
+
+### 1d. When you find a bug (any target)
+1. Validate strictly: reproduce ≥3 times on the **newest** development version (DuckDB nightly
+   `pip install --pre -U duckdb`, DataFusion `main`, …), minimal self-contained reproducer, check that the
+   expected result is right (docs, standard, an equivalent query, another engine), find the versions affected,
+   search for duplicates (the project's GitHub issues incl. closed ones, recent commits on `main`/nightly,
+   release notes), find the root cause in the source when you can, and write a fix + a test in the project's
+   own test format when the fix is clear (DuckDB: `test/sql/**/*.test` sqllogictest; DataFusion: `*.slt`).
+   Doubtful findings go to `docs/bughunt/<target>/candidates.md`, not to a report.
+2. Push a **filing package** to `docs/bughunt/<target>/<ID>-<slug>/`:
+   - `report.md`: status, summary, severity, minimal reproducer, actual vs expected and why, versions,
+     root cause, how our fuzzer found it (oracle, config, signature), duplicate search done (links/queries);
+   - `issue.md`: the **exact text** for the GitHub issue (title + body in the project's issue template);
+   - `repro.sql` (and a script if needed);
+   - if a fix exists: `fix.patch` (made with `git format-patch` against the project's main, author
+     `Venu Kummari <venu2805k@gmail.com>`), the test file, and `pr.md` with the exact PR title and body;
+   - `steps.md`: what the owner must do, in order (fork, apply patch, branch name, commands to run the tests).
+3. Tell the owner in your reply (and in PROGRESS.md) that a package is ready. **Do not file it yourself.**
+
+### 1e. How to work
+- Make improvements and improvisations wherever they help the fuzzer or the paper; you do not need
+  permission for engineering decisions. Record important design decisions in PROGRESS.md.
+- Work fast but do not degrade quality. Measure before and after every change (validity, throughput,
+  bugs/candidates, precision).
+- Long jobs run in the background; wait on files/conditions; when asked to stop, stop background jobs
+  **and** orphaned workers (section 7).
+- Ask the owner only for decisions that are really his (filing, venue, paper authorship/AI statement,
+  permissions such as `cargo build`).
 
 ## 2. Bugs: status on 2 Nov 2026 (keep this table current)
 
@@ -66,7 +108,7 @@ Known upstream infra bug that hits our servers: #17731 (crash recovery "could no
 Counts used everywhere: 9 original reported, 4 answered, 2 confirmed, **3 fixed (2 by our team)**;
 plus E-01 and E-02 filed on 2 Nov (11 reports in total).
 
-**To do for bugs:** ask the owner for E-02's bug number and record it (E-02 md, RESULTS_ANALYSIS,
+**To do for bugs (PostgreSQL ones are the owner's; only record what he tells you):** ask the owner for E-02's bug number and record it (E-02 md, RESULTS_ANALYSIS,
 slides, paper); watch the threads of #19826 and E-02 and help answer reviewer questions;
 the Teams post (owner has the text) still needs links for #19803, #19771, #19802, C-01, MCV thread.
 
@@ -108,6 +150,7 @@ the Teams post (owner has the text) still needs links for #19803, #19771, #19802
   Rebuild with `scripts/setup_env.sh` and checkout the commit you need
   (`./configure --prefix=... --enable-cassert --enable-debug --without-icu --without-readline --without-zlib`).
 - initdb/servers must run as a non-root user (`useradd -m pg`).
+- PostgreSQL builds are **not needed** any more (PostgreSQL hunting is finished).
 - Python: `pip install -r src/requirements.txt` plus `duckdb --pre` (nightly 2.1.0.dev) and
   `datafusion` (55) for the generalized branch. Node + `pptxgenjs@3.12.0` and LibreOffice only for slides.
 
@@ -115,11 +158,9 @@ the Teams post (owner has the text) still needs links for #19803, #19771, #19802
 
 Plan: `docs/generalized/PLAN.md` (targets, tasks G1–G10, paper claims). Summary of tasks:
 
-- G1 target abstraction; G2 grammar layering (portable core + dialect overlays);
-- G3 **DuckDB target** (in progress); G4 DataFusion target; G5 SQLite + cross-engine oracle;
-- G6 LLM grammar extension from each engine's regression tests; G7 harness hardening;
-- G8 evaluation design (baselines SQLancer/SQLsmith, ≥10 trials); G9 bug campaigns (DuckDB nightly,
-  DataFusion main) → GitHub issues and PRs; G10 paper rewrite for the January 2027 venue.
+Tasks G1–G11 with acceptance criteria, improvisation ideas, timeline and the paper's claims are in
+PLAN.md; follow it and keep its Status column current. Bug campaigns produce filing packages only
+(section 1d); the owner files them.
 
 ### State of G3 (DuckDB), exactly where it stopped
 
@@ -160,8 +201,8 @@ First measurement (300 test cases, 992 statements) — **validity is still poor*
 3. Run a DuckDB campaign: `python -m pgfuzz run configs/duckdb.yaml -j 4` (check `results/duckdb/`),
    triage candidates (`pgfuzz triage configs/duckdb.yaml <failure dirs>`), validate on the newest nightly
    (`pip install --pre -U duckdb`), duplicate-search https://github.com/duckdb/duckdb/issues, then write
-   `docs/bughunt/duckdb/D-NN-*.md` with reproducer + filing text for a GitHub issue (and a PR if the fix is
-   clear; DuckDB repo: https://github.com/duckdb/duckdb, CONTRIBUTING requires tests in `test/sql/`).
+   a filing package as in section 1d (`docs/bughunt/duckdb/D-NN-<slug>/`; DuckDB repo:
+   https://github.com/duckdb/duckdb, CONTRIBUTING requires tests in `test/sql/`). Do not file it.
    DuckDB wrong-result oracles: TLP/NoREC/expression rewrites and optimizer-off variants are the strongest;
    be careful with floating-point aggregates (masking exists), `ORDER BY` ties, `LIMIT` without total order,
    `random()`, `USING SAMPLE`, threads (row order), and DuckDB's documented semantic differences.
@@ -176,7 +217,7 @@ First measurement (300 test cases, 992 statements) — **validity is still poor*
    transfer across SQL engines + engine-gated LLM grammar extension"; RQs across ≥3 engines; compare with
    SQLancer (supports PostgreSQL, DuckDB, SQLite, DataFusion) under the same budget.
 
-## 6. Other pending items for the course (before 13 Nov)
+## 6. Other pending items for the course (before 13 Nov) — the owner's items; act only if he asks
 
 - P1 Record E-02's bug number when the owner gives it (E-02 md, RESULTS_ANALYSIS, slides, paper table, verdicts).
 - P2 Paper `sections/data.tex`: AI-use statement (`\todo`) — owner's decision; anonymous mirror URL (`\num{}`)
@@ -210,9 +251,9 @@ First measurement (300 test cases, 992 statements) — **validity is still poor*
 
 ## 8. How to start (for the next session)
 
-1. `git clone https://github.com/v28k/cs5187-term-project && cd cs5187-term-project && git checkout generalized`
+1. Clone and create your public repo as in section 1b.
 2. Read this file, `docs/generalized/PLAN.md`, `docs/RESULTS_ANALYSIS.md`.
 3. `cd src && pip install -r requirements.txt && pip install --pre -U duckdb && python -m pytest -q` (151 pass).
 4. Continue at section 5 "Next steps", step 1 (dialect overlay), and push after each step.
-5. Ask the owner for: E-02 bug number; permission for `cargo build` (DataFusion main); paper AI statement and
-   mirror URL decisions.
+5. Create your public repository (section 1b), start `docs/generalized/PROGRESS.md`, push.
+6. Ask the owner for: E-02 bug number; permission for `cargo build` (DataFusion main); paper decisions.
