@@ -466,7 +466,8 @@ class Rewriter:
 
     def _pred(self, t: _Tree, root: Node, schema: Schema):
         """Equivalent forms of one predicate node: IN list <-> OR chain (PG 18 turns OR
-        chains into = ANY), comparison <-> negated complement, BETWEEN <-> two bounds."""
+        chains into = ANY), comparison <-> negated complement, BETWEEN <-> two bounds,
+        p <-> (p AND p)."""
         cands = []
         for n in t.nodes:
             if n.sym != "expr" or n.typ != "bool":
@@ -501,6 +502,10 @@ class Rewriter:
                 if x and lo and hi:
                     cands.append(("between", n, ["(", "("] + _paren(x) + [">="] + _paren(lo) + [")", "AND", "("]
                                   + _paren(x) + ["<="] + _paren(hi) + [")", ")"]))
+            # ( p ) -> ( ( p ) AND ( p ) ): idempotence holds in three-valued logic
+            if t.tokens(n):
+                cands.append(("and_dup", n, ["(", "("] + list(t.tokens(n) or []) + [")", "AND", "("]
+                                            + list(t.tokens(n) or []) + [")", ")"]))
         if not cands:
             return None
         name, n, new = self.rng.choice(cands)

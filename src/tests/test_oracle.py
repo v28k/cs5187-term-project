@@ -91,3 +91,9 @@ def test_log_evidence_without_connection_loss():
     # e.g. another backend crashed; attribute to the last executed statement
     c = classify(_res(StatementResult(S.OK), StatementResult(S.OK), log=["LOG:  server process (PID 3) was terminated by signal 11"]))
     assert c.outcome is Outcome.CRASH and c.culprit == 1
+
+
+def test_hung_statement_is_a_hang_candidate():
+    c = classify(_res(StatementResult(S.OK), StatementResult(S.HUNG, None, "statement ignored statement_timeout"),
+                      StatementResult(S.SKIPPED)))
+    assert c.outcome is Outcome.HANG and c.culprit == 1 and c.is_bug_candidate

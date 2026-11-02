@@ -1,5 +1,6 @@
 import random
 import re
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -185,3 +186,27 @@ def test_profile_literals_come_from_the_data_of_the_compared_column():
     rng = _r.Random(0)
     assert p.for_column("t1", "c0", rng) in p.by_col[("t1", "c0")]
     assert p.for_column("nope", "c0", rng) is None
+
+
+def test_statistics_import_and_cast_alternatives_render():
+    """The November additions (expression statistics, statistics import with boundary
+    frequencies, a user-defined implicit cast, IGNORE NULLS over whole-partition frames)
+    are derived, and the import call names the statistics object created before it."""
+    src = Path(__file__).resolve().parents[1]
+    gen = GrammarGenerator(str(src / "grammar" / "postgres.pgg"), str(src / "corpus" / "schema.yaml"))
+    gen.setup(GeneratorContext(11, random.Random(11), Path(tempfile.mkdtemp())))
+    seen = set()
+    for _ in range(4000):
+        stmts = gen.next_testcase().statements
+        for k, sql in enumerate(stmts):
+            if "PG_RESTORE_EXTENDED_STATS" in sql:
+                seen.add("restore")
+                name = re.search(r"'statistics_name', '(\w+)'", sql).group(1)
+                assert any(f"CREATE STATISTICS {name} " in s for s in stmts[:k]), stmts
+            if re.search(r"CREATE STATISTICS .*IS (TRUE|FALSE|NULL)", sql):
+                seen.add("stats_expr")
+            if "CREATE CAST" in sql:
+                seen.add("cast")
+            if "IGNORE NULLS OVER (" in sql and "UNBOUNDED FOLLOWING" in sql:
+                seen.add("ignore_nulls_frame")
+    assert {"restore", "stats_expr", "cast", "ignore_nulls_frame"} <= seen, seen

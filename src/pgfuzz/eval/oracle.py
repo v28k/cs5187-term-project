@@ -257,6 +257,9 @@ def classify(
                 variant_info[i] = vo[1]
         elif st.status is StatementStatus.SKIPPED:
             outcomes.append(Outcome.OK)
+        elif st.status is StatementStatus.HUNG:
+            outcomes.append(Outcome.HANG)
+            lost_at = i if lost_at is None else lost_at
         elif st.status is StatementStatus.CONNECTION_LOST:
             if result.extra.get("foreign_crash") or (
                     st.sqlstate and classify_sqlstate(st.sqlstate) is Outcome.CONNECTION_TERMINATED):

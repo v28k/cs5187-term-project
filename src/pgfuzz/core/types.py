@@ -22,6 +22,7 @@ class StatementStatus(str, enum.Enum):
     OK = "ok"
     ERROR = "error"
     CONNECTION_LOST = "connection_lost"
+    HUNG = "hung"            # ignored statement_timeout and cancel; the server was restarted
     SKIPPED = "skipped"
 
 
@@ -36,6 +37,7 @@ class Outcome(str, enum.Enum):
     RESOURCE_LIMIT = "resource_limit"
     CONNECTION_TERMINATED = "connection_terminated"
     PERFORMANCE = "performance"      # a cardinality-estimation inconsistency (CERT); not a wrong answer
+    HANG = "hang"                    # the backend ignored statement_timeout and query cancel
     WRONG_RESULT = "wrong_result"
     INTERNAL_ERROR = "internal_error"
     DATA_CORRUPTION = "data_corruption"
@@ -63,6 +65,7 @@ _SEVERITY = {o: i for i, o in enumerate(Outcome)}
 BUG_CANDIDATES = frozenset(
     {
         Outcome.PERFORMANCE,
+        Outcome.HANG,
         Outcome.WRONG_RESULT,
         Outcome.INTERNAL_ERROR,
         Outcome.DATA_CORRUPTION,

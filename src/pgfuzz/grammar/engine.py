@@ -1061,6 +1061,31 @@ def _b_target_name(eng: Engine, ctx: Ctx, tv: dict, args: list[str], guide: Node
     return None, [it.rel]
 
 
+@builtin("target_str")
+def _b_target_str(eng: Engine, ctx: Ctx, tv: dict, args: list[str], guide: Node | None):
+    """The target relation's name as a string literal (for catalog functions)."""
+    it = ctx.scope.target
+    if it is None:
+        raise Fail("no target")
+    return None, [f"'{it.rel}'"]
+
+
+@builtin("stat_name")
+def _b_stat_name(eng: Engine, ctx: Ctx, tv: dict, args: list[str], guide: Node | None):
+    """A fresh statistics-object name; ``@stat_str`` repeats it as a string literal."""
+    eng.new_n += 1
+    eng.last_stat = f"s{eng.new_n}"
+    return None, [eng.last_stat]
+
+
+@builtin("stat_str")
+def _b_stat_str(eng: Engine, ctx: Ctx, tv: dict, args: list[str], guide: Node | None):
+    name = getattr(eng, "last_stat", None)
+    if not name:
+        raise Fail("no statistics object")
+    return None, [f"'{name}'"]
+
+
 @builtin("fresh_name")
 def _b_fresh_name(eng: Engine, ctx: Ctx, tv: dict, args: list[str], guide: Node | None):
     eng.new_n += 1

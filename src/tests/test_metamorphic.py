@@ -175,7 +175,9 @@ def test_new_rewrites_on_the_real_grammar():
                 assert "(NOT (" in rhs.replace("( NOT (", "(NOT (")
             elif k == "notnull":
                 assert "IS NOT NULL" in rhs
-    for k in ("pred:in_or", "pred:cmp_negate", "pred:between", "notnull", "order_drop"):
+            elif k == "pred:and_dup":
+                assert " AND " in rhs
+    for k in ("pred:in_or", "pred:cmp_negate", "pred:between", "pred:and_dup", "notnull", "order_drop"):
         assert seen[k] > 0, (k, seen)
 
     agg = GrammarGenerator(str(PGG), str(SCHEMA), mm_prob=1.0, mm_weights={"tlp_agg": 1.0})

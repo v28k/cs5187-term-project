@@ -60,6 +60,7 @@ misreported as errors, and result digests are exact.
 from __future__ import annotations
 
 import json
+import contextlib
 import re
 import subprocess
 import time
@@ -99,6 +100,8 @@ class PostgresExecutor(Executor):
         mask_floats: bool = True,
         create_database: bool = False,
         text_results: bool = True,
+        hang_command: str | None = None,
+        hang_grace_s: float = 10.0,
     ) -> None:
         if isolation not in ("savepoint", "autocommit"):
             raise ValueError("isolation must be 'savepoint' or 'autocommit'")
@@ -119,6 +122,12 @@ class PostgresExecutor(Executor):
         self.recovery_timeout_s = float(recovery_timeout_s)
         self.crash_log_wait_s = float(crash_log_wait_s)
         self.text_results = bool(text_results)
+        # Hang oracle: a statement still running hang_grace_s after its statement_timeout
+        # ignored the timeout and the cancel it sends. hang_command (e.g. an immediate
+        # restart of this worker's server) then ends it; off when not configured.
+        self.hang_command = hang_command
+        self.hang_grace_s = float(hang_grace_s)
+        self._hung = False
         d = differential if isinstance(differential, dict) else ({} if differential else None)
         self.diff_enabled = d is not None
         self.digests = bool(digests)   # digest eligible results even without plan variants (cross-version)
@@ -313,7 +322,8 @@ class PostgresExecutor(Executor):
             try:
                 if in_txn:
                     self.conn.execute("SAVEPOINT pgfuzz_sp")
-                cur = self.conn.execute(sql)
+                with self._hang_watch():
+                    cur = self.conn.execute(sql)
                 rows = cur.rowcount if cur.rowcount is not None and cur.rowcount >= 0 else None
                 digest = None
                 data: list[Any] = []
@@ -359,6 +369,13 @@ class PostgresExecutor(Executor):
                 del results[n_before:]  # the statement may have succeeded before RELEASE failed
                 sqlstate = getattr(e, "sqlstate", None)
                 msg = _message(e)
+                if self._hung:
+                    self._hung = False
+                    lost = True
+                    results.append(StatementResult(StatementStatus.HUNG, sqlstate,
+                                                   f"statement ignored statement_timeout and cancel for "
+                                                   f"{self.hang_grace_s:.0f} s; server restarted", _ms(s0)))
+                    continue
                 if not self._alive():
                     lost = True
                     results.append(StatementResult(StatementStatus.CONNECTION_LOST, sqlstate, msg, _ms(s0)))
@@ -408,6 +425,34 @@ class PostgresExecutor(Executor):
             extra["foreign_crash"] = foreign
             log = []
         return ExecResult(results, wall_ms=_ms(t0), server_log=log, server_restarted=restarted, extra=extra)
+
+    @contextlib.contextmanager
+    def _hang_watch(self):
+        """Run the body under the hang watchdog (no-op without ``hang_command``)."""
+        if not self.hang_command:
+            yield
+            return
+        import threading
+
+        def fire() -> None:
+            self._hung = True
+            try:
+                self.conn.cancel_safe()
+            except Exception:
+                try:
+                    self.conn.cancel()
+                except Exception:
+                    pass
+            time.sleep(1.0)
+            subprocess.run(self.hang_command, shell=True, timeout=120, capture_output=True)
+
+        timer = threading.Timer(self.statement_timeout_ms / 1000 + self.hang_grace_s, fire)
+        timer.daemon = True
+        timer.start()
+        try:
+            yield
+        finally:
+            timer.cancel()
 
     def _run_variants(self, sql: str) -> dict[str, dict[str, Any]]:
         """Re-run ``sql`` under plan variants; every run is rolled back. Stops at a lost connection."""

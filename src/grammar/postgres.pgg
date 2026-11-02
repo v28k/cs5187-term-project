@@ -46,6 +46,14 @@ setup_stmt
   | <1> delete_stmt
   | <1.5> alter_table
   | <1.5> set_stmt
+  | <0.3> create_cast
+  ;
+
+# a user-defined implicit cast whose function can return NULL for a non-NULL input
+create_cast
+  : CREATE FUNCTION "pgf_i2t(int)" RETURNS "text" IMMUTABLE STRICT LANGUAGE "sql"
+      AS "$$ SELECT CASE WHEN $1 <> 0 THEN $1::varchar END $$"
+      ";" CREATE CAST "(int AS text)" WITH FUNCTION "pgf_i2t(int)" AS IMPLICIT
   ;
 
 explain_stmt
@@ -280,6 +288,7 @@ expr<bool>
   | <0.7> "(" expr<X:key> NOT?0.3 BETWEEN SYMMETRIC?0.2 expr<X> AND expr<X> ")"
   | <1> "(" expr<X:key> NOT?0.3 IN "(" expr<X>{1,4/","} ")" ")"
   | <1> "(" expr<X:key> NOT?0.3 IN in_sub<X> ")"
+  | <0.1> "(" expr<text> NOT IN in_sub<int> ")"
   | <1> "(" NOT?0.3 EXISTS exists_sub ")"
   | <0.6> "(" expr<X:key> cmp (ANY | ALL) in_sub<X> ")"
   | <0.4> "(" expr<X:skey> "=" ANY "(" ARRAY "[" expr<X>{1,3/","} "]" ")" ")"
@@ -484,12 +493,15 @@ win<T:mm>
   | <0.5> FIRST_VALUE "(" expr<T> ")" OVER window_ord
   | <0.3> NTH_VALUE "(" expr<T> "," "2" ")" OVER window_ord
   | <0.3> LAG "(" expr<T> ")" IGNORE NULLS OVER window_ord
+  | <0.3> (FIRST_VALUE "(" expr<T> ")" | LAST_VALUE "(" expr<T> ")" | NTH_VALUE "(" expr<T> "," ("1" | "2") ")") IGNORE NULLS OVER window_frame
   ;
 
 win<numeric> : <1> SUM "(" expr<numeric> ")" OVER window | <1> AVG "(" expr<int> ")" OVER window ;
 
 window : "(" partition_by?0.6 (ORDER BY wkey{1,2/","})?0.5 ")" ;
 window_ord : "(" partition_by?0.6 ORDER BY wkey{1,2/","} frame?0.3 ")" ;
+window_frame : "(" partition_by?0.5 (ORDER BY wkey{1,2/","})?0.5 full_frame ")" ;
+full_frame : (ROWS | GROUPS | RANGE) BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING (EXCLUDE CURRENT ROW | EXCLUDE TIES | EXCLUDE GROUP)?0.6 ;
 partition_by : PARTITION BY expr<*:key>{1,2/","} ;
 wkey : expr<*:key> (ASC | DESC)?0.3 (NULLS FIRST | NULLS LAST)?0.2 ;
 frame
@@ -602,7 +614,18 @@ matview_def @shape : CREATE MATERIALIZED VIEW @new_table(shape, matview) AS ^sub
 create_stats @scope
   : <2> CREATE STATISTICS ("(" (NDISTINCT | DEPENDENCIES | MCV) ")")?0.5 ON @target_col(key, distinct) "," @target_col(key, distinct) FROM ^@target(plain) ";" ANALYZE @target_name
   | <1> CREATE STATISTICS ON "(" COALESCE "(" @target_col(X:key) "," @target_col(X) ")" ")" FROM ^@target(plain) ";" ANALYZE @target_name
+  | <1> CREATE STATISTICS ("(" (DEPENDENCIES | NDISTINCT | MCV) ")")?0.7 ON @target_col(key, distinct) "," "(" @target_col(bool, distinct) IS (TRUE | FALSE | NULL) ")"
+          FROM ^@target(plain) ";" ANALYZE @target_name
+  | <0.5> CREATE STATISTICS @stat_name "(" MCV ")" ON @target_col(key, distinct) "," @target_col(key, distinct) FROM ^@target(plain) ";" ANALYZE @target_name
+          ";" SELECT PG_RESTORE_EXTENDED_STATS "(" "'schemaname'" "," "'public'" "," "'relname'" "," @target_str
+          "," "'statistics_schemaname'" "," "'public'" "," "'statistics_name'" "," @stat_str "," "'inherited'" "," FALSE
+          "," "'most_common_vals'" "," "'{{0,0},{1,1}}'::text[]" "," "'most_common_freqs'" "," stat_freqs
+          "," "'most_common_base_freqs'" "," stat_freqs ")"
   ;
+
+# imported statistics values, including the boundary values a dump could carry
+stat_freqs : "ARRAY[" stat_freq "," stat_freq "]::float8[]" ;
+stat_freq : <3> "0.3" | <2> "0.1" | <1> "0" | <1> "1" | <1> "'NaN'" | <1> "'Infinity'" | <0.5> "'-Infinity'" ;
 
 alter_table @scope
   : <2> ALTER TABLE @target(plain) ADD CHECK "(" "(" @target_col(key) IS NOT NULL ")" OR TRUE ")" NOT VALID
