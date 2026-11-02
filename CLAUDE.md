@@ -12,3 +12,5 @@ stopped), then `docs/generalized/PLAN.md` (tasks G1–G11 for the A* paper) and
   and tell the owner; he files them.
 - Do not hunt PostgreSQL any more. Improve the fuzzer wherever it helps; log every session
   in PROGRESS.md; keep `cd src && python -m pytest -q` green.
+- Never stop to ask the owner: leave non-engineering decisions blank (placeholders, listed under
+  "Open decisions" in PROGRESS.md) and keep working; list finished bug packages there too.

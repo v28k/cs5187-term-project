@@ -79,7 +79,8 @@ Keep the task table in `docs/generalized/PLAN.md` current (status column).
    - if a fix exists: `fix.patch` (made with `git format-patch` against the project's main, author
      `Venu Kummari <v.kummari@iitg.ac.in>`), the test file, and `pr.md` with the exact PR title and body;
    - `steps.md`: what the owner must do, in order (fork, apply patch, branch name, commands to run the tests).
-3. Tell the owner in your reply (and in PROGRESS.md) that a package is ready. **Do not file it yourself.**
+3. List the package in PROGRESS.md under "Bug packages ready" (path, one line, confidence) and continue
+   working; the owner checks the repository and files it. **Do not file it yourself.**
 
 ### 1e. How to work
 - Make improvements and improvisations wherever they help the fuzzer or the paper; you do not need
@@ -88,8 +89,13 @@ Keep the task table in `docs/generalized/PLAN.md` current (status column).
   bugs/candidates, precision).
 - Long jobs run in the background; wait on files/conditions; when asked to stop, stop background jobs
   **and** orphaned workers (section 7).
-- Ask the owner only for decisions that are really his (filing, venue, paper authorship/AI statement,
-  permissions such as `cargo build`).
+- **Never stop to ask the owner anything.** Decisions that are not engineering ones (target venue,
+  paper authorship, AI-use statement, anonymous mirror URL, which bugs get filed and when) are left
+  **blank / as clearly marked placeholders** (e.g. `VENUE: TBD`, `\todo{owner}`) and listed under
+  "Open decisions" in `docs/generalized/PROGRESS.md`; the owner reviews the repository and fills them in.
+  Keep working on everything else meanwhile.
+- If an action is blocked (e.g. a permission for `cargo build`, a network host), note it under
+  "Blocked" in PROGRESS.md, use a workaround if there is a sound one, and continue with other tasks.
 
 ## 2. Bugs: status on 2 Nov 2026 (keep this table current)
 
@@ -113,7 +119,7 @@ Known upstream infra bug that hits our servers: #17731 (crash recovery "could no
 Counts used everywhere: 9 original reported, 4 answered, 2 confirmed, **3 fixed (2 by our team)**;
 plus E-01 and E-02 filed on 2 Nov (11 reports in total).
 
-**To do for bugs (PostgreSQL ones are the owner's; only record what he tells you):** ask the owner for E-02's bug number and record it (E-02 md, RESULTS_ANALYSIS,
+**To do for bugs (PostgreSQL ones are the owner's; only record what he tells you):** E-02's bug number is unknown (leave it as a placeholder) and record it (E-02 md, RESULTS_ANALYSIS,
 slides, paper); watch the threads of #19826 and E-02 and help answer reviewer questions;
 the Teams post (owner has the text) still needs links for #19803, #19771, #19802, C-01, MCV thread.
 
@@ -260,5 +266,5 @@ First measurement (300 test cases, 992 statements) — **validity is still poor*
 2. Read this file, `docs/generalized/PLAN.md`, `docs/RESULTS_ANALYSIS.md`.
 3. `cd src && pip install -r requirements.txt && pip install --pre -U duckdb && python -m pytest -q` (151 pass).
 4. Continue at section 5 "Next steps", step 1 (dialect overlay), and push after each step.
-5. Create your public repository (section 1b), start `docs/generalized/PROGRESS.md`, push.
-6. Ask the owner for: E-02 bug number; permission for `cargo build` (DataFusion main); paper decisions.
+5. Create your public repository (section 1b), continue `docs/generalized/PROGRESS.md`, push.
+6. Do not wait for answers: open decisions go into PROGRESS.md (placeholders), work continues.

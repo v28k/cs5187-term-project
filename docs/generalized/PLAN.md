@@ -11,9 +11,9 @@ token reduction, localization, the precision ledger, the engine-gated LLM extens
 re-injected bug benchmark) and turn it into **one fuzzer for many SQL engines**, then show
 that the approach finds new bugs across engines with measured oracle precision.
 
-Target: A*-level work. Venue: a top software-engineering / testing / security venue with a deadline around
+Target: A*-level work. Venue: **TBD (owner decides; leave as placeholder)** — a top software-engineering / testing / security venue with a deadline around
 January 2027 (ISSTA usually has a late-January deadline; also check ICSE, FSE, ASE, OOPSLA,
-CCS/USENIX Security CFPs and pick with the owner). Format: ACM `acmart` (the course paper in
+CCS/USENIX Security CFPs). Format: ACM `acmart` (the course paper in
 `paper/` is a starting point but needs a new framing and new evaluation).
 
 Claims the paper must support (each needs an experiment):
@@ -53,7 +53,7 @@ Claims the paper must support (each needs an experiment):
 | G1 | **Target abstraction**: a `Target` spec (YAML + small Python adapter) = executor, dialect overlay(s), schema, error→outcome taxonomy, plan-variant knobs, version pair for cross-version, EXPLAIN shape extractor, reset strategy. Port PostgreSQL to it without behaviour change. | `pytest` green; PostgreSQL configs give the same validity as before; adding an engine = new adapter + overlay + schema only. | todo |
 | G2 | **Dialect overlays** in the grammar DSL: `%drop <rule> "<text>"`, `%droptype <T>`, `%rename`, plus added rules; portable `core.pgg` + `postgres.pgg` / `duckdb.pgg` / `datafusion.pgg` / `sqlite.pgg` overlays. | each engine ≥95 % valid in `sample --execute` (300 test cases); unit tests for the directives. | todo |
 | G3 | **DuckDB target** (nightly): executor exists (`pgfuzz/targets/duckdb_executor.py`); finish overlay, DuckDB-specific features (lists, structs, maps, lambdas, QUALIFY, ASOF/POSITIONAL joins, PIVOT, GROUP BY ALL, window EXCLUDE…), plan variants from `duckdb_optimizers()`, cross-version (last release vs nightly in two workers), unit tests. | first campaign 4×1 h runs clean (no harness errors); candidates triaged. | in progress |
-| G4 | **DataFusion target** (`main`): needs `cargo build` permission (ask owner) or start with pip `datafusion`; executor via Python bindings in a worker process (panics = crash), optimizer-rule toggles as variants, overlay. | ≥95 % valid; campaign; candidates triaged. | todo |
+| G4 | **DataFusion target** (`main`): needs `cargo build` (if blocked, note it in PROGRESS.md) or start with pip `datafusion`; executor via Python bindings in a worker process (panics = crash), optimizer-rule toggles as variants, overlay. | ≥95 % valid; campaign; candidates triaged. | todo |
 | G5 | **SQLite target** + **cross-engine differential oracle** on the portable subset with normalisation (NULL ordering, integer division, float formatting, type affinity, collations); disagreements go through triage; measure its precision honestly. | ledger per pair of engines. | todo |
 | G6 | **LLM knowledge transfer from test suites**: parse each engine's regression tests (DuckDB `test/sql/*.test`, DataFusion `*.slt`, SQLite `test/*.test`, PostgreSQL `regress/sql`) and recent commits; the LLM proposes grammar fragments + rewrites; the existing gate (parse, use, validity, coverage/plan-shape gain) validates on the target; ledger. Model: whatever the owner has (Claude or Gemini via the client's API/manual modes). | ablation numbers per engine. | todo |
 | G7 | **Harness hardening**: process groups so stopping a run kills all workers; per-target crash/hang isolation; cross-engine signature de-duplication; automatic triage → filing-package draft (section 1d of HANDOFF). | no orphaned workers; triage produces `report.md`/`issue.md` drafts. | todo |
