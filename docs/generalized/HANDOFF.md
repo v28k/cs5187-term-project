@@ -19,6 +19,7 @@ doing anything. Then read `docs/generalized/PLAN.md`, `docs/RESULTS_ANALYSIS.md`
 - **Repository the professor sees:** https://github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi
   (not yet updated; see section 6, item P4).
 - **Course dates:** final presentation 12 Nov 2026; paper + repository due 13 Nov 2026.
+- **Owner's GitHub email: v.kummari@iitg.ac.in** (use it for every commit and every patch/PR author line).
 - **New goal (from the professor):** turn the project into a high-level, target-independent
   fuzzer, find more bugs on other engines (GitHub issues/PRs, to build Venu's GitHub
   contribution record), and write a paper for an A* venue with a deadline around
@@ -44,8 +45,9 @@ doing anything. Then read `docs/generalized/PLAN.md`, `docs/RESULTS_ANALYSIS.md`
    git remote rename origin upstream && gh repo create <you>/generalized-sql-fuzzer --public --source . --push`
    (or create it on the web and `git remote add origin ... && git push -u origin generalized`).
    Make `generalized` its default branch. Send the owner the URL.
-2. Commit with the owner's identity, because it is his work:
-   `git -c user.name=v28k -c user.email=samruddhi.sonawane6116@gmail.com commit -m "..."`
+2. Commit with the owner's GitHub identity, because it is his work (his GitHub account email is
+   **v.kummari@iitg.ac.in** — always use it, so the commits count on his GitHub profile):
+   `git -c user.name=v28k -c user.email=v.kummari@iitg.ac.in commit -m "..."`
 3. **Never mention Claude, Anthropic or "AI" in commit messages or in files** (no Co-Authored-By trailers,
    no "generated with" lines). Normal technical commit messages only.
 4. **Commit and push as soon as a task or a meaningful part of it is done** (at least every hour of work):
@@ -72,7 +74,7 @@ Keep the task table in `docs/generalized/PLAN.md` current (status column).
    - `issue.md`: the **exact text** for the GitHub issue (title + body in the project's issue template);
    - `repro.sql` (and a script if needed);
    - if a fix exists: `fix.patch` (made with `git format-patch` against the project's main, author
-     `Venu Kummari <venu2805k@gmail.com>`), the test file, and `pr.md` with the exact PR title and body;
+     `Venu Kummari <v.kummari@iitg.ac.in>`), the test file, and `pr.md` with the exact PR title and body;
    - `steps.md`: what the owner must do, in order (fork, apply patch, branch name, commands to run the tests).
 3. Tell the owner in your reply (and in PROGRESS.md) that a package is ready. **Do not file it yourself.**
 
@@ -158,7 +160,7 @@ the Teams post (owner has the text) still needs links for #19803, #19771, #19802
 
 Plan: `docs/generalized/PLAN.md` (targets, tasks G1–G10, paper claims). Summary of tasks:
 
-Tasks G1–G11 with acceptance criteria, improvisation ideas, timeline and the paper's claims are in
+Tasks G1–G11 with acceptance criteria, improvisation ideas and the paper's claims are in
 PLAN.md; follow it and keep its Status column current. Bug campaigns produce filing packages only
 (section 1d); the owner files them.
 

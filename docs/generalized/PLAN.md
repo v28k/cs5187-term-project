@@ -11,7 +11,7 @@ token reduction, localization, the precision ledger, the engine-gated LLM extens
 re-injected bug benchmark) and turn it into **one fuzzer for many SQL engines**, then show
 that the approach finds new bugs across engines with measured oracle precision.
 
-Target venue: a top software-engineering / testing / security venue with a deadline around
+Target: A*-level work. Venue: a top software-engineering / testing / security venue with a deadline around
 January 2027 (ISSTA usually has a late-January deadline; also check ICSE, FSE, ASE, OOPSLA,
 CCS/USENIX Security CFPs and pick with the owner). Format: ACM `acmart` (the course paper in
 `paper/` is a starting point but needs a new framing and new evaluation).
@@ -78,15 +78,11 @@ Claims the paper must support (each needs an experiment):
 - **Crash/sanitizer builds** where allowed (DuckDB debug build with assertions catches far more than the
   release wheel; ask the owner before building external code).
 
-## 5. Timeline (adjust with the owner)
+## 5. Pace
 
-| When | Milestone |
-|---|---|
-| Nov, week 1–2 | G1, G2, G3 (DuckDB ≥95 % valid, first campaigns), G7 basics |
-| Nov, week 3–4 | G4 DataFusion, G5 SQLite + cross-engine oracle, G9 campaigns running continuously |
-| Dec, week 1–2 | G6 LLM transfer, G10 DuckDB benchmark, G8 evaluation scripts; start long runs |
-| Dec, week 3–4 | full evaluation runs, triage, filing packages; paper draft (G11) |
-| Jan 2027 | final experiments, paper polish, artifact; submit |
+No calendar: do every task as soon as possible, one after another, **without lowering quality**.
+The main goal is an **A*-level fuzzer and project**; the paper follows from the results. Prefer
+depth and soundness (validated bugs, measured precision, strong baselines) over quantity.
 
 ## 6. Rules recap
 
