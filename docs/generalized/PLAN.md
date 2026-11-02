@@ -76,7 +76,7 @@ Claims the paper must support (each needs an experiment):
 - **Soundness rules as data**: per-engine semantic quirks (e.g. DuckDB integer division, NULL ordering,
   float output) as declarative normalisers instead of code.
 - **Crash/sanitizer builds** where allowed (DuckDB debug build with assertions catches far more than the
-  release wheel; ask the owner before building external code).
+  release wheel; if building is blocked, note it in PROGRESS.md and continue).
 
 ## 5. Pace
 

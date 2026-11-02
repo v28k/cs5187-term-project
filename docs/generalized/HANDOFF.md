@@ -220,7 +220,7 @@ First measurement (300 test cases, 992 statements) — **validity is still poor*
 4. Unit tests for the DuckDB executor (spawn a worker, crash detection with a deliberate abort is hard;
    at least: error mapping, digest, variants, checks) — keep `pytest` green.
 5. DataFusion (G4): **building `datafusion-cli` from `main` with cargo was blocked by the session's
-   permission classifier** (it runs external build scripts). Ask the owner whether to allow
+   permission classifier** (it runs external build scripts). Try it in your session (approve the build if your setup asks); if it is still blocked, note it in PROGRESS.md and
    `cargo build` (clone exists at `~/pgfuzz/src/datafusion` on the old machine; on a new machine
    `git clone --depth 1 https://github.com/apache/datafusion`), or use the `datafusion` pip package
    (release 55) to start. DataFusion bugs: https://github.com/apache/datafusion/issues; PRs welcome.
