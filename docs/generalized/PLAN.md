@@ -86,6 +86,7 @@ depth and soundness (validated bugs, measured precision, strong baselines) over 
 
 ## 6. Rules recap
 
-Owner files all bugs and PRs; you prepare packages. Public repo on your GitHub, push after every
-finished part, owner's commit identity, no Claude/AI mentions, tests green, PROGRESS.md updated.
+The project is your work; only upstream bug reports and PRs are the owner's (he files them from your
+packages). Public repo on your GitHub, your own commit identity, push after every finished part, no
+Claude/AI mentions, tests green, PROGRESS.md updated.
 Full details: `docs/generalized/HANDOFF.md`.

@@ -19,7 +19,7 @@ doing anything. Then read `docs/generalized/PLAN.md`, `docs/RESULTS_ANALYSIS.md`
 - **Repository the professor sees:** https://github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi
   (not yet updated; see section 6, item P4).
 - **Course dates:** final presentation 12 Nov 2026; paper + repository due 13 Nov 2026.
-- **Owner's GitHub email: v.kummari@iitg.ac.in** (use it for every commit and every patch/PR author line).
+- **Owner's GitHub email: v.kummari@iitg.ac.in** (use it as the author of every patch prepared for his pull requests).
 - **New goal (from the professor):** turn the project into a high-level, target-independent
   fuzzer, find more bugs on other engines (GitHub issues/PRs, to build Venu's GitHub
   contribution record), and write a paper for an A* venue with a deadline around
@@ -28,9 +28,11 @@ doing anything. Then read `docs/generalized/PLAN.md`, `docs/RESULTS_ANALYSIS.md`
 ## 1. Rules the owner gave (follow them exactly)
 
 ### 1a. Who does what
-- **The owner (Venu) files every bug and opens every PR himself.** You must NOT open GitHub issues,
-  must NOT open pull requests, must NOT post on any mailing list, forum or issue tracker, and must NOT
-  comment on anyone's issues. This is the owner's contribution record, not yours.
+- **The fuzzer, the research and the repository are your work** (the person continuing this project).
+  Only the **upstream submissions belong to the owner (Venu)**: he files the bug reports and opens the
+  pull requests himself, for his GitHub contribution record. So you must NOT open GitHub issues, must NOT
+  open pull requests, must NOT post on any mailing list, forum or issue tracker, and must NOT comment on
+  anyone's issues.
 - You prepare everything so the owner can file in minutes (section 1d), push it, and tell him.
 - **PostgreSQL bug hunting is finished.** Do not hunt PostgreSQL any more; PostgreSQL stays as one
   target in the evaluation only (its results already exist).
@@ -38,16 +40,16 @@ doing anything. Then read `docs/generalized/PLAN.md`, `docs/RESULTS_ANALYSIS.md`
   Keep it reviewable: small commits, clear messages, a progress log (section 1c).
 
 ### 1b. Repository and commits
-1. Create a **new public repository on your own GitHub account** named `generalized-sql-fuzzer`
+1. Create a **new public repository on your own GitHub account** (it is your work) named `generalized-sql-fuzzer`
    (or similar), containing the full history of branch `generalized` of
    https://github.com/v28k/cs5187-term-project:
    `git clone -b generalized https://github.com/v28k/cs5187-term-project && cd cs5187-term-project &&
    git remote rename origin upstream && gh repo create <you>/generalized-sql-fuzzer --public --source . --push`
    (or create it on the web and `git remote add origin ... && git push -u origin generalized`).
    Make `generalized` its default branch. Send the owner the URL.
-2. Commit with the owner's GitHub identity, because it is his work (his GitHub account email is
-   **v.kummari@iitg.ac.in** — always use it, so the commits count on his GitHub profile):
-   `git -c user.name=v28k -c user.email=v.kummari@iitg.ac.in commit -m "..."`
+2. Commit with **your own** git identity (any name/email you normally use). The only place where the
+   owner's identity is required is the author of patches meant for his pull requests (section 1d):
+   `Venu Kummari <v.kummari@iitg.ac.in>` (his GitHub email).
 3. **Never mention Claude, Anthropic or "AI" in commit messages or in files** (no Co-Authored-By trailers,
    no "generated with" lines). Normal technical commit messages only.
 4. **Commit and push as soon as a task or a meaningful part of it is done** (at least every hour of work):
