@@ -85,12 +85,12 @@ Triage reproduces x3: 28 flaky.
 
 | Verdict | Count |
 |---|---|
-| real | 7 |
+| real | 8 |
 | duplicate (real bug already reported upstream) | 15 |
-| false positive | 36 |
+| false positive | 41 |
 | not a bug (intended change) | 1 |
 | flaky | 28 |
-| undecided (TODO) | 6 |
+| undecided (TODO) | 0 |
 
 False-positive classes found in the final campaigns (all fixed in the tool after the runs, 10 new tests; stored reproducers rechecked):
 1. **Equal intervals with different text** (`MODE() WITHIN GROUP` over intervals, `UNION`, `INTERSECT ALL`): 16 candidates.
@@ -100,14 +100,17 @@ False-positive classes found in the final campaigns (all fixed in the tool after
 3. **Cross-version state divergence**: `LAG(...) IGNORE NULLS` (PG19-only) inside an INSERT succeeds on master, fails on 18.6, so later SELECTs differ: 5.
    Fix: stop comparing after a state-changing statement succeeds on one server only.
 4. **LLM rewrite that changes the collation** (above): 1. Fix: gate rejects COLLATE.
-* 5 RLS candidates stay **undecided**: they are not explained by class 2 (sort key equals the aggregated value). Verify at the end.
-* 1 more undecided: `corr(1.0/3, 1.0/3)` is NULL serially but 1 under partitionwise/parallel aggregation on master
-  (`float8_regr_combine` recomputes Sxx from rounded means although the accumulate function keeps it exactly zero for constant input;
-  commit 649828769). Reproduced on 126976a8, not on 18.x. A fix mirroring `float8_regr_accum` is sketched in the scratchpad
-  (not applied, not tested, **not searched upstream beyond the original thread**). Candidate new bug; verify at the end.
+5. **RLS rewrite left a protected table unfiltered** (5 candidates, decided 2 Nov 2026): a sub-select repeated
+   as text (ordered-aggregate sort key) has no table node, so the superuser side read rows the restricted role
+   cannot see; with every reference inlined both sides agree. Fix: the RLS check is skipped unless every
+   protected-table reference is inlined (test added).
+* The `corr()` candidate (c5a5ed497011) is a **real new bug (E-01)**: `corr()`/`regr_r2()`/`regr_slope()` of a
+  constant input are NULL serially but 1 under partitionwise or parallel partial aggregation (regression from
+  64982876, still on master 633dee1b; 18.6 consistent). Patch + regression test, `make check` 239/239.
+  Report and filing text: `docs/bughunt/new/E-01-corr-partial-aggregate.md`. Not yet filed.
 
-Precision (decided = real + false positive + not a bug; duplicates counted neither side): 7 / 44 = 0.16 before fixes;
-counting duplicates as true positives (they are real bugs the oracles found): 22 / 59 = 0.37. After the fixes to the tool: every
+Precision (decided = real + false positive + not a bug; duplicates counted neither side): 8 / 50 = 0.16 before fixes;
+counting duplicates as true positives (they are real bugs the oracles found): 23 / 65 = 0.35. After the fixes to the tool: every
 decided candidate left is real (the paper must say this is post hoc and not re-measured by a campaign).
 
 ### Real bugs and duplicates behind these numbers

@@ -182,20 +182,21 @@ versions that no crash oracle can see (BUG~\#19793 and \#19800).
 \end{observation}
 
 \paragraph{Precision.} Of the 93 candidates, 28 (30\%) did not reproduce in
-three re-runs and 6 are open. Of the 59 decided, 7 are real, 15 are duplicates
-of real bugs and 37 are false positives, so the precision is $7/44=0.16$ without
-duplicates and $22/59=0.37$ if duplicates count as true positives. The false
-positives come from few classes: six were fixed before the campaigns, and four
-that the campaigns revealed were fixed \emph{after} them, tested on the stored
+three re-runs. Of the 65 others, 8 are real, 15 are duplicates of real bugs and
+42 are false positives, so the precision is $8/50=0.16$ without duplicates and
+$23/65=0.35$ if duplicates count as true positives. The false positives come
+from few classes: six were fixed before the campaigns, and five that the
+campaigns revealed were fixed \emph{after} them, tested on the stored
 reproducers but not re-measured.
 They are equal \texttt{interval} values printed differently depending on
 join order (16 candidates; the digest now uses \pg's interval equality),
 order-sensitive aggregates sorted by a key that is not the value, such as
 \texttt{ORDER BY NULL} (2), state that diverges in the cross-version oracle
-after an \texttt{INSERT} only master accepts (5), and an LLM rewrite that is not
-an identity (Section~\ref{sec:rq4}). After these fixes every decided
-candidate left is real; five RLS candidates and one \texttt{corr()} case remain
-open.
+after an \texttt{INSERT} only master accepts (5), an RLS rewrite that left a
+protected table inside a repeated sub-select unfiltered (5), and an LLM rewrite
+that is not an identity (Section~\ref{sec:rq4}). One remaining candidate is
+a new bug we are reporting: \texttt{corr()} of a constant input is NULL
+serially but 1 under partial aggregation.
 
 \subsection{\rqref{3}: Re-injected Bugs}
 \label{sec:rq3}
