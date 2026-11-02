@@ -434,8 +434,9 @@ class PostgresExecutor(Executor):
             return
         import threading
 
+        done = threading.Event()
+
         def fire() -> None:
-            self._hung = True
             try:
                 self.conn.cancel_safe()
             except Exception:
@@ -443,7 +444,11 @@ class PostgresExecutor(Executor):
                     self.conn.cancel()
                 except Exception:
                     pass
-            time.sleep(1.0)
+            # a slow statement that honours the cancel is not a hang: restart only if it
+            # is still running a while after the cancel
+            if done.wait(5.0):
+                return
+            self._hung = True
             subprocess.run(self.hang_command, shell=True, timeout=120, capture_output=True)
 
         timer = threading.Timer(self.statement_timeout_ms / 1000 + self.hang_grace_s, fire)
@@ -452,6 +457,7 @@ class PostgresExecutor(Executor):
         try:
             yield
         finally:
+            done.set()
             timer.cancel()
 
     def _run_variants(self, sql: str) -> dict[str, dict[str, Any]]:

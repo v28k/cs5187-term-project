@@ -1,0 +1,46 @@
+# Rediscovery runs: can the fuzzer, as configured for the campaigns plus the grammar
+# and oracle additions of November 2026, find each of the nine bugs we reported?
+# Base build 26bd08fb (assertions on); servers from scripts/rediscover_servers.sh.
+experiment: hunt_newest
+output_dir: ../results
+trials: 4
+seed: 4242
+budget:
+  seconds: 2700
+coverage_interval_s: 100000
+snapshot_interval_s: 30
+log_sql: failures
+max_repros: 3
+max_harness_errors: 50
+known_bugs: ../known_bugs/known_bugs.yaml
+base_port: 5460
+
+executor:
+  plugin: pgfuzz.reference.pg_executor:PostgresExecutor
+  params:
+    dsn: "host=127.0.0.1 port={port} dbname=postgres user=postgres"
+    isolation: savepoint
+    statement_timeout_ms: 3000
+    setup_sql: ["{config_dir}/../corpus/schema.sql", "{config_dir}/../corpus/rls.sql"]
+    reset_sql: ["{config_dir}/../corpus/schema.sql", "{config_dir}/../corpus/rls.sql"]
+    server_log: "/home/pg/nw-{worker}/postgresql.log"
+    hang_command: "PGBIN=/root/pgfuzz/install/newest/bin PGDATA_ROOT=/home/pg/nw bash {config_dir}/../../scripts/rediscover_servers.sh restart {worker}"
+    hang_grace_s: 10
+    differential: {per_query: 2}
+    metamorphic: true
+    plan_shapes: {every: 1}
+
+configs:
+  - name: grammar_mm
+    label: Grammar+Oracles
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        schema: "{config_dir}/../corpus/schema.yaml"
+        mm_prob: 0.5
+        plan_guidance: true
+        bandit: 0.1
+        profile: "{config_dir}/../corpus/profile.json"
+        profile_prob: 0.3
+        rls: "{config_dir}/../corpus/rls.sql"
