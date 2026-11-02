@@ -1,3 +1,28 @@
+From 458a4ceacd2c90a33b9e5203988ae16c9e117262 Mon Sep 17 00:00:00 2001
+From: Venu Kummari <venu2805k@gmail.com>
+Date: Mon, 2 Nov 2026 15:30:35 +0000
+Subject: [PATCH] Keep constant-input sums exact in float8_regr_combine()
+
+Commit 64982876 taught float8_regr_accum() to leave Sxx, Syy and Sxy at
+exactly zero while all inputs seen so far are equal, so that corr(),
+regr_r2(), regr_slope() and friends return NULL for a constant input.
+float8_regr_combine() still added the correction terms
+N1 * N2 * (Sx1/N1 - Sx2/N2)^2 / N, which are not exactly zero because of
+roundoff in Sx1/N1 and Sx2/N2.  With partial aggregation (parallel query
+or partitionwise aggregate) a constant input therefore gave Sxx > 0 and
+corr() = 1, while the serial plan gave NULL.
+
+Apply the same rule as float8_regr_accum(): add a correction term only
+for a variable whose common value is not known (Cx or Cy is NaN).
+
+One existing test combines two hand-made states whose common X value (7)
+contradicts their sums; its expected output changes accordingly.
+---
+ src/backend/utils/adt/float.c            | 42 +++++++++++++++++-------
+ src/test/regress/expected/aggregates.out | 41 ++++++++++++++++++++++-
+ src/test/regress/sql/aggregates.sql      | 18 ++++++++++
+ 3 files changed, 89 insertions(+), 12 deletions(-)
+
 diff --git a/src/backend/utils/adt/float.c b/src/backend/utils/adt/float.c
 index 38ef6daf..6e3b5c70 100644
 --- a/src/backend/utils/adt/float.c
@@ -147,3 +172,6 @@ index 91f83421..7d4f0f3d 100644
  -- test accum and combine functions directly
  CREATE TABLE regr_test (x float8, y float8);
  INSERT INTO regr_test VALUES (10,150),(20,250),(30,350),(80,540),(100,200);
+-- 
+2.43.0
+

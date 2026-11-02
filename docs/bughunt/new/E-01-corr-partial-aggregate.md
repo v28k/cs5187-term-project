@@ -29,7 +29,7 @@ Non-constant inputs give identical results with and without the patch.
 
 ## Fix
 
-`E-01-corr-partial-aggregate.patch` (against master 633dee1b):
+`v1-0001-Keep-constant-input-sums-exact-in-float8_regr_combine.patch` (against master 633dee1b):
 
 - `float8_regr_combine()`: compute the common values Cx/Cy first and add the
   correction terms only for a variable that is not constant (Cx or Cy is NaN), exactly
