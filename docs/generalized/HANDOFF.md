@@ -219,11 +219,11 @@ First measurement (300 test cases, 992 statements) — **validity is still poor*
    `random()`, `USING SAMPLE`, threads (row order), and DuckDB's documented semantic differences.
 4. Unit tests for the DuckDB executor (spawn a worker, crash detection with a deliberate abort is hard;
    at least: error mapping, digest, variants, checks) — keep `pytest` green.
-5. DataFusion (G4): **building `datafusion-cli` from `main` with cargo was blocked by the session's
-   permission classifier** (it runs external build scripts). Try it in your session (approve the build if your setup asks); if it is still blocked, note it in PROGRESS.md and
-   `cargo build` (clone exists at `~/pgfuzz/src/datafusion` on the old machine; on a new machine
-   `git clone --depth 1 https://github.com/apache/datafusion`), or use the `datafusion` pip package
-   (release 55) to start. DataFusion bugs: https://github.com/apache/datafusion/issues; PRs welcome.
+5. DataFusion (G4): building `datafusion-cli` from `main` with cargo was blocked in the previous
+   session (it runs external build scripts). Try it in your session
+   (`git clone --depth 1 https://github.com/apache/datafusion && cd datafusion && cargo build -p datafusion-cli`);
+   if it is still blocked, note it in PROGRESS.md and start with the `datafusion` pip package (release 55).
+   DataFusion bugs: https://github.com/apache/datafusion/issues (filing is the owner's).
 6. Then G5/G6/G8/G10 as in PLAN.md. For the paper: new framing "typed derivation trees + oracles that
    transfer across SQL engines + engine-gated LLM grammar extension"; RQs across ≥3 engines; compare with
    SQLancer (supports PostgreSQL, DuckDB, SQLite, DataFusion) under the same budget.
