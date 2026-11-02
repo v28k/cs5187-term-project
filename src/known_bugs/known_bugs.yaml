@@ -38,3 +38,33 @@ bugs:
       outcome: internal_error
       message_regex: "SubPlan found with no parent plan"
     poc: pocs/pg19802_merge_subplan.sql
+
+  - id: pgbug-19803
+    title: "Parallel Append: Assert(!parallel_aware || parallel_safe) with a materialized CTE"
+    source: "pgsql-bugs BUG #19803 (28 Oct 2026), confirmed upstream"
+    affected: "master before abda2a2c (e.g. 26bd08fb)"
+    fixed_in: "abda2a2c (master)"
+    match:
+      outcome: assertion
+      assert_regex: "pathnode\\.c: !parallel_aware \\|\\| pathnode->path\\.parallel_safe"
+    poc: pocs/pg19803_parallel_append_assert.sql
+
+  - id: pgbug-19771
+    title: "to_char() of numeric NaN makes NORMALIZE() fail an assertion"
+    source: "pgsql-bugs BUG #19771, fix commit 776df8a6"
+    affected: "master before 776df8a6 (e.g. 26bd08fb)"
+    fixed_in: "776df8a6 (master)"
+    match:
+      outcome: assertion
+      assert_regex: "varlena\\.c: \\(char \\*\\) p == VARDATA_ANY\\(input\\)"
+    poc: pocs/pg19771_to_char_nan_normalize.sql
+
+  - id: audit-f1
+    title: "NOT IN -> anti-join conversion ignores a NULL-producing implicit cast on the sub-select side"
+    source: "https://www.postgresql.org/message-id/PN0P287MB090375874C6D5433282EC9DFA7642@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM"
+    affected: "19rc1, master (26bd08fb); not 18"
+    fixed_in: "open (patch sent)"
+    match:
+      outcome: wrong_result
+      message_regex: "check tlp_where failed: 1 rows vs 2 rows"
+    poc: pocs/audit_f1_not_in_cast.sql
