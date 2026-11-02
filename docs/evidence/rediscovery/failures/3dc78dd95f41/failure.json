@@ -1,0 +1,52 @@
+{
+  "v": 1,
+  "signature": "3dc78dd95f41",
+  "strength": "message",
+  "key": "internal_error|XX000|SubPlan found with no parent plan",
+  "outcome": "internal_error",
+  "sqlstate": "XX000",
+  "message": "SubPlan found with no parent plan",
+  "culprit": 2,
+  "culprit_sql": "MERGE INTO mp t\nUSING (SELECT true AS c OFFSET 0) s ON t.a IS NULL\nWHEN MATCHED THEN UPDATE SET b = (SELECT NULL WHERE s.c)\nWHEN NOT MATCHED THEN INSERT VALUES (1, 'x')",
+  "details": {},
+  "known_bugs": [
+    "pgbug-19802"
+  ],
+  "first_t": 9.535,
+  "testcase_id": 248,
+  "origin": "grammar",
+  "meta": {
+    "op": "seed"
+  },
+  "statements": [
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 1.9013719997929002,
+      "rows": null
+    },
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 2.209731000220927,
+      "rows": null
+    },
+    {
+      "status": "error",
+      "sqlstate": "XX000",
+      "message": "SubPlan found with no parent plan",
+      "duration_ms": 1.5626660001544224,
+      "rows": null
+    }
+  ],
+  "server_log": [
+    "2026-11-02 11:13:49.959 UTC [8566] ERROR:  SubPlan found with no parent plan",
+    "2026-11-02 11:13:49.959 UTC [8566] STATEMENT:  MERGE INTO mp t",
+    "\tUSING (SELECT true AS c OFFSET 0) s ON t.a IS NULL",
+    "\tWHEN MATCHED THEN UPDATE SET b = (SELECT NULL WHERE s.c)",
+    "\tWHEN NOT MATCHED THEN INSERT VALUES (1, 'x')"
+  ],
+  "extra": {}
+}

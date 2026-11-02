@@ -1,0 +1,46 @@
+{
+  "v": 1,
+  "signature": "81f21381e461",
+  "strength": "message",
+  "key": "hang|-|statement ignored statement_timeout and cancel for N s; server restarted",
+  "outcome": "hang",
+  "sqlstate": null,
+  "message": "statement ignored statement_timeout and cancel for 10 s; server restarted",
+  "culprit": 0,
+  "culprit_sql": "SELECT first_value(x) IGNORE NULLS OVER w FROM (VALUES (1)) v(x)\nWINDOW w AS (ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE GROUP)",
+  "details": {},
+  "known_bugs": [
+    "audit-f2"
+  ],
+  "first_t": 47.394,
+  "testcase_id": 603,
+  "origin": "grammar",
+  "meta": {
+    "op": "seed"
+  },
+  "statements": [
+    {
+      "status": "hung",
+      "sqlstate": null,
+      "message": "statement ignored statement_timeout and cancel for 10 s; server restarted",
+      "duration_ms": 14019.75616000027,
+      "rows": null
+    }
+  ],
+  "server_log": [
+    "2026-11-02 11:14:26.604 UTC [7764] LOG:  received immediate shutdown request",
+    "2026-11-02 11:14:26.610 UTC [7764] LOG:  database system is shut down",
+    "2026-11-02 11:14:26.719 UTC [9825] LOG:  starting PostgreSQL 20devel on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit",
+    "2026-11-02 11:14:26.719 UTC [9825] LOG:  listening on IPv4 address \"127.0.0.1\", port 5460",
+    "2026-11-02 11:14:26.721 UTC [9825] LOG:  listening on Unix socket \"/tmp/.s.PGSQL.5460\"",
+    "2026-11-02 11:14:26.723 UTC [9830] LOG:  database system was interrupted; last known up at 2026-11-02 11:14:06 UTC",
+    "2026-11-02 11:14:26.797 UTC [9830] LOG:  database system was not properly shut down; automatic recovery in progress",
+    "2026-11-02 11:14:26.800 UTC [9830] LOG:  redo starts at 0/02C6C0D0",
+    "2026-11-02 11:14:26.822 UTC [9830] LOG:  invalid record length at 0/02F59290: expected at least 24, got 0",
+    "2026-11-02 11:14:26.822 UTC [9830] LOG:  redo done at 0/02F59258 system usage: CPU: user: 0.01 s, system: 0.00 s, elapsed: 0.02 s",
+    "2026-11-02 11:14:26.825 UTC [9828] LOG:  checkpoint starting: end-of-recovery fast wait",
+    "2026-11-02 11:14:26.848 UTC [9828] LOG:  checkpoint complete: end-of-recovery fast wait: wrote 357 buffers (2.2%), wrote 3 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.008 s, sync=0.014 s, total=0.024 s; sync files=140, longest=0.003 s, average=0.001 s; distance=2996 kB, estimate=2996 kB; lsn=0/02F59290, redo lsn=0/02F59290",
+    "2026-11-02 11:14:26.850 UTC [9825] LOG:  database system is ready to accept connections"
+  ],
+  "extra": {}
+}

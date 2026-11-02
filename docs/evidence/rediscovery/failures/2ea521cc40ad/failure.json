@@ -1,0 +1,87 @@
+{
+  "v": 1,
+  "signature": "2ea521cc40ad",
+  "strength": "stack",
+  "key": "assertion|standard_ExecutorRun<PortalRun",
+  "outcome": "assertion",
+  "sqlstate": null,
+  "message": "consuming input failed: server closed the connection unexpectedly",
+  "culprit": 0,
+  "culprit_sql": "VALUES (NORMALIZE(TO_CHAR(CASE WHEN TRUE THEN 'NaN'::numeric ELSE 0.5::numeric END + 0.0::numeric, 'FM999990.00')))",
+  "details": {
+    "assertion": {
+      "expr": "(char *) p == VARDATA_ANY(input) + VARSIZE_ANY_EXHDR(input)",
+      "file": "varlena.c",
+      "line": 5535
+    },
+    "signal": 6,
+    "signal_name": "Aborted",
+    "connection_lost": true,
+    "backtrace": [
+      "ExceptionalCondition",
+      "standard_ExecutorRun",
+      "PortalRun",
+      "PostgresMain",
+      "BackendMain",
+      "postmaster_child_launch",
+      "PostmasterMain",
+      "main",
+      "__libc_start_main",
+      "_start"
+    ]
+  },
+  "known_bugs": [
+    "pgbug-19771"
+  ],
+  "first_t": 50.371,
+  "testcase_id": 647,
+  "origin": "grammar",
+  "meta": {
+    "op": "seed"
+  },
+  "statements": [
+    {
+      "status": "connection_lost",
+      "sqlstate": null,
+      "message": "consuming input failed: server closed the connection unexpectedly",
+      "duration_ms": 5.345219999981055,
+      "rows": null
+    }
+  ],
+  "server_log": [
+    "2026-11-02 11:14:28.955 UTC [9835] WARNING:  could not parse MCV element \"0\": incorrect value",
+    "2026-11-02 11:14:28.957 UTC [9835] WARNING:  could not parse MCV element \"0\": incorrect value",
+    "2026-11-02 11:14:28.960 UTC [9835] WARNING:  could not parse MCV element \"0\": incorrect value",
+    "TRAP: failed Assert(\"(char *) p == VARDATA_ANY(input) + VARSIZE_ANY_EXHDR(input)\"), File: \"varlena.c\", Line: 5535, PID: 9835",
+    "postgres: postgres postgres 127.0.0.1(53270) SELECT(ExceptionalCondition+0x70)[0x55642d1ddd70]",
+    "postgres: postgres postgres 127.0.0.1(53270) SELECT(+0x6fb6b2)[0x55642d1b76b2]",
+    "postgres: postgres postgres 127.0.0.1(53270) SELECT(+0x39c0cd)[0x55642ce580cd]",
+    "postgres: postgres postgres 127.0.0.1(53270) SELECT(+0x3daa29)[0x55642ce96a29]",
+    "postgres: postgres postgres 127.0.0.1(53270) SELECT(standard_ExecutorRun+0x18b)[0x55642ce5bf1b]",
+    "postgres: postgres postgres 127.0.0.1(53270) SELECT(+0x5b5d38)[0x55642d071d38]",
+    "postgres: postgres postgres 127.0.0.1(53270) SELECT(PortalRun+0x246)[0x55642d073326]",
+    "postgres: postgres postgres 127.0.0.1(53270) SELECT(+0x5b2e2d)[0x55642d06ee2d]",
+    "postgres: postgres postgres 127.0.0.1(53270) SELECT(PostgresMain+0x1826)[0x55642d070ad6]",
+    "postgres: postgres postgres 127.0.0.1(53270) SELECT(BackendMain+0x53)[0x55642d06aa93]",
+    "postgres: postgres postgres 127.0.0.1(53270) SELECT(postmaster_child_launch+0x111)[0x55642cfa7ad1]",
+    "postgres: postgres postgres 127.0.0.1(53270) SELECT(+0x4ef772)[0x55642cfab772]",
+    "postgres: postgres postgres 127.0.0.1(53270) SELECT(PostmasterMain+0xdfd)[0x55642cfad36d]",
+    "postgres: postgres postgres 127.0.0.1(53270) SELECT(main+0x1ce)[0x55642cc4efde]",
+    "/lib/x86_64-linux-gnu/libc.so.6(+0x2a1ca)[0x7fcbcae2a1ca]",
+    "/lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x8b)[0x7fcbcae2a28b]",
+    "postgres: postgres postgres 127.0.0.1(53270) SELECT(_start+0x25)[0x55642cc4f355]",
+    "2026-11-02 11:14:29.551 UTC [9825] LOG:  client backend (PID 9835) was terminated by signal 6: Aborted",
+    "2026-11-02 11:14:29.551 UTC [9825] DETAIL:  Failed process was running: VALUES (NORMALIZE(TO_CHAR(CASE WHEN TRUE THEN 'NaN'::numeric ELSE 0.5::numeric END + 0.0::numeric, 'FM999990.00')))",
+    "2026-11-02 11:14:29.551 UTC [9825] LOG:  terminating any other active server processes",
+    "2026-11-02 11:14:29.552 UTC [9825] LOG:  all server processes terminated; reinitializing",
+    "2026-11-02 11:14:29.564 UTC [9987] LOG:  database system was interrupted; last known up at 2026-11-02 11:14:26 UTC",
+    "2026-11-02 11:14:29.636 UTC [9987] LOG:  database system was not properly shut down; automatic recovery in progress",
+    "2026-11-02 11:14:29.638 UTC [9987] LOG:  redo starts at 0/02F59318",
+    "2026-11-02 11:14:29.649 UTC [9987] LOG:  unexpected pageaddr 0/011B2000 in WAL segment 000000010000000000000003, LSN 0/031B2000, offset 1777664",
+    "2026-11-02 11:14:29.649 UTC [9987] LOG:  redo done at 0/031B15F0 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.01 s",
+    "2026-11-02 11:14:29.651 UTC [9988] LOG:  checkpoint starting: end-of-recovery fast wait",
+    "2026-11-02 11:14:29.669 UTC [9988] LOG:  checkpoint complete: end-of-recovery fast wait: wrote 331 buffers (2.0%), wrote 3 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.004 s, sync=0.013 s, total=0.019 s; sync files=135, longest=0.003 s, average=0.001 s; distance=2403 kB, estimate=2403 kB; lsn=0/031B2048, redo lsn=0/031B2048",
+    "2026-11-02 11:14:29.671 UTC [9825] LOG:  database system is ready to accept connections"
+  ],
+  "extra": {}
+}

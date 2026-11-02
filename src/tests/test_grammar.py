@@ -210,3 +210,16 @@ def test_statistics_import_and_cast_alternatives_render():
             if "IGNORE NULLS OVER (" in sql and "UNBOUNDED FOLLOWING" in sql:
                 seen.add("ignore_nulls_frame")
     assert {"restore", "stats_expr", "cast", "ignore_nulls_frame"} <= seen, seen
+
+
+def test_seed_files_declare_their_oracles():
+    from pgfuzz.grammar.generator import parse_seed
+
+    stmts, checks = parse_seed("CREATE TABLE t (a int);\nSELECT a FROM t WHERE a > 1;\n"
+                               "-- pgfuzz:check tlp_where SELECT a FROM t WHERE (a > 1) UNION ALL SELECT a FROM t\n"
+                               "SELECT * FROM t WHERE a = 0;\n-- pgfuzz:check cert SELECT * FROM t;\n")
+    assert len(stmts) == 3
+    assert checks[0]["stmt"] == 1 and checks[0]["kind"] == "tlp_where" and checks[0]["lhs"] is None
+    assert checks[1]["stmt"] == 2 and checks[1]["lhs"] == "SELECT * FROM t" and checks[1]["rhs"] == stmts[2]
+    seeds = sorted((Path(__file__).resolve().parents[1] / "corpus" / "bug_seeds").glob("*.sql"))
+    assert len(seeds) == 9 and all(parse_seed(p.read_text())[0] for p in seeds)

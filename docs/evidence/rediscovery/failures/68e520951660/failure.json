@@ -1,0 +1,90 @@
+{
+  "v": 1,
+  "signature": "68e520951660",
+  "strength": "stack",
+  "key": "assertion|ExecInitExpr<ExecInitTableFuncScan<ExecInitNode<standard_ExecutorStart<PortalStart",
+  "outcome": "assertion",
+  "sqlstate": null,
+  "message": "consuming input failed: server closed the connection unexpectedly",
+  "culprit": 0,
+  "culprit_sql": "SELECT * FROM JSON_TABLE(jsonb_build_object('k', ROW(1, 2) < ROW(3, 4)), '$' COLUMNS (a bool PATH '$.k'))",
+  "details": {
+    "assertion": {
+      "expr": "list_length(rcexpr->inputcollids) == nopers",
+      "file": "execExpr.c",
+      "line": 2078
+    },
+    "signal": 6,
+    "signal_name": "Aborted",
+    "connection_lost": true,
+    "backtrace": [
+      "ExceptionalCondition",
+      "ExecInitExpr",
+      "ExecInitTableFuncScan",
+      "ExecInitNode",
+      "standard_ExecutorStart",
+      "PortalStart",
+      "PostgresMain",
+      "BackendMain",
+      "postmaster_child_launch",
+      "PostmasterMain",
+      "main",
+      "__libc_start_main",
+      "_start"
+    ]
+  },
+  "known_bugs": [
+    "pgbug-19768"
+  ],
+  "first_t": 9.315,
+  "testcase_id": 244,
+  "origin": "grammar",
+  "meta": {
+    "op": "seed"
+  },
+  "statements": [
+    {
+      "status": "connection_lost",
+      "sqlstate": null,
+      "message": "consuming input failed: server closed the connection unexpectedly",
+      "duration_ms": 6.204803999935393,
+      "rows": null
+    }
+  ],
+  "server_log": [
+    "TRAP: failed Assert(\"list_length(rcexpr->inputcollids) == nopers\"), File: \"execExpr.c\", Line: 2078, PID: 7803",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(ExceptionalCondition+0x70)[0x56505cb14d70]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(+0x391623)[0x56505c784623]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(+0x391f84)[0x56505c784f84]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(+0x38f97d)[0x56505c78297d]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(+0x39096b)[0x56505c78396b]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(ExecInitExpr+0xaa)[0x56505c784baa]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(ExecInitTableFuncScan+0x14b)[0x56505c7d2f6b]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(ExecInitNode+0x2bf)[0x56505c79bc8f]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(standard_ExecutorStart+0x494)[0x56505c793ae4]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(PortalStart+0x281)[0x56505c9a9871]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(+0x5b2db9)[0x56505c9a5db9]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(PostgresMain+0x1826)[0x56505c9a7ad6]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(BackendMain+0x53)[0x56505c9a1a93]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(postmaster_child_launch+0x111)[0x56505c8dead1]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(+0x4ef772)[0x56505c8e2772]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(PostmasterMain+0xdfd)[0x56505c8e436d]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(main+0x1ce)[0x56505c585fde]",
+    "/lib/x86_64-linux-gnu/libc.so.6(+0x2a1ca)[0x7f344462a1ca]",
+    "/lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x8b)[0x7f344462a28b]",
+    "postgres: postgres postgres 127.0.0.1(45304) SELECT(_start+0x25)[0x56505c586355]",
+    "2026-11-02 11:13:48.510 UTC [7764] LOG:  client backend (PID 7803) was terminated by signal 6: Aborted",
+    "2026-11-02 11:13:48.510 UTC [7764] DETAIL:  Failed process was running: SELECT * FROM JSON_TABLE(jsonb_build_object('k', ROW(1, 2) < ROW(3, 4)), '$' COLUMNS (a bool PATH '$.k'))",
+    "2026-11-02 11:13:48.510 UTC [7764] LOG:  terminating any other active server processes",
+    "2026-11-02 11:13:48.512 UTC [7764] LOG:  all server processes terminated; reinitializing",
+    "2026-11-02 11:13:48.528 UTC [8554] LOG:  database system was interrupted; last known up at 2026-11-02 11:13:26 UTC",
+    "2026-11-02 11:13:48.619 UTC [8554] LOG:  database system was not properly shut down; automatic recovery in progress",
+    "2026-11-02 11:13:48.621 UTC [8554] LOG:  redo starts at 0/01B41430",
+    "2026-11-02 11:13:48.669 UTC [8554] LOG:  invalid magic number 0000 in WAL segment 000000010000000000000001, LSN 0/01F3A000, offset 15966208",
+    "2026-11-02 11:13:48.669 UTC [8554] LOG:  redo done at 0/01F39FB0 system usage: CPU: user: 0.03 s, system: 0.01 s, elapsed: 0.04 s",
+    "2026-11-02 11:13:48.698 UTC [8555] LOG:  checkpoint starting: end-of-recovery fast wait",
+    "2026-11-02 11:13:48.717 UTC [8555] LOG:  checkpoint complete: end-of-recovery fast wait: wrote 334 buffers (2.0%), wrote 3 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.004 s, sync=0.014 s, total=0.021 s; sync files=146, longest=0.004 s, average=0.001 s; distance=4067 kB, estimate=4067 kB; lsn=0/01F3A048, redo lsn=0/01F3A048",
+    "2026-11-02 11:13:48.719 UTC [7764] LOG:  database system is ready to accept connections"
+  ],
+  "extra": {}
+}

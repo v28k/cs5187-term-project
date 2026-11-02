@@ -1,0 +1,127 @@
+{
+  "v": 1,
+  "signature": "760019308833",
+  "strength": "diff",
+  "key": "wrong_result|mm:tlp_where|SELECT|subquery:in,where",
+  "outcome": "wrong_result",
+  "sqlstate": null,
+  "message": "metamorphic check tlp_where failed: 1 rows vs 2 rows",
+  "culprit": 6,
+  "culprit_sql": "SELECT t FROM f1o WHERE t NOT IN (SELECT i FROM f1s)",
+  "details": {
+    "oracle": "metamorphic",
+    "variant": "mm:tlp_where",
+    "check": "tlp_where",
+    "lhs_sql": null,
+    "rhs_sql": "SELECT t FROM f1o WHERE (t NOT IN (SELECT i FROM f1s)) UNION ALL SELECT t FROM f1o WHERE NOT (t NOT IN (SELECT i FROM f1s)) UNION ALL SELECT t FROM f1o WHERE (t NOT IN (SELECT i FROM f1s)) IS NULL",
+    "rows_lhs": 1,
+    "rows_rhs": 2
+  },
+  "known_bugs": [
+    "audit-f1"
+  ],
+  "first_t": 24.853,
+  "testcase_id": 488,
+  "origin": "grammar",
+  "meta": {
+    "op": "seed",
+    "checks": [
+      {
+        "stmt": 6,
+        "kind": "tlp_where",
+        "lhs": null,
+        "rhs": "SELECT t FROM f1o WHERE (t NOT IN (SELECT i FROM f1s)) UNION ALL SELECT t FROM f1o WHERE NOT (t NOT IN (SELECT i FROM f1s)) UNION ALL SELECT t FROM f1o WHERE (t NOT IN (SELECT i FROM f1s)) IS NULL",
+        "mask": false,
+        "lhs_role": null
+      }
+    ]
+  },
+  "statements": [
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 2.664128999640525,
+      "rows": null
+    },
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 1.9929539998884138,
+      "rows": null
+    },
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 1.0314800001651747,
+      "rows": 1
+    },
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 1.4474380000137899,
+      "rows": 1
+    },
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 1.5624799998477101,
+      "rows": null
+    },
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 1.362201000119967,
+      "rows": null
+    },
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 1.870976000191149,
+      "rows": 1,
+      "result_hash": "6ab6b21fc911b01d65752e22",
+      "variants": {
+        "no_hashagg": {
+          "settings": {
+            "enable_hashagg": "off"
+          },
+          "status": "ok",
+          "hash": "6ab6b21fc911b01d65752e22",
+          "rows": 1,
+          "ms": 1.795
+        },
+        "no_self_join_elim": {
+          "settings": {
+            "enable_self_join_elimination": "off"
+          },
+          "status": "ok",
+          "hash": "6ab6b21fc911b01d65752e22",
+          "rows": 1,
+          "ms": 1.561
+        }
+      },
+      "checks": [
+        {
+          "kind": "tlp_where",
+          "status": "ok",
+          "lhs_hash": "6ab6b21fc911b01d65752e22",
+          "rhs_hash": "d374e7424634e233fbdf6d0f",
+          "lhs_rows": 1,
+          "rhs_rows": 2,
+          "lhs_sql": null,
+          "rhs_sql": "SELECT t FROM f1o WHERE (t NOT IN (SELECT i FROM f1s)) UNION ALL SELECT t FROM f1o WHERE NOT (t NOT IN (SELECT i FROM f1s)) UNION ALL SELECT t FROM f1o WHERE (t NOT IN (SELECT i FROM f1s)) IS NULL",
+          "confirmed": true
+        }
+      ],
+      "plan_shape": "87598488d272c431"
+    }
+  ],
+  "server_log": [],
+  "extra": {}
+}

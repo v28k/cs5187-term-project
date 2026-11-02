@@ -1,0 +1,88 @@
+{
+  "v": 1,
+  "signature": "dadb554fcc93",
+  "strength": "diff",
+  "key": "wrong_result|mm:expr:scalar_sub|SELECT|expr:array_ops,expr:cast,expr:range,subquery:from,values_list",
+  "outcome": "wrong_result",
+  "sqlstate": null,
+  "message": "metamorphic check expr:scalar_sub failed: 2 rows vs 2 rows",
+  "culprit": 0,
+  "culprit_sql": "SELECT c, '(,)'::int4range @> c AS a, NOT ('empty'::int4range @> c) AS b FROM (VALUES (NULL::int), (1)) v(c)",
+  "details": {
+    "oracle": "metamorphic",
+    "variant": "mm:expr:scalar_sub",
+    "check": "expr:scalar_sub",
+    "lhs_sql": null,
+    "rhs_sql": "SELECT c, (SELECT '(,)'::int4range) @> c AS a, NOT ((SELECT 'empty'::int4range) @> c) AS b FROM (VALUES (NULL::int), (1)) v(c)",
+    "rows_lhs": 2,
+    "rows_rhs": 2
+  },
+  "known_bugs": [
+    "pgbug-19793"
+  ],
+  "first_t": 21.043,
+  "testcase_id": 423,
+  "origin": "grammar",
+  "meta": {
+    "op": "seed",
+    "checks": [
+      {
+        "stmt": 0,
+        "kind": "expr:scalar_sub",
+        "lhs": null,
+        "rhs": "SELECT c, (SELECT '(,)'::int4range) @> c AS a, NOT ((SELECT 'empty'::int4range) @> c) AS b FROM (VALUES (NULL::int), (1)) v(c)",
+        "mask": false,
+        "lhs_role": null
+      }
+    ]
+  },
+  "statements": [
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 1.4657950000582787,
+      "rows": 2,
+      "result_hash": "47f569f1e3b8e4c60c629421",
+      "variants": {
+        "no_memoize_material": {
+          "settings": {
+            "enable_memoize": "off",
+            "enable_material": "off"
+          },
+          "status": "ok",
+          "hash": "47f569f1e3b8e4c60c629421",
+          "rows": 2,
+          "ms": 1.693
+        },
+        "seq_scans": {
+          "settings": {
+            "enable_indexscan": "off",
+            "enable_indexonlyscan": "off",
+            "enable_bitmapscan": "off"
+          },
+          "status": "ok",
+          "hash": "47f569f1e3b8e4c60c629421",
+          "rows": 2,
+          "ms": 2.356
+        }
+      },
+      "checks": [
+        {
+          "kind": "expr:scalar_sub",
+          "status": "ok",
+          "lhs_hash": "47f569f1e3b8e4c60c629421",
+          "rhs_hash": "918f8b831f5929ed6556ce61",
+          "lhs_rows": 2,
+          "rhs_rows": 2,
+          "lhs_sql": null,
+          "rhs_sql": "SELECT c, (SELECT '(,)'::int4range) @> c AS a, NOT ((SELECT 'empty'::int4range) @> c) AS b FROM (VALUES (NULL::int), (1)) v(c)",
+          "confirmed": true
+        }
+      ],
+      "plan_shape": "4e760e394cdbd90c"
+    }
+  ],
+  "server_log": [],
+  "extra": {}
+}

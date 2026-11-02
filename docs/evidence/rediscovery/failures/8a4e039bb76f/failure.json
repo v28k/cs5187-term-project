@@ -1,0 +1,113 @@
+{
+  "v": 1,
+  "signature": "8a4e039bb76f",
+  "strength": "stack",
+  "key": "assertion|create_append_path<add_paths_to_append_rel<make_one_rel<query_planner<subquery_planner",
+  "outcome": "assertion",
+  "sqlstate": null,
+  "message": "consuming input failed: server closed the connection unexpectedly",
+  "culprit": 2,
+  "culprit_sql": "WITH c1 AS (SELECT 1 FROM pi WHERE true UNION ALL SELECT 1 FROM pi WHERE false),\n     c2 AS MATERIALIZED (SELECT 1)\nSELECT 1 FROM c1 UNION ALL SELECT 2 FROM c2",
+  "details": {
+    "assertion": {
+      "expr": "!parallel_aware || pathnode->path.parallel_safe",
+      "file": "pathnode.c",
+      "line": 1437
+    },
+    "signal": 6,
+    "signal_name": "Aborted",
+    "connection_lost": true,
+    "backtrace": [
+      "ExceptionalCondition",
+      "create_append_path",
+      "add_paths_to_append_rel",
+      "make_one_rel",
+      "query_planner",
+      "subquery_planner",
+      "standard_planner",
+      "planner",
+      "pg_plan_query",
+      "pg_plan_queries",
+      "PostgresMain",
+      "BackendMain",
+      "postmaster_child_launch",
+      "PostmasterMain",
+      "main",
+      "__libc_start_main",
+      "_start"
+    ]
+  },
+  "known_bugs": [
+    "pgbug-19803"
+  ],
+  "first_t": 61.093,
+  "testcase_id": 802,
+  "origin": "grammar",
+  "meta": {
+    "op": "seed"
+  },
+  "statements": [
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 1.434969000001729,
+      "rows": null
+    },
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 1.4827709997007332,
+      "rows": null
+    },
+    {
+      "status": "connection_lost",
+      "sqlstate": null,
+      "message": "consuming input failed: server closed the connection unexpectedly",
+      "duration_ms": 6.166699999994307,
+      "rows": null
+    }
+  ],
+  "server_log": [
+    "TRAP: failed Assert(\"!parallel_aware || pathnode->path.parallel_safe\"), File: \"pathnode.c\", Line: 1437, PID: 10513",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(ExceptionalCondition+0x70)[0x55642d1ddd70]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(create_append_path+0x1f7)[0x55642cf7f237]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(add_paths_to_append_rel+0x567)[0x55642cf25287]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(+0x46b4ed)[0x55642cf274ed]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(+0x46b4ab)[0x55642cf274ab]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(make_one_rel+0x251)[0x55642cf27a41]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(query_planner+0x2e8)[0x55642cf56758]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(+0x4a133c)[0x55642cf5d33c]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(subquery_planner+0xc89)[0x55642cf60479]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(standard_planner+0x269)[0x55642cf60ab9]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(planner+0x35)[0x55642cf61245]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(pg_plan_query+0x4f)[0x55642d06e8cf]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(pg_plan_queries+0x46)[0x55642d06ea26]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(+0x5b2d5b)[0x55642d06ed5b]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(PostgresMain+0x1826)[0x55642d070ad6]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(BackendMain+0x53)[0x55642d06aa93]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(postmaster_child_launch+0x111)[0x55642cfa7ad1]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(+0x4ef772)[0x55642cfab772]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(PostmasterMain+0xdfd)[0x55642cfad36d]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(main+0x1ce)[0x55642cc4efde]",
+    "/lib/x86_64-linux-gnu/libc.so.6(+0x2a1ca)[0x7fcbcae2a1ca]",
+    "/lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x8b)[0x7fcbcae2a28b]",
+    "postgres: postgres postgres 127.0.0.1(52216) SELECT(_start+0x25)[0x55642cc4f355]",
+    "2026-11-02 11:14:40.325 UTC [9825] LOG:  client backend (PID 10513) was terminated by signal 6: Aborted",
+    "2026-11-02 11:14:40.325 UTC [9825] DETAIL:  Failed process was running: WITH c1 AS (SELECT 1 FROM pi WHERE true UNION ALL SELECT 1 FROM pi WHERE false),",
+    "\t     c2 AS MATERIALIZED (SELECT 1)",
+    "\tSELECT 1 FROM c1 UNION ALL SELECT 2 FROM c2",
+    "2026-11-02 11:14:40.325 UTC [9825] LOG:  terminating any other active server processes",
+    "2026-11-02 11:14:40.327 UTC [9825] LOG:  all server processes terminated; reinitializing",
+    "2026-11-02 11:14:40.342 UTC [10531] LOG:  database system was interrupted; last known up at 2026-11-02 11:14:39 UTC",
+    "2026-11-02 11:14:40.409 UTC [10531] LOG:  database system was not properly shut down; automatic recovery in progress",
+    "2026-11-02 11:14:40.410 UTC [10531] LOG:  redo starts at 0/0372C0D0",
+    "2026-11-02 11:14:40.417 UTC [10531] LOG:  unexpected pageaddr 0/01944000 in WAL segment 000000010000000000000003, LSN 0/03944000, offset 9715712",
+    "2026-11-02 11:14:40.417 UTC [10531] LOG:  redo done at 0/03943BD0 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s",
+    "2026-11-02 11:14:40.421 UTC [10532] LOG:  checkpoint starting: end-of-recovery fast wait",
+    "2026-11-02 11:14:40.438 UTC [10532] LOG:  checkpoint complete: end-of-recovery fast wait: wrote 323 buffers (2.0%), wrote 3 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.004 s, sync=0.013 s, total=0.019 s; sync files=123, longest=0.003 s, average=0.001 s; distance=2144 kB, estimate=2144 kB; lsn=0/03944048, redo lsn=0/03944048",
+    "2026-11-02 11:14:40.440 UTC [9825] LOG:  database system is ready to accept connections"
+  ],
+  "extra": {}
+}

@@ -1,0 +1,128 @@
+{
+  "v": 1,
+  "signature": "2fafe019f451",
+  "strength": "stack",
+  "key": "assertion|dependencies_clauselist_selectivity<statext_clauselist_selectivity<clauselist_selectivity_ext<set_baserel_size_estimates<make_one_rel",
+  "outcome": "assertion",
+  "sqlstate": null,
+  "message": "consuming input failed: server closed the connection unexpectedly",
+  "culprit": 4,
+  "culprit_sql": "SELECT count(*) FROM c01 WHERE a = 1 AND (c IS TRUE) AND (c IS TRUE)",
+  "details": {
+    "assertion": {
+      "expr": "AttrNumberIsForUserDefinedAttr(list_attnums[i]) || !bms_is_member(attnum, clauses_attnums)",
+      "file": "dependencies.c",
+      "line": 1504
+    },
+    "signal": 6,
+    "signal_name": "Aborted",
+    "connection_lost": true,
+    "backtrace": [
+      "ExceptionalCondition",
+      "dependencies_clauselist_selectivity",
+      "statext_clauselist_selectivity",
+      "clauselist_selectivity_ext",
+      "set_baserel_size_estimates",
+      "make_one_rel",
+      "query_planner",
+      "subquery_planner",
+      "standard_planner",
+      "planner",
+      "pg_plan_query",
+      "pg_plan_queries",
+      "PostgresMain",
+      "BackendMain",
+      "postmaster_child_launch",
+      "PostmasterMain",
+      "main",
+      "__libc_start_main",
+      "_start"
+    ]
+  },
+  "known_bugs": [
+    "c-01"
+  ],
+  "first_t": 10.867,
+  "testcase_id": 252,
+  "origin": "grammar",
+  "meta": {
+    "op": "seed"
+  },
+  "statements": [
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 1.7009250000228349,
+      "rows": null
+    },
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 2.3667740001656057,
+      "rows": 1000
+    },
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 1.239378999798646,
+      "rows": null
+    },
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 2.6560090000202763,
+      "rows": null
+    },
+    {
+      "status": "connection_lost",
+      "sqlstate": null,
+      "message": "consuming input failed: server closed the connection unexpectedly",
+      "duration_ms": 9.289080000144168,
+      "rows": null
+    }
+  ],
+  "server_log": [
+    "TRAP: failed Assert(\"AttrNumberIsForUserDefinedAttr(list_attnums[i]) || !bms_is_member(attnum, clauses_attnums)\"), File: \"dependencies.c\", Line: 1504, PID: 8566",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(ExceptionalCondition+0x70)[0x56505cb14d70]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(dependencies_clauselist_selectivity+0x2f7)[0x56505c9424f7]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(statext_clauselist_selectivity+0xfe)[0x56505c945e2e]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(clauselist_selectivity_ext+0x346)[0x56505c85f976]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(set_baserel_size_estimates+0x52)[0x56505c868af2]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(+0x4688e3)[0x56505c85b8e3]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(make_one_rel+0xc1)[0x56505c85e8b1]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(query_planner+0x2e8)[0x56505c88d758]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(+0x4a133c)[0x56505c89433c]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(subquery_planner+0xc89)[0x56505c897479]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(standard_planner+0x269)[0x56505c897ab9]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(planner+0x35)[0x56505c898245]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(pg_plan_query+0x4f)[0x56505c9a58cf]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(pg_plan_queries+0x46)[0x56505c9a5a26]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(+0x5b2d5b)[0x56505c9a5d5b]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(PostgresMain+0x1826)[0x56505c9a7ad6]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(BackendMain+0x53)[0x56505c9a1a93]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(postmaster_child_launch+0x111)[0x56505c8dead1]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(+0x4ef772)[0x56505c8e2772]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(PostmasterMain+0xdfd)[0x56505c8e436d]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(main+0x1ce)[0x56505c585fde]",
+    "/lib/x86_64-linux-gnu/libc.so.6(+0x2a1ca)[0x7f344462a1ca]",
+    "/lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x8b)[0x7f344462a28b]",
+    "postgres: postgres postgres 127.0.0.1(36776) SELECT(_start+0x25)[0x56505c586355]",
+    "2026-11-02 11:13:50.057 UTC [7764] LOG:  client backend (PID 8566) was terminated by signal 6: Aborted",
+    "2026-11-02 11:13:50.057 UTC [7764] DETAIL:  Failed process was running: SELECT count(*) FROM c01 WHERE a = 1 AND (c IS TRUE) AND (c IS TRUE)",
+    "2026-11-02 11:13:50.057 UTC [7764] LOG:  terminating any other active server processes",
+    "2026-11-02 11:13:50.060 UTC [7764] LOG:  all server processes terminated; reinitializing",
+    "2026-11-02 11:13:50.074 UTC [8604] LOG:  database system was interrupted; last known up at 2026-11-02 11:13:48 UTC",
+    "2026-11-02 11:13:50.144 UTC [8604] LOG:  database system was not properly shut down; automatic recovery in progress",
+    "2026-11-02 11:13:50.145 UTC [8604] LOG:  redo starts at 0/01F3A0D0",
+    "2026-11-02 11:13:50.153 UTC [8604] LOG:  invalid magic number 0000 in WAL segment 000000010000000000000002, LSN 0/020F4000, offset 999424",
+    "2026-11-02 11:13:50.153 UTC [8604] LOG:  redo done at 0/020F2AE8 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s",
+    "2026-11-02 11:13:50.156 UTC [8605] LOG:  checkpoint starting: end-of-recovery fast wait",
+    "2026-11-02 11:13:50.176 UTC [8605] LOG:  checkpoint complete: end-of-recovery fast wait: wrote 266 buffers (1.6%), wrote 3 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.004 s, sync=0.014 s, total=0.021 s; sync files=127, longest=0.003 s, average=0.001 s; distance=1768 kB, estimate=1768 kB; lsn=0/020F4048, redo lsn=0/020F4048",
+    "2026-11-02 11:13:50.178 UTC [7764] LOG:  database system is ready to accept connections"
+  ],
+  "extra": {}
+}

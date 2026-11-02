@@ -1,0 +1,141 @@
+{
+  "v": 1,
+  "signature": "787ac79a1b25",
+  "strength": "message",
+  "key": "performance|-|row estimate rises when the WHERE clause is added: N.N -> 1e+N",
+  "outcome": "performance",
+  "sqlstate": null,
+  "message": "row estimate rises when the WHERE clause is added: 1000.0 -> 1e+100",
+  "culprit": 5,
+  "culprit_sql": "SELECT * FROM mcvt WHERE a = 0 AND b = 0",
+  "details": {
+    "oracle": "cert",
+    "variant": "mm:cert",
+    "check": "cert",
+    "lhs_sql": "SELECT * FROM mcvt",
+    "rhs_sql": "SELECT * FROM mcvt WHERE a = 0 AND b = 0",
+    "estimate_lhs": 1000.0,
+    "estimate_rhs": 1e+100
+  },
+  "known_bugs": [
+    "esi-nonfinite"
+  ],
+  "first_t": 106.262,
+  "testcase_id": 1449,
+  "origin": "grammar",
+  "meta": {
+    "op": "seed",
+    "checks": [
+      {
+        "stmt": 5,
+        "kind": "cert",
+        "lhs": "SELECT * FROM mcvt",
+        "rhs": "SELECT * FROM mcvt WHERE a = 0 AND b = 0",
+        "mask": false,
+        "lhs_role": null
+      }
+    ]
+  },
+  "statements": [
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 1.8960689999403257,
+      "rows": null
+    },
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 2.924289000020508,
+      "rows": 1000
+    },
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 1.3850550003553508,
+      "rows": null
+    },
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 3.5961150001639908,
+      "rows": null
+    },
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 1.630150999972102,
+      "rows": 1,
+      "result_hash": "c2519109e44ba9e91d389bbe",
+      "variants": {
+        "no_reordering": {
+          "settings": {
+            "enable_group_by_reordering": "off",
+            "enable_distinct_reordering": "off"
+          },
+          "status": "ok",
+          "hash": "c2519109e44ba9e91d389bbe",
+          "rows": 1,
+          "ms": 1.709
+        },
+        "no_partition_pruning": {
+          "settings": {
+            "enable_partition_pruning": "off"
+          },
+          "status": "ok",
+          "hash": "c2519109e44ba9e91d389bbe",
+          "rows": 1,
+          "ms": 1.313
+        }
+      },
+      "plan_shape": "01d7d092ea8a2c7c"
+    },
+    {
+      "status": "ok",
+      "sqlstate": null,
+      "message": null,
+      "duration_ms": 2.1340280000003986,
+      "rows": 500,
+      "result_hash": "07a3db423e1583357dcc1c79",
+      "variants": {
+        "no_eager_agg": {
+          "settings": {
+            "enable_eager_aggregate": "off"
+          },
+          "status": "ok",
+          "hash": "07a3db423e1583357dcc1c79",
+          "rows": 500,
+          "ms": 2.252
+        },
+        "no_hashagg": {
+          "settings": {
+            "enable_hashagg": "off"
+          },
+          "status": "ok",
+          "hash": "07a3db423e1583357dcc1c79",
+          "rows": 500,
+          "ms": 1.987
+        }
+      },
+      "checks": [
+        {
+          "kind": "cert",
+          "status": "ok",
+          "lhs_estimate": 1000.0,
+          "rhs_estimate": 1e+100,
+          "cert_violation": true,
+          "lhs_sql": "SELECT * FROM mcvt",
+          "rhs_sql": "SELECT * FROM mcvt WHERE a = 0 AND b = 0"
+        }
+      ],
+      "plan_shape": "abdedf1e19771488"
+    }
+  ],
+  "server_log": [],
+  "extra": {}
+}

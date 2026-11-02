@@ -68,3 +68,32 @@ bugs:
       outcome: wrong_result
       message_regex: "check tlp_where failed: 1 rows vs 2 rows"
     poc: pocs/audit_f1_not_in_cast.sql
+
+  - id: audit-f2
+    title: "first_value()/nth_value() IGNORE NULLS over a frame excluding all peers never returns"
+    source: "https://www.postgresql.org/message-id/PN0P287MB09038F3BD9921EBACF5646F6A7632@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM"
+    affected: "19, master (26bd08fb)"
+    fixed_in: "open (developer replied 24 Oct 2026)"
+    match:
+      outcome: hang
+    poc: pocs/audit_f2_ignore_nulls_hang.sql
+
+  - id: c-01
+    title: "dependencies_clauselist_selectivity() assertion with two clauses on one statistics expression"
+    source: "pgsql-bugs, 27 Oct 2026"
+    affected: "master (26bd08fb)"
+    fixed_in: "open (patch sent)"
+    match:
+      outcome: assertion
+      assert_regex: "dependencies\\.c: AttrNumberIsForUserDefinedAttr\\(list_attnums\\[i\\]\\)"
+    poc: pocs/c01_dependencies_duplicate_expr.sql
+
+  - id: esi-nonfinite
+    title: "pg_restore_extended_stats() accepts non-finite MCV frequencies (absurd row estimates)"
+    source: "pgsql-hackers patch: Reject non-finite MCV frequencies in pg_restore_extended_stats()"
+    affected: "master (26bd08fb)"
+    fixed_in: "open (patch submitted)"
+    match:
+      outcome: performance
+      message_regex: "-> 1e\\+100"
+    poc: pocs/mcv_nonfinite_freqs.sql
