@@ -6,7 +6,8 @@ stopped), then `docs/generalized/PLAN.md` (tasks G1–G11 for the A* paper) and
 
 - This is your work: commit with your own git identity; never mention Claude/Anthropic/AI in
   commits or files; push after every finished part.
-- Upstream submissions are the owner's: never open issues or pull requests, never post upstream.
+- Everything about bugs that is visible outside (filing, issues, PRs, comments, mailing lists, emails to
+  maintainers, public posts) is the owner's: never do any of it.
   Prepare filing packages in `docs/bughunt/<target>/` (patch author `Venu Kummari <v.kummari@iitg.ac.in>`)
   and tell the owner; he files them.
 - Do not hunt PostgreSQL any more. Improve the fuzzer wherever it helps; log every session

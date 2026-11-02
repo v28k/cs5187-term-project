@@ -29,10 +29,11 @@ doing anything. Then read `docs/generalized/PLAN.md`, `docs/RESULTS_ANALYSIS.md`
 
 ### 1a. Who does what
 - **The fuzzer, the research and the repository are your work** (the person continuing this project).
-  Only the **upstream submissions belong to the owner (Venu)**: he files the bug reports and opens the
-  pull requests himself, for his GitHub contribution record. So you must NOT open GitHub issues, must NOT
-  open pull requests, must NOT post on any mailing list, forum or issue tracker, and must NOT comment on
-  anyone's issues.
+  **Everything about bugs that is visible to the outside world belongs to the owner (Venu):** filing bug
+  reports, GitHub issues, pull requests, comments or replies on issues/PRs/mailing lists/forums, emails to
+  maintainers, security reports, and any public post about a bug. You must NOT do any of these, not even
+  a comment or a "+1". Your bug work stays inside your repository (finding, validating, root-causing,
+  fixing, writing the filing package) and in your messages to the owner.
 - You prepare everything so the owner can file in minutes (section 1d), push it, and tell him.
 - **PostgreSQL bug hunting is finished.** Do not hunt PostgreSQL any more; PostgreSQL stays as one
   target in the evaluation only (its results already exist).
