@@ -1,4 +1,5 @@
 import random
+import re
 import tempfile
 from collections import Counter
 from pathlib import Path
@@ -206,6 +207,10 @@ def test_rls_and_cert_checks(tmp_path):
             if c["kind"] == "rls":
                 assert c["lhs"] == stmt and c["lhs_role"] == RLS_ROLE
                 assert "(SELECT * FROM " in c["rhs"] and any(f"WHERE ({p})" in c["rhs"] for p in pol.values())
+                # every reference to a protected table is inlined on the superuser side
+                for rel in pol:
+                    refs = len(re.findall(rf"\b{rel}\b", stmt))
+                    assert c["rhs"].count(f"(SELECT * FROM {rel} WHERE") == refs, (rel, stmt, c["rhs"])
             else:
                 assert c["kind"] == "cert" and c["rhs"] == stmt and len(c["lhs"]) < len(stmt)
     assert seen["rls"] and seen["cert"]

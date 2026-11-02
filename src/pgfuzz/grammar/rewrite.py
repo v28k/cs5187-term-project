@@ -573,6 +573,13 @@ class Rewriter:
                     hits.append((t.region(n), words))
         if not hits:
             return None
+        # Every reference to a protected table must be inlined, or the superuser side
+        # reads rows the restricted role cannot see (e.g. a table inside a sub-select
+        # that a builtin repeated as text, which has no @table node of its own).
+        words = [w for w in t.toks if not is_marker(w)]
+        for rel in {h[1][0] for h in hits} | {w for w in words if w in self.policies}:
+            if words.count(rel) != sum(1 for h in hits if h[1][0] == rel):
+                return None
         out = list(t.toks)
         for (start, end), (rel, _, alias) in sorted(hits, key=lambda h: -h[0][0]):   # right to left
             out[start:end] = ["(", "SELECT", "*", "FROM", rel, "WHERE", "(", self.policies[rel], ")", ")", "AS", alias]
