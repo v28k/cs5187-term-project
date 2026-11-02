@@ -133,6 +133,20 @@ decided candidate left is real (the paper must say this is post hoc and not re-m
   values, not only ORDER BY) can be added to that thread.
 * Not filed (decision by the team): B-01 FULL JOIN after NOT NULL folding (hackers thread 7400 in progress).
 
+
+### Bugs found after the campaigns (2 Nov 2026)
+
+| Bug | Found by | Upstream | Status |
+|---|---|---|---|
+| E-01 corr()/regr_r2() of constant input differ under partial aggregation | plan-variant oracle (campaign candidate c5a5ed497011) | **BUG #19826** | filed 2 Nov, patch sent (regression from 64982876; master and REL_19) |
+| E-02 "plan should not reference subplan's variable" with Memoize + correlated ALL/ANY sublink | internal-error oracle, hunt on master 633dee1b | pgsql-bugs (number pending) | filed 2 Nov, patch sent, author of f8da64e6 in Cc (regression from f8da64e6, same day) |
+
+Hunt on master 633dee1b (2 Nov): 4 workers with the Grammar+Oracles configuration, plus targeted
+fuzzers for eager aggregation (about 2,000 queries), extended statistics (1,500) and outer joins / LATERAL.
+Only E-02 was real. The other candidates did not reproduce: four wrong results (three RLS, one plan
+variant) gave identical results on re-run, and the "crash" entries were connection losses caused by
+the hang oracle's server restarts (no assertion or signal in any server log).
+
 ## Things to do before submission (open)
 
 1. Collect upstream status links (BUG numbers above) into the paper's data section.

@@ -2,7 +2,7 @@
 
 Status: **reproduced with default settings on master 633dee1b (2 Nov 2026); bisected to
 f8da64e6 (reverting it alone fixes the query); root-caused; patch with regression test,
-`make check` 239/239. Duplicate search: none found (2 Nov 2026). READY TO FILE.**
+`make check` 239/239. Duplicate search: none found (2 Nov 2026). FILED on pgsql-bugs (2 Nov 2026), patch sent as a reply with Richard Guo in Cc; bug number to be added.**
 Found by our fuzzer (internal-error oracle, hunt on newest master, candidate `342fb8c219dd`),
 then reduced by hand from a 2-statement test case to one join.
 
