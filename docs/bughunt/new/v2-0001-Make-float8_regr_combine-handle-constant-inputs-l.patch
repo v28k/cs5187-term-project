@@ -1,0 +1,236 @@
+From 069857103b7edb796dcc5775de8225cb0446c0d2 Mon Sep 17 00:00:00 2001
+From: Venu Kummari <venu2805k@gmail.com>
+Date: Mon, 2 Nov 2026 15:30:35 +0000
+Subject: [PATCH v2] Make float8_regr_combine() handle constant inputs like
+ float8_regr_accum()
+
+Commit 649828769 made float8_regr_accum() keep Sxx, Syy and Sxy exactly
+zero as long as all the inputs it has seen for X (or Y) are the same, so
+that corr(), regr_r2(), regr_slope() and friends report a constant input
+as NULL rather than as the result of roundoff error.  Commit 7774249d0
+then made it force Sxy to NaN when one input is constant and the other
+one is Inf or NaN.
+
+float8_regr_combine() got neither change.  When combining two partial
+states that each saw the same single X value, it still adds the
+correction term N1 * N2 * (Sx1/N1 - Sx2/N2)^2 / N.  The two means are
+equal in exact arithmetic, but Sx1 and Sx2 are rounded sums, so the
+term is usually a tiny positive number and the final functions no
+longer see zero variance.  Thus corr() of a constant column is NULL
+with a serial plan but 1 with partitionwise or parallel aggregation.
+
+Add each correction term only for a variable whose common value is
+unknown (NaN), as float8_regr_accum() does, and when the Sxy correction
+is skipped because one variable is constant, force Sxy to NaN if the
+other variable's sum shows that it has seen an Inf or NaN.
+
+Bug: #19826
+---
+ src/backend/utils/adt/float.c            | 62 +++++++++++++++++++----
+ src/test/regress/expected/aggregates.out | 64 +++++++++++++++++++++++-
+ src/test/regress/sql/aggregates.sql      | 26 ++++++++++
+ 3 files changed, 140 insertions(+), 12 deletions(-)
+
+diff --git a/src/backend/utils/adt/float.c b/src/backend/utils/adt/float.c
+index 38ef6daf2..af4616b56 100644
+--- a/src/backend/utils/adt/float.c
++++ b/src/backend/utils/adt/float.c
+@@ -3650,18 +3650,7 @@ float8_regr_combine(PG_FUNCTION_ARGS)
+ 	{
+ 		N = N1 + N2;
+ 		Sx = float8_pl(Sx1, Sx2);
+-		tmp1 = Sx1 / N1 - Sx2 / N2;
+-		Sxx = Sxx1 + Sxx2 + N1 * N2 * tmp1 * tmp1 / N;
+-		if (unlikely(isinf(Sxx)) && !isinf(Sxx1) && !isinf(Sxx2))
+-			float_overflow_error();
+ 		Sy = float8_pl(Sy1, Sy2);
+-		tmp2 = Sy1 / N1 - Sy2 / N2;
+-		Syy = Syy1 + Syy2 + N1 * N2 * tmp2 * tmp2 / N;
+-		if (unlikely(isinf(Syy)) && !isinf(Syy1) && !isinf(Syy2))
+-			float_overflow_error();
+-		Sxy = Sxy1 + Sxy2 + N1 * N2 * tmp1 * tmp2 / N;
+-		if (unlikely(isinf(Sxy)) && !isinf(Sxy1) && !isinf(Sxy2))
+-			float_overflow_error();
+ 		if (float8_eq(Cx1, Cx2))
+ 			Cx = Cx1;
+ 		else
+@@ -3670,6 +3659,57 @@ float8_regr_combine(PG_FUNCTION_ARGS)
+ 			Cy = Cy1;
+ 		else
+ 			Cy = get_float8_nan();
++
++		/*
++		 * If Cx is not NaN, every X value in both inputs was the same value
++		 * c.  Then Sxx1 and Sxx2 are exactly zero (float8_regr_accum keeps
++		 * them so; they are NaN if c is infinite), and so is the correction
++		 * term in exact arithmetic, since both Sx1/N1 and Sx2/N2 equal c.
++		 * But Sx1 and Sx2 are rounded sums, so the computed difference of
++		 * the two means is generally a tiny nonzero number, which would
++		 * leave Sxx slightly positive.  The final functions would then miss
++		 * the zero variance that float8_regr_accum takes care to preserve,
++		 * and for instance corr() of a constant input would return 1 when
++		 * the aggregate is computed in parallel instead of NULL.  So we add
++		 * the correction term only for a variable that is not constant; the
++		 * same goes for Y, and for Sxy if either variable is constant.
++		 *
++		 * When we skip the Sxy correction because just one variable is
++		 * constant, we lose the NaN it would have produced if the other
++		 * variable has seen an Inf or NaN (zero times Inf or NaN).
++		 * float8_regr_accum forces Sxy to NaN in that case to avoid falsely
++		 * reporting zero covariance, and we must do likewise.  Its inputs
++		 * aren't visible here, but they are reflected in Sx and Sy: a sum
++		 * that includes an Inf or NaN is itself Inf or NaN.
++		 */
++		tmp1 = Sx1 / N1 - Sx2 / N2;
++		tmp2 = Sy1 / N1 - Sy2 / N2;
++
++		Sxx = Sxx1 + Sxx2;
++		if (isnan(Cx))
++		{
++			Sxx += N1 * N2 * tmp1 * tmp1 / N;
++			if (unlikely(isinf(Sxx)) && !isinf(Sxx1) && !isinf(Sxx2))
++				float_overflow_error();
++		}
++
++		Syy = Syy1 + Syy2;
++		if (isnan(Cy))
++		{
++			Syy += N1 * N2 * tmp2 * tmp2 / N;
++			if (unlikely(isinf(Syy)) && !isinf(Syy1) && !isinf(Syy2))
++				float_overflow_error();
++		}
++
++		Sxy = Sxy1 + Sxy2;
++		if (isnan(Cx) && isnan(Cy))
++		{
++			Sxy += N1 * N2 * tmp1 * tmp2 / N;
++			if (unlikely(isinf(Sxy)) && !isinf(Sxy1) && !isinf(Sxy2))
++				float_overflow_error();
++		}
++		else if (isnan(Sx) || isinf(Sx) || isnan(Sy) || isinf(Sy))
++			Sxy = get_float8_nan();
+ 	}
+ 
+ 	/*
+diff --git a/src/test/regress/expected/aggregates.out b/src/test/regress/expected/aggregates.out
+index 7d0761995..487c58d19 100644
+--- a/src/test/regress/expected/aggregates.out
++++ b/src/test/regress/expected/aggregates.out
+@@ -637,6 +637,68 @@ SELECT corr('NaN', 'NaN'), regr_r2('NaN', 'NaN') FROM generate_series(1, 30) g;
+   NaN |     NaN
+ (1 row)
+ 
++-- float8_regr_combine must treat constant inputs, and Inf/NaN with a
++-- constant other input, the same way float8_regr_accum does, so that
++-- partial aggregation gives the same results as a serial plan
++CREATE TABLE regr_part (k int, x float8, y float8) PARTITION BY LIST (k);
++CREATE TABLE regr_part_1 PARTITION OF regr_part FOR VALUES IN (1);
++CREATE TABLE regr_part_2 PARTITION OF regr_part FOR VALUES IN (2);
++CREATE TABLE regr_part_3 PARTITION OF regr_part FOR VALUES IN (3);
++INSERT INTO regr_part SELECT 1 + g % 3, 1.0 / 3, g FROM generate_series(1, 80) g;
++ANALYZE regr_part;
++SET enable_partitionwise_aggregate = on;
++EXPLAIN (COSTS OFF)
++SELECT corr(x, x) FROM regr_part;
++                      QUERY PLAN                       
++-------------------------------------------------------
++ Finalize Aggregate
++   ->  Append
++         ->  Partial Aggregate
++               ->  Seq Scan on regr_part_1 regr_part
++         ->  Partial Aggregate
++               ->  Seq Scan on regr_part_2 regr_part_1
++         ->  Partial Aggregate
++               ->  Seq Scan on regr_part_3 regr_part_2
++(8 rows)
++
++SELECT corr(x, x), regr_r2(x, x), regr_slope(y, x), regr_sxx(y, x), covar_pop(x, y)
++FROM regr_part;
++ corr | regr_r2 | regr_slope | regr_sxx | covar_pop 
++------+---------+------------+----------+-----------
++      |         |            |        0 |         0
++(1 row)
++
++-- an Inf or NaN in one partition, the other input constant
++INSERT INTO regr_part VALUES (2, 'Infinity', 1);
++SELECT covar_pop(x, 0::float8), covar_pop(0::float8, x) FROM regr_part;
++ covar_pop | covar_pop 
++-----------+-----------
++       NaN |       NaN
++(1 row)
++
++UPDATE regr_part SET x = 'NaN' WHERE x = 'Infinity';
++SELECT covar_pop(x, 0::float8), covar_pop(0::float8, x) FROM regr_part;
++ covar_pop | covar_pop 
++-----------+-----------
++       NaN |       NaN
++(1 row)
++
++RESET enable_partitionwise_aggregate;
++SELECT covar_pop(x, 0::float8), covar_pop(0::float8, x) FROM regr_part;
++ covar_pop | covar_pop 
++-----------+-----------
++       NaN |       NaN
++(1 row)
++
++DELETE FROM regr_part WHERE x = 'NaN';
++SELECT corr(x, x), regr_r2(x, x), regr_slope(y, x), regr_sxx(y, x), covar_pop(x, y)
++FROM regr_part;
++ corr | regr_r2 | regr_slope | regr_sxx | covar_pop 
++------+---------+------------+----------+-----------
++      |         |            |        0 |         0
++(1 row)
++
++DROP TABLE regr_part;
+ -- test accum and combine functions directly
+ CREATE TABLE regr_test (x float8, y float8);
+ INSERT INTO regr_test VALUES (10,150),(20,250),(30,350),(80,540),(100,200);
+@@ -716,7 +778,7 @@ SELECT float8_regr_combine('{3,60,200,750,20000,2000,7,8}'::float8[],
+                            '{2,180,200,740,57800,-3400,7,9}'::float8[]);
+         float8_regr_combine         
+ ------------------------------------
+- {5,240,6280,1490,95080,8680,7,NaN}
++ {5,240,400,1490,95080,-1400,7,NaN}
+ (1 row)
+ 
+ DROP TABLE regr_test;
+diff --git a/src/test/regress/sql/aggregates.sql b/src/test/regress/sql/aggregates.sql
+index 91f834216..ea65b57c0 100644
+--- a/src/test/regress/sql/aggregates.sql
++++ b/src/test/regress/sql/aggregates.sql
+@@ -181,6 +181,32 @@ SELECT corr(0.1, 'NaN'), regr_r2(0.1, 'NaN') FROM generate_series(1, 30) g;
+ SELECT corr('NaN', 0.1), regr_r2('NaN', 0.1) FROM generate_series(1, 30) g;
+ SELECT corr('NaN', 'NaN'), regr_r2('NaN', 'NaN') FROM generate_series(1, 30) g;
+ 
++-- float8_regr_combine must treat constant inputs, and Inf/NaN with a
++-- constant other input, the same way float8_regr_accum does, so that
++-- partial aggregation gives the same results as a serial plan
++CREATE TABLE regr_part (k int, x float8, y float8) PARTITION BY LIST (k);
++CREATE TABLE regr_part_1 PARTITION OF regr_part FOR VALUES IN (1);
++CREATE TABLE regr_part_2 PARTITION OF regr_part FOR VALUES IN (2);
++CREATE TABLE regr_part_3 PARTITION OF regr_part FOR VALUES IN (3);
++INSERT INTO regr_part SELECT 1 + g % 3, 1.0 / 3, g FROM generate_series(1, 80) g;
++ANALYZE regr_part;
++SET enable_partitionwise_aggregate = on;
++EXPLAIN (COSTS OFF)
++SELECT corr(x, x) FROM regr_part;
++SELECT corr(x, x), regr_r2(x, x), regr_slope(y, x), regr_sxx(y, x), covar_pop(x, y)
++FROM regr_part;
++-- an Inf or NaN in one partition, the other input constant
++INSERT INTO regr_part VALUES (2, 'Infinity', 1);
++SELECT covar_pop(x, 0::float8), covar_pop(0::float8, x) FROM regr_part;
++UPDATE regr_part SET x = 'NaN' WHERE x = 'Infinity';
++SELECT covar_pop(x, 0::float8), covar_pop(0::float8, x) FROM regr_part;
++RESET enable_partitionwise_aggregate;
++SELECT covar_pop(x, 0::float8), covar_pop(0::float8, x) FROM regr_part;
++DELETE FROM regr_part WHERE x = 'NaN';
++SELECT corr(x, x), regr_r2(x, x), regr_slope(y, x), regr_sxx(y, x), covar_pop(x, y)
++FROM regr_part;
++DROP TABLE regr_part;
++
+ -- test accum and combine functions directly
+ CREATE TABLE regr_test (x float8, y float8);
+ INSERT INTO regr_test VALUES (10,150),(20,250),(30,350),(80,540),(100,200);
+-- 
+2.43.0
+
