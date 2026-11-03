@@ -1,38 +1,33 @@
-From 069857103b7edb796dcc5775de8225cb0446c0d2 Mon Sep 17 00:00:00 2001
+From 61345ff3ab1a6f0b72920fae9d9f6ce62118a227 Mon Sep 17 00:00:00 2001
 From: Venu Kummari <venu2805k@gmail.com>
 Date: Mon, 2 Nov 2026 15:30:35 +0000
 Subject: [PATCH v2] Make float8_regr_combine() handle constant inputs like
- float8_regr_accum()
+ float8_regr_accum().
 
-Commit 649828769 made float8_regr_accum() keep Sxx, Syy and Sxy exactly
-zero as long as all the inputs it has seen for X (or Y) are the same, so
-that corr(), regr_r2(), regr_slope() and friends report a constant input
-as NULL rather than as the result of roundoff error.  Commit 7774249d0
-then made it force Sxy to NaN when one input is constant and the other
-one is Inf or NaN.
+Commit 649828769 taught float8_regr_accum() to keep Sxx, Syy and Sxy
+exactly zero while all the inputs for X (or Y) are the same, so that
+corr() and the regr_*() functions return NULL for a constant input, and
+7774249d0 made it force Sxy to NaN when one input is constant and the
+other is Inf or NaN.  float8_regr_combine() got neither change: it still
+adds the correction terms computed from the rounded sums Sx1 and Sx2,
+which are usually slightly nonzero even when both states saw the same
+single value.  So corr() of a constant column returned 1 instead of NULL
+with parallel or partitionwise aggregation, and regr_slope() returned
+huge values.
 
-float8_regr_combine() got neither change.  When combining two partial
-states that each saw the same single X value, it still adds the
-correction term N1 * N2 * (Sx1/N1 - Sx2/N2)^2 / N.  The two means are
-equal in exact arithmetic, but Sx1 and Sx2 are rounded sums, so the
-term is usually a tiny positive number and the final functions no
-longer see zero variance.  Thus corr() of a constant column is NULL
-with a serial plan but 1 with partitionwise or parallel aggregation.
-
-Add each correction term only for a variable whose common value is
-unknown (NaN), as float8_regr_accum() does, and when the Sxy correction
-is skipped because one variable is constant, force Sxy to NaN if the
-other variable's sum shows that it has seen an Inf or NaN.
+Skip each correction term when the corresponding common value is known,
+and force Sxy to NaN when the Sxy correction is skipped and the other
+input has seen an Inf or NaN.
 
 Bug: #19826
 ---
- src/backend/utils/adt/float.c            | 62 +++++++++++++++++++----
+ src/backend/utils/adt/float.c            | 53 ++++++++++++++++----
  src/test/regress/expected/aggregates.out | 64 +++++++++++++++++++++++-
  src/test/regress/sql/aggregates.sql      | 26 ++++++++++
- 3 files changed, 140 insertions(+), 12 deletions(-)
+ 3 files changed, 131 insertions(+), 12 deletions(-)
 
 diff --git a/src/backend/utils/adt/float.c b/src/backend/utils/adt/float.c
-index 38ef6daf2..af4616b56 100644
+index 38ef6daf2..d2a756eb5 100644
 --- a/src/backend/utils/adt/float.c
 +++ b/src/backend/utils/adt/float.c
 @@ -3650,18 +3650,7 @@ float8_regr_combine(PG_FUNCTION_ARGS)
@@ -54,32 +49,23 @@ index 38ef6daf2..af4616b56 100644
  		if (float8_eq(Cx1, Cx2))
  			Cx = Cx1;
  		else
-@@ -3670,6 +3659,57 @@ float8_regr_combine(PG_FUNCTION_ARGS)
+@@ -3670,6 +3659,48 @@ float8_regr_combine(PG_FUNCTION_ARGS)
  			Cy = Cy1;
  		else
  			Cy = get_float8_nan();
 +
 +		/*
-+		 * If Cx is not NaN, every X value in both inputs was the same value
-+		 * c.  Then Sxx1 and Sxx2 are exactly zero (float8_regr_accum keeps
-+		 * them so; they are NaN if c is infinite), and so is the correction
-+		 * term in exact arithmetic, since both Sx1/N1 and Sx2/N2 equal c.
-+		 * But Sx1 and Sx2 are rounded sums, so the computed difference of
-+		 * the two means is generally a tiny nonzero number, which would
-+		 * leave Sxx slightly positive.  The final functions would then miss
-+		 * the zero variance that float8_regr_accum takes care to preserve,
-+		 * and for instance corr() of a constant input would return 1 when
-+		 * the aggregate is computed in parallel instead of NULL.  So we add
-+		 * the correction term only for a variable that is not constant; the
-+		 * same goes for Y, and for Sxy if either variable is constant.
++		 * As in float8_regr_accum, if we have not seen distinct inputs for X
++		 * (or Y) in either state, the corresponding sums should remain exactly
++		 * zero: both means are then exactly Cx, and computing the correction
++		 * term from the rounded sums Sx1 and Sx2 would just inject roundoff
++		 * error.  We need exact zero results so that the final functions will
++		 * return NULL in the right cases.
 +		 *
-+		 * When we skip the Sxy correction because just one variable is
-+		 * constant, we lose the NaN it would have produced if the other
-+		 * variable has seen an Inf or NaN (zero times Inf or NaN).
-+		 * float8_regr_accum forces Sxy to NaN in that case to avoid falsely
-+		 * reporting zero covariance, and we must do likewise.  Its inputs
-+		 * aren't visible here, but they are reflected in Sx and Sy: a sum
-+		 * that includes an Inf or NaN is itself Inf or NaN.
++		 * If we skip the Sxy correction because only one input is constant,
++		 * we must still force Sxy to NaN if the other input has seen an Inf
++		 * or NaN, as float8_regr_accum does.  We can't see the inputs here,
++		 * but any such value makes Sx or Sy Inf or NaN.
 +		 */
 +		tmp1 = Sx1 / N1 - Sx2 / N2;
 +		tmp2 = Sy1 / N1 - Sy2 / N2;
