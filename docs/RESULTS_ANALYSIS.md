@@ -117,12 +117,13 @@ decided candidate left is real (the paper must say this is post hoc and not re-m
 
 | Bug | Found by | Upstream | Status (29 Oct) |
 |---|---|---|---|
-| BUG-01 JSON_TABLE collations | grammar arm, 10 signatures | #19768 | filed 16 Oct, no committer reply recorded |
+| BUG-01 JSON_TABLE collations | grammar arm, 10 signatures | #19768 | filed 16 Oct, patch sent; **accepted upstream 6 Nov** (not yet committed) |
 | BUG-02 range containment NULL | metamorphic `expr:scalar_sub` | #19793 | filed 23 Oct, patch sent |
 | N1 MERGE "SubPlan found with no parent plan" | grammar arm (`3dc78dd95f41`) | **#19802** | **confirmed by Tender Wang**, patch posted |
 | N2 Parallel Append assertion | LLM-fragment arm via TLP (`8a4e039bb76f`) | **#19803** | **confirmed by David Rowley; fixed on master in `abda2a2c`** |
 | C-01 dependencies.c assertion | hunter C | pgsql-bugs | **fixed in b0392c26 (30 Oct, author: team member, reviewed by David Rowley, backpatched to 14)** |
-| AUDIT-F1 NOT IN anti-join cast; AUDIT-F2 IGNORE NULLS hang | audit | pgsql-bugs | filed 23 Oct (F2: Ishii replied) |
+| AUDIT-F1 NOT IN anti-join cast | audit + differential checks | pgsql-bugs | filed 23 Oct, patch sent; **accepted upstream 6 Nov** (not yet committed) |
+| AUDIT-F2 IGNORE NULLS hang | audit (timeout watchdog) | pgsql-bugs | filed 23 Oct; confirmed by Tatsuo Ishii, not yet fixed |
 | #19766 shm_toc assertion | grammar arm | #19766 | reply sent |
 | duplicates rediscovered by the oracles | plan-variant (SJE off/on) -> **#19800**; `e` vs `(SELECT e)` -> **#19772**; `c51c4dacc7f1` -> **#19784**; to_char NaN crash -> **#19771** (fixed 776df8a6) | | found independently by the project; also reported upstream by others |
 
