@@ -1,214 +1,259 @@
-// Class presentation (10 Nov 2026, 7-8 min). One source: writes talk.pptx; the PDF is rendered from it.
-//   NODE_PATH=<dir with pptxgenjs> node build_talk.js
-const fs = require("fs"), path = require("path");
+// Class presentation, 10 Nov 2026: LLM-Guided Grammar-Aware Fuzzing of PostgreSQL.
+// node build_talk.js  ->  talk.pptx + notes.json (speaker notes, used for the notes PDF)
 const pptxgen = require("pptxgenjs");
+const fs = require("fs");
+
 const pres = new pptxgen();
 pres.layout = "LAYOUT_WIDE"; // 13.333 x 7.5 in
-pres.title = "Finding PostgreSQL bugs with a smart fuzzer";
-const W = 13.333, MX = 0.7, CW = W - 2 * MX;
-const F = "Inter", M = "Consolas";
-const K = {
-  navy: "0F2A44", blue: "336791", sky: "E8F0F7", ink: "1B2733", sub: "5A6B7B", line: "D5DEE7",
-  green: "1E8E5A", greenBg: "E3F4EC", amber: "B86E00", amberBg: "FBF0DD", red: "C0392B", white: "FFFFFF", code: "0F2A44",
+pres.title = "LLM-Guided Grammar-Aware Fuzzing of PostgreSQL";
+
+const W = 13.333, MX = 0.7;
+const F = "Lato", M = "Consolas";
+const C = {
+  bg: "FBFAF7", ink: "1D1D1F", soft: "5B5B60", faint: "8A8A90", line: "E3DED5",
+  card: "FFFFFF", code: "F2EEE7", blue: "2F5D8A", orange: "D9622B", green: "2E7D4F",
+  greenBg: "E6F2EA", amber: "A86400", amberBg: "FBF0DD", grey: "6B6B70", greyBg: "EEEDEA",
 };
-const NOTES = [];
+const notes = [];
 let page = 0;
 
-function slide(title, kicker, notes) {
-  const s = pres.addSlide(); page++;
-  s.background = { color: K.white };
-  s.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: W, h: 0.12, fill: { color: K.blue }, line: { color: K.blue } });
-  if (kicker) s.addText(kicker.toUpperCase(), { x: MX, y: 0.42, w: 8, h: 0.3, fontFace: F, fontSize: 12, bold: true, color: K.blue, charSpacing: 3, margin: 0 });
-  s.addText(title, { x: MX, y: 0.72, w: CW, h: 0.75, fontFace: F, fontSize: 30, bold: true, color: K.ink, margin: 0, valign: "middle" });
-  s.addText(String(page), { x: W - 1.0, y: 7.0, w: 0.4, h: 0.3, fontFace: F, fontSize: 10, color: K.sub, align: "right", margin: 0 });
-  s.addNotes(notes);
-  NOTES.push([page, title, notes]);
+function base(title, speaker, note) {
+  const s = pres.addSlide();
+  page++;
+  s.background = { color: C.bg };
+  if (title) {
+    s.addText(title, { x: MX, y: 0.42, w: W - 2 * MX, h: 0.75, fontFace: F, fontSize: 30, bold: true, color: C.ink, margin: 0 });
+    s.addShape(pres.shapes.RECTANGLE, { x: MX, y: 1.24, w: 0.55, h: 0.06, fill: { color: C.orange }, line: { color: C.orange } });
+  }
+  s.addText("LLM-Guided Grammar-Aware Fuzzing of PostgreSQL", { x: MX, y: 7.0, w: 7, h: 0.3, fontFace: F, fontSize: 10, color: C.faint, margin: 0 });
+  s.addText(String(page), { x: W - MX - 1, y: 7.0, w: 1, h: 0.3, fontFace: F, fontSize: 10, color: C.faint, align: "right", margin: 0 });
+  s.addNotes(`[${speaker}] ${note}`);
+  notes.push({ page, title: title || (page === 1 ? "Title" : "Thank you"), speaker, note });
   return s;
 }
-function text(s, t, x, y, w, h, o = {}) {
-  s.addText(t, { x, y, w, h, fontFace: F, fontSize: 16, color: K.ink, valign: "top", margin: 0, paraSpaceAfter: 6, ...o });
-}
-function pill(s, label, x, y, kind) {
-  const c = kind === "fixed" ? [K.green, K.greenBg] : [K.amber, K.amberBg];
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w: 3.6, h: 0.46, rectRadius: 0.23, fill: { color: c[1] }, line: { color: c[0], width: 1.25 } });
-  s.addText(label, { x, y, w: 3.6, h: 0.46, fontFace: F, fontSize: 14, bold: true, color: c[0], align: "center", valign: "middle", margin: 0 });
-}
-function code(s, lines, x, y, w, h, fs = 13) {
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w, h, rectRadius: 0.08, fill: { color: K.code }, line: { color: K.code } });
-  s.addText(lines.join("\n"), { x: x + 0.25, y: y + 0.2, w: w - 0.5, h: h - 0.4, fontFace: M, fontSize: fs, color: "E6EEF5", valign: "top", margin: 0 });
-}
-function block(s, label, body, x, y, w, h, color = K.blue) {
-  s.addShape(pres.shapes.RECTANGLE, { x, y, w: 0.06, h, fill: { color }, line: { color } });
-  s.addText(label, { x: x + 0.22, y, w: w - 0.22, h: 0.32, fontFace: F, fontSize: 13, bold: true, color, margin: 0 });
-  s.addText(body, { x: x + 0.22, y: y + 0.36, w: w - 0.22, h: h - 0.36, fontFace: F, fontSize: 15, color: K.ink, valign: "top", margin: 0 });
-}
-function stat(s, big, label, x, y, w, color) {
-  s.addText(big, { x, y, w, h: 0.9, fontFace: F, fontSize: 44, bold: true, color, margin: 0 });
-  s.addText(label, { x, y: y + 0.9, w, h: 0.6, fontFace: F, fontSize: 14, color: K.sub, margin: 0, valign: "top" });
+const t = (s, text, o) => s.addText(text, Object.assign({ fontFace: F, color: C.ink, margin: 0, valign: "top" }, o));
+
+function tag(s, label, x, y, kind) {
+  const [fg, bg] = kind === "fixed" ? [C.green, C.greenBg] : kind === "amber" ? [C.amber, C.amberBg] : [C.grey, C.greyBg];
+  const w = 0.13 * label.length + 0.5;
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w, h: 0.34, rectRadius: 0.17, fill: { color: bg }, line: { color: bg } });
+  t(s, label, { x, y, w, h: 0.34, fontSize: 11.5, bold: true, color: fg, align: "center", valign: "middle" });
 }
 
-// ---------------------------------------------------------------- 1 title
-{
-  const s = pres.addSlide(); page++;
-  s.background = { color: K.navy };
-  s.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: 0.22, h: 7.5, fill: { color: "4F9BD6" }, line: { color: "4F9BD6" } });
-  s.addText("Finding the bugs that don't crash", { x: 0.9, y: 2.0, w: 11.5, h: 1.0, fontFace: F, fontSize: 42, bold: true, color: K.white, margin: 0 });
-  s.addText("A smart fuzzer for PostgreSQL that found 9 real bugs", { x: 0.9, y: 3.05, w: 11.5, h: 0.6, fontFace: F, fontSize: 24, color: "BFD6EA", margin: 0 });
-  s.addText("LLM-guided grammar-aware fuzzing  ·  CS-5187 term project A3", { x: 0.9, y: 4.4, w: 11.5, h: 0.4, fontFace: F, fontSize: 16, color: "8FB0CC", margin: 0 });
-  const n = "Hi everyone. We built a fuzzer, a tool that automatically writes and runs millions of test queries, for PostgreSQL, one of the most widely used databases. It found 9 real bugs; 3 are already fixed in PostgreSQL, two of them with fixes we wrote, and 4 more are accepted. In the next minutes: what we tested, how the tool works, and our six best bugs.";
-  s.addNotes(n); NOTES.push([page, "Title", n]);
+// one bug = one card (two per slide)
+function bugCard(s, x, b) {
+  const w = 5.85, y = 1.6, h = 5.2;
+  s.addShape(pres.shapes.RECTANGLE, { x, y, w, h, fill: { color: C.card }, line: { color: C.line, width: 1 } });
+  const ix = x + 0.32, iw = w - 0.64;
+  t(s, b.n, { x: ix, y: y + 0.26, w: 0.8, h: 0.4, fontSize: 15, bold: true, color: C.orange });
+  tag(s, b.status, x + w - 0.32 - (0.13 * b.status.length + 0.5), y + 0.27, "fixed");
+  t(s, b.title, { x: ix, y: y + 0.72, w: iw, h: 0.42, fontSize: 19, bold: true });
+  t(s, b.what, { x: ix, y: y + 1.17, w: iw, h: 0.75, fontSize: 13.5, color: C.soft });
+  s.addShape(pres.shapes.RECTANGLE, { x: ix, y: y + 1.98, w: iw, h: 1.95, fill: { color: C.code }, line: { color: C.code } });
+  t(s, b.sql.join("\n"), { x: ix + 0.18, y: y + 2.1, w: iw - 0.3, h: 1.75, fontFace: M, fontSize: b.fs || 12.5, color: "2A2A2E" });
+  t(s, [
+    { text: "Found by  ", options: { bold: true, color: C.blue } },
+    { text: b.found, options: { color: C.ink, breakLine: true } },
+    { text: "Fix  ", options: { bold: true, color: C.blue } },
+    { text: b.fix, options: { color: C.ink } },
+  ], { x: ix, y: y + 4.05, w: iw, h: 1.0, fontSize: 12.5, paraSpaceAfter: 4 });
 }
 
-// ---------------------------------------------------------------- 2 target
+// ---------------------------------------------------------------- 1. Title
 {
-  const s = slide("Our target: PostgreSQL", "Target",
-    "Our target is PostgreSQL. Banks, companies and apps everywhere store their data in it. Its query planner, the part that decides how to run a query, changes almost every week, so new bugs keep appearing. The worst kind are silent wrong answers: no crash, no error, the database just returns the wrong rows, and nobody notices. Crash-finding tools cannot see those. So we built a tool that can also tell when an answer is wrong. We tested the newest development version with internal safety checks turned on, plus the released versions 17 and 18.");
-  text(s, [
-    { text: "Used by banks, companies and apps everywhere", options: { bullet: true, breakLine: true } },
-    { text: "Its query planner changes almost every week, so new bugs keep appearing", options: { bullet: true, breakLine: true } },
-    { text: "Worst bugs are silent wrong answers: no crash, no error, just wrong rows", options: { bullet: true, bold: true, color: K.red, breakLine: true } },
-    { text: "We tested the newest development version (with internal checks on) and releases 17 and 18", options: { bullet: true } },
-  ], MX, 1.85, 7.3, 3.4, { fontSize: 18 });
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 8.55, y: 1.85, w: 4.08, h: 3.4, rectRadius: 0.12, fill: { color: K.sky }, line: { color: K.sky } });
-  stat(s, "9", "bugs reported to PostgreSQL", 8.9, 2.0, 3.5, K.blue);
-  stat(s, "3 + 4", "fixed + accepted / confirmed", 8.9, 3.55, 3.5, K.green);
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: MX, y: 5.6, w: CW, h: 1.0, rectRadius: 0.1, fill: { color: K.amberBg }, line: { color: K.amberBg } });
-  text(s, [{ text: "Example of a silent wrong answer:  ", options: { bold: true } },
-           { text: "a query asks \"is this empty value inside the range?\" PostgreSQL 17 and 18 answer \"yes\" instead of \"unknown\"." }],
-       MX + 0.3, 5.78, CW - 0.6, 0.7, { fontSize: 16, valign: "middle" });
+  const s = base(null, "Venu",
+    "Good afternoon. I am Venu, and with me are Bhuvan and Gowtham. Our project is LLM-guided, grammar-aware fuzzing of PostgreSQL. A fuzzer is a program that automatically writes a huge number of test queries and checks whether the database handles them correctly. Ours found nine bugs in PostgreSQL. Six of them are already fixed upstream, and for five of those six the fix that went in is a patch we wrote. In the next seven minutes we show the target, the techniques, and our top six bugs.");
+  s.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: 0.22, h: 7.5, fill: { color: C.blue }, line: { color: C.blue } });
+  t(s, "CS5187 · Selected project presentation · 10 Nov 2026", { x: 1.0, y: 1.25, w: 10, h: 0.4, fontSize: 14, color: C.orange, bold: true });
+  t(s, "LLM-Guided Grammar-Aware\nFuzzing of PostgreSQL", { x: 1.0, y: 1.8, w: 11, h: 2.0, fontSize: 46, bold: true, lineSpacingMultiple: 0.95 });
+  t(s, "A fuzzer that writes valid SQL, checks the answers, and learns new SQL features from PostgreSQL's own commits.", { x: 1.0, y: 3.95, w: 9.5, h: 0.8, fontSize: 18, color: C.soft });
+  s.addShape(pres.shapes.LINE, { x: 1.0, y: 5.1, w: 11.3, h: 0, line: { color: C.line, width: 1 } });
+  t(s, "Venu Kummari  ·  Bhuvan Chilukuti  ·  Gowtham Reddy", { x: 1.0, y: 5.3, w: 7.5, h: 0.4, fontSize: 16, bold: true });
+  t(s, [
+    { text: "9", options: { bold: true, color: C.blue } }, { text: " bugs reported    " },
+    { text: "6", options: { bold: true, color: C.green } }, { text: " fixed upstream" },
+  ], { x: 8.4, y: 5.3, w: 3.9, h: 0.4, fontSize: 16, align: "right", color: C.soft });
 }
 
-// ---------------------------------------------------------------- 3 techniques
+// ---------------------------------------------------------------- 2. Target
 {
-  const s = slide("How our fuzzer works", "Techniques",
-    "Here is the tool in one picture. Step one: it writes random but valid SQL using a grammar, a set of rules that describes the SQL language, so almost every query actually runs. Step two: it runs each query and checks the answer in several ways. We call these checks oracles; an oracle is simply a way to know the right answer. Crash checks catch crashes. Rewrite checks ask the same question in two different ways that must give the same answer, for example splitting a WHERE condition into true, false and unknown parts. Plan checks run the query with different planner settings, or on the previous release, and compare. Step three: an LLM reads recent PostgreSQL code changes and teaches the grammar new SQL features; a gate tests every suggestion on the real database before we use it. Step four: when something fails, the tool shrinks the query to a few lines and writes a draft bug report.");
-  const steps = [
-    ["1  Generate", "Writes random but valid SQL from a grammar (rules of the SQL language)", K.blue],
-    ["2  Check", "Runs each query and checks the answer in several ways (\"oracles\")", K.green],
-    ["3  Learn", "An LLM reads new PostgreSQL code and adds new SQL features; a gate tests them first", K.amber],
-    ["4  Report", "Shrinks a failing query to a few lines and drafts the bug report", K.red],
+  const s = base("Our target: PostgreSQL", "Venu",
+    "Our target is PostgreSQL, one of the most widely used open-source databases. Its query planner, the part that decides how a query is executed, changes almost every week, and new code is the least tested code. So we tested the development branch, master, built with PostgreSQL's internal assertion checks turned on, and we compared it with the last release, 18. We treat four kinds of failure as bugs, all equally: a crash or failed assertion, a wrong result, an internal error on a valid query, and a query that never stops. The bottom line: nine bugs reported, six fixed, and five of the fixes are patches we wrote.");
+  t(s, [
+    { text: "Widely used open-source database: banks, companies, apps", options: { bullet: { indent: 18 }, breakLine: true } },
+    { text: "The query planner changes almost every week, and new code is the least tested code", options: { bullet: { indent: 18 }, breakLine: true } },
+    { text: "We fuzzed the development branch (master) with internal checks on, and compared it with release 18", options: { bullet: { indent: 18 } } },
+  ], { x: MX, y: 1.75, w: 5.9, h: 3.0, fontSize: 18, paraSpaceAfter: 14, lineSpacingMultiple: 1.05 });
+
+  t(s, "What we count as a bug", { x: 7.15, y: 1.72, w: 5.5, h: 0.4, fontSize: 15, bold: true, color: C.blue });
+  const kinds = [
+    ["Crash", "the server process dies or an internal assertion fails"],
+    ["Wrong result", "the query runs fine but returns the wrong rows"],
+    ["Internal error", "a valid query fails with \"this should never happen\""],
+    ["Hang", "the query never finishes and cannot be cancelled"],
   ];
-  const bw = 2.78, gap = (CW - 4 * bw) / 3;
-  steps.forEach(([h, b, c], i) => {
-    const x = MX + i * (bw + gap);
-    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y: 1.85, w: bw, h: 2.2, rectRadius: 0.12, fill: { color: K.white }, line: { color: c, width: 2 } });
-    s.addText(h, { x: x + 0.2, y: 1.98, w: bw - 0.4, h: 0.45, fontFace: F, fontSize: 18, bold: true, color: c, margin: 0 });
-    s.addText(b, { x: x + 0.2, y: 2.5, w: bw - 0.4, h: 1.45, fontFace: F, fontSize: 14, color: K.ink, valign: "top", margin: 0 });
-    if (i < 3) s.addShape(pres.shapes.LINE, { x: x + bw + 0.05, y: 2.95, w: gap - 0.1, h: 0, line: { color: K.sub, width: 1.5, endArrowType: "triangle" } });
+  kinds.forEach(([k, d], i) => {
+    const y = 2.22 + i * 0.66;
+    s.addShape(pres.shapes.LINE, { x: 7.15, y, w: 5.45, h: 0, line: { color: C.line, width: 1 } });
+    t(s, k, { x: 7.15, y: y + 0.14, w: 1.7, h: 0.4, fontSize: 15, bold: true });
+    t(s, d, { x: 8.85, y: y + 0.14, w: 3.8, h: 0.5, fontSize: 13.5, color: C.soft });
   });
-  s.addText("How we know an answer is wrong", { x: MX, y: 4.35, w: CW, h: 0.4, fontFace: F, fontSize: 16, bold: true, color: K.ink, margin: 0 });
-  const o = [
-    ["Crash checks", "the database crashes or an internal safety check fails"],
-    ["Rewrite checks", "ask the same question two ways; answers must match (e.g. split WHERE into true / false / unknown)"],
-    ["Plan & version checks", "same query with different planner settings, or on the old release, must match"],
-  ];
-  const ow = (CW - 0.6) / 3;
-  o.forEach(([h, b], i) => block(s, h, b, MX + i * (ow + 0.3), 4.85, ow, 1.6, [K.red, K.green, K.blue][i]));
+
+  const stats = [["9", "bugs reported to PostgreSQL", C.blue], ["6", "fixed and committed upstream", C.green], ["5", "of those fixes are our patches", C.orange]];
+  stats.forEach(([n, l, col], i) => {
+    const x = MX + i * 4.05;
+    s.addShape(pres.shapes.RECTANGLE, { x, y: 5.25, w: 3.8, h: 1.35, fill: { color: C.card }, line: { color: C.line, width: 1 } });
+    t(s, n, { x: x + 0.3, y: 5.38, w: 1.0, h: 1.1, fontSize: 48, bold: true, color: col, valign: "middle" });
+    t(s, l, { x: x + 1.25, y: 5.38, w: 2.4, h: 1.1, fontSize: 14, color: C.soft, valign: "middle" });
+  });
 }
 
-// ---------------------------------------------------------------- bug slides
-function bug(n, title, status, kind, sqlLines, wrong, found, upstream, notes, fs) {
-  const s = slide(title, `Bug ${n} of 6`, notes);
-  pill(s, status, W - MX - 3.6, 0.4, kind);
-  s.addText("How to trigger it", { x: MX, y: 1.72, w: 6.3, h: 0.32, fontFace: F, fontSize: 13, bold: true, color: K.sub, margin: 0 });
-  code(s, sqlLines, MX, 2.08, 6.3, 4.35, fs || 13);
-  const x = 7.35, w = W - MX - x;
-  block(s, "What goes wrong", wrong, x, 1.72, w, 1.55, K.red);
-  block(s, "How we caught it", found, x, 3.42, w, 1.55, K.green);
-  block(s, "What PostgreSQL did", upstream, x, 5.12, w, 1.35, K.blue);
-}
-
-bug(1, "Parallel query planner crash", "FIXED  ·  #19803", "fixed",
-  ["CREATE TABLE pi (a int);", "CREATE TABLE pi_child () INHERITS (pi);", "",
-   "WITH c1 AS (", "  SELECT 1 FROM pi WHERE true", "  UNION ALL", "  SELECT 1 FROM pi WHERE false),",
-   "c2 AS MATERIALIZED (SELECT 1)", "SELECT 1 FROM c1", "UNION ALL SELECT 2 FROM c2;", "", "-- server crashes (assertion failure)"],
-  "The planner prepares a parallel plan for a table, then marks the table \"not safe for parallel\" but forgets the plan it already made. An internal safety check stops the server.",
-  "The LLM part of our fuzzer: grammar rules it learned from a recent PostgreSQL change produced this query; the crash check caught it.",
-  "Confirmed and fixed by David Rowley (commit abda2a2c), back-ported to version 14.",
-  "Bug one. This query combines a table with a child table, two WITH-clauses and UNION ALL. The planner first prepares a parallel plan for part of it, then decides that part is not safe to run in parallel, but forgets to throw the old plan away. PostgreSQL has internal safety checks, assertions, and one of them stops the server. Our LLM component found it: grammar rules the LLM learned from a recent PostgreSQL change produced this query. PostgreSQL developer David Rowley confirmed it and committed a fix, back-ported to version 14.");
-
-bug(2, "to_char() silently drops part of its output", "FIXED  ·  OUR PATCH  ·  #19771", "fixed",
-  ["SELECT to_char(100::numeric,", "               'FM999.SG \"items\"');", "",
-   "-- before the fix:   100", "-- after  the fix:   100+ items", "",
-   "-- any number format that ends in a", "-- decimal point loses everything", "-- after it"],
-  "When a number format ends with a decimal point, PostgreSQL copies an end-of-string byte into the output, so the sign and any text after it disappear. No error is shown.",
-  "Our cross-version check: we ran thousands of random to_char / to_number / to_date calls on two PostgreSQL versions and compared the answers.",
-  "Our team wrote the fix; Tom Lane reviewed and committed it (776df8a6) for version 19.",
-  "Bug two is a wrong output, not a crash. to_char formats a number as text. If the format has a decimal point with nothing after it, PostgreSQL accidentally copies the invisible end-of-string marker into the result, so everything after it is lost: you ask for 100 plus items and get just 100. We found it by running thousands of random formatting calls on two PostgreSQL versions and comparing the answers. Our team wrote the fix, and Tom Lane, one of PostgreSQL's most senior developers, reviewed and committed it.");
-
-bug(3, "Statistics on expressions crash the planner", "FIXED  ·  OUR PATCH", "fixed",
-  ["CREATE TABLE dt (a int, c bool);", "INSERT INTO dt SELECT x % 10, x % 10 < 5", "  FROM generate_series(1, 1000) x;",
-   "CREATE STATISTICS s (dependencies)", "  ON a, (c IS TRUE) FROM dt;", "ANALYZE dt;", "",
-   "SELECT * FROM dt", "WHERE a = 1 AND (c IS TRUE)", "            AND (c IS TRUE);", "", "-- server crashes (assertion failure)"],
-  "With extra statistics on an expression, writing the same condition twice makes the planner's estimate code trip an internal safety check that contradicts its own logic.",
-  "Our statistics fuzzer: it builds random statistics objects and random WHERE clauses that reuse the same expressions; the crash check caught it.",
-  "Our team wrote the fix; David Rowley reviewed and committed it (b0392c26), back-ported to version 14.",
-  "Bug three. PostgreSQL lets you create extra statistics so the planner guesses better how many rows a query returns. If those statistics are on an expression, like c IS TRUE, and the query repeats that condition, the estimation code deliberately groups the duplicates, but an internal safety check right after it says duplicates are impossible. So the check was simply wrong, and it stopped the server. Our statistics fuzzer found it by mixing random statistics with random WHERE clauses. Our team wrote the fix, and it was committed and back-ported to version 14.");
-
-bug(4, "JSON_TABLE gives wrong answers", "ACCEPTED  ·  #19768", "accepted",
-  ["SELECT * FROM JSON_TABLE(", "  jsonb_build_object('k',", "      ROW(1, 2) < ROW(3, 4)),", "  '$' COLUMNS (a bool PATH '$.k'));", "",
-   "-- expected:   t     (1,2) < (3,4) is true", "-- 17 and 18:  f     wrong answer", "-- newest:     server crashes"],
-  "JSON_TABLE turns JSON into rows. It forgets to set up text-comparison rules (collations) for its input, so comparing rows inside it gives false, or a bogus error.",
-  "The grammar fuzzer generated a JSON_TABLE query that crashed the newest version; checking the same query on release 18 showed the silent wrong answer.",
-  "Accepted upstream; our one-line fix with tests was sent.",
-  "Bug four is a wrong answer. JSON_TABLE turns a JSON document into a table. Here we ask whether the pair (1,2) is smaller than (3,4), which is obviously true. PostgreSQL 17 and 18 say false, and the newest version crashes. The reason: JSON_TABLE forgets to set up the comparison rules, called collations, for its input, so the comparison compares nothing. Our grammar fuzzer generated a JSON_TABLE query that crashed the newest version, and running it on release 18 showed the wrong answer. The bug is accepted, and we sent a one-line fix with tests.");
-
-bug(5, "NOT IN returns rows it should not", "ACCEPTED", "accepted",
-  ["-- a cast that turns 0 into NULL", "CREATE CAST (int AS text)", "  WITH FUNCTION i2t(int) AS IMPLICIT;", "",
-   "CREATE TABLE o (t text NOT NULL);  -- '1'", "CREATE TABLE s (i int  NOT NULL);  --  0", "",
-   "SELECT t FROM o", "WHERE t NOT IN (SELECT i FROM s);", "", "-- expected: no rows  ('1' vs NULL is unknown)", "-- actual:   1"],
-  "A new speed-up in version 19 turns NOT IN into a faster join. It assumes the values can never be NULL, but a conversion (cast) can create NULLs, so wrong rows come back.",
-  "We reviewed the new speed-up and checked it against other plans and the older release; our rewrite check also flags it (one row vs two).",
-  "Accepted upstream; our fix with a test was sent.",
-  "Bug five is another silent wrong answer, in a brand-new optimization of version 19. NOT IN means: keep the row only if the value is certainly not in the list. If the list contains NULL, the answer is unknown, so no row should come back. The new optimization rewrites NOT IN into a faster join and assumes the values cannot be NULL. But a type conversion, a cast, can turn a normal value into NULL, and then the result is wrong. We found it by reviewing the new optimization and comparing results across plans and versions; our rewrite check flags it too. It is accepted, and we sent a fix.");
-
-bug(6, "MERGE fails with an internal error", "CONFIRMED  ·  #19802", "accepted",
-  ["CREATE TABLE mp (a int, b text)", "  PARTITION BY RANGE (a);", "CREATE TABLE mp1 PARTITION OF mp", "  FOR VALUES FROM (0) TO (10);", "",
-   "MERGE INTO mp t", "USING (SELECT true AS c OFFSET 0) s", "  ON t.a IS NULL", "WHEN MATCHED THEN UPDATE", "  SET b = (SELECT NULL WHERE s.c)", "WHEN NOT MATCHED THEN", "  INSERT VALUES (1, 'x');", "", "-- ERROR: SubPlan found with no parent plan"],
-  "MERGE (insert-or-update in one statement) on a partitioned table, with a small subquery in the UPDATE, makes the planner lose track of that subquery: a valid statement fails with an internal error.",
-  "The grammar fuzzer generated it; the internal-error check flags any \"this should never happen\" error.",
-  "Confirmed by PostgreSQL committer Tender Wang, who posted a fix.",
-  "Bug six. MERGE is a statement that inserts or updates rows in one go. On a partitioned table, if the UPDATE part contains a small subquery that refers to the source, the planner loses track of that subquery and the statement fails with an internal error, an error that should never happen. Our grammar fuzzer generated this statement, and our internal-error check flagged it. A PostgreSQL committer confirmed it and posted a fix.", 12);
-
-// ---------------------------------------------------------------- results
+// ---------------------------------------------------------------- 3. Techniques
 {
-  const s = slide("All results", "Summary",
-    "To sum up: 9 bugs. 3 are fixed and committed in PostgreSQL, and two of those fixes were written by our team. 4 more are accepted or confirmed and waiting for their fix. 2 have no reply yet. Most of them are silent wrong answers or internal errors that a normal crash-only tool would not find. The main lesson for us: generating valid SQL is the easy part; knowing what the right answer is, is the hard part, and that is where our checks made the difference.");
+  const s = base("How our fuzzer works", "Venu",
+    "This is the whole tool in one picture. Step one: an LLM reads recent PostgreSQL commits and proposes new grammar rules for the SQL features those commits touch; a gate keeps a rule only if the server actually runs it. Step two: we generate queries from a typed SQL grammar, 78 rules and 421 alternatives, so almost every query is valid and reaches the planner instead of failing in the parser. Step three: every query runs on master with assertions on, under 18 different planner settings, and also on release 18.6. Step four: the checks below decide whether something is wrong. A crash check. A metamorphic rewrite check: for example we split a WHERE condition into its true, false and NULL parts, and the parts must add up to the original answer. Plan variants: the same query under different planner settings must return the same rows. Cross-version: master and release 18 must agree. And a hang check: a query must stop at the timeout. Step five: a failing query is shrunk to a few lines and turned into a draft bug report. We also wrote small targeted fuzzers for new features, for example extended statistics.");
+  const steps = [
+    ["1", "Learn", "An LLM reads recent PostgreSQL commits and proposes new grammar rules; a gate keeps only rules the server runs"],
+    ["2", "Generate", "Typed SQL grammar (78 rules, 421 alternatives) builds queries that are valid by construction"],
+    ["3", "Run", "On master with assertions on, under 18 planner settings, and on release 18.6"],
+    ["4", "Check", "Oracles decide whether the answer is wrong (below)"],
+    ["5", "Reduce & report", "Shrink the query to a few lines and draft the bug report"],
+  ];
+  const bw = 2.25, gap = 0.17;
+  steps.forEach(([n, h, d], i) => {
+    const x = MX + i * (bw + gap);
+    s.addShape(pres.shapes.RECTANGLE, { x, y: 1.65, w: bw, h: 2.35, fill: { color: C.card }, line: { color: C.line, width: 1 } });
+    t(s, n, { x: x + 0.2, y: 1.8, w: 0.5, h: 0.4, fontSize: 15, bold: true, color: C.orange });
+    t(s, h, { x: x + 0.2, y: 2.18, w: bw - 0.4, h: 0.4, fontSize: 17, bold: true });
+    t(s, d, { x: x + 0.2, y: 2.62, w: bw - 0.35, h: 1.35, fontSize: 12.5, color: C.soft });
+    if (i < steps.length - 1) t(s, "›", { x: x + bw - 0.02, y: 2.55, w: gap + 0.04, h: 0.5, fontSize: 22, color: C.faint, align: "center" });
+  });
+
+  t(s, "The checks (oracles): how we know an answer is wrong", { x: MX, y: 4.3, w: 10, h: 0.4, fontSize: 15, bold: true, color: C.blue });
+  const checks = [
+    ["Crash check", "server dies or an assertion fails"],
+    ["Rewrite (TLP)", "split WHERE into true / false / NULL parts; they must add up"],
+    ["Plan variants", "different planner settings must give the same rows"],
+    ["Cross-version", "master and release 18 must agree"],
+    ["Hang check", "a query must stop at the timeout"],
+  ];
+  checks.forEach(([h, d], i) => {
+    const x = MX + i * (bw + gap);
+    s.addShape(pres.shapes.LINE, { x, y: 4.85, w: bw, h: 0, line: { color: C.ink, width: 1.5 } });
+    t(s, h, { x, y: 4.98, w: bw, h: 0.35, fontSize: 14, bold: true });
+    t(s, d, { x, y: 5.35, w: bw - 0.1, h: 0.9, fontSize: 12.5, color: C.soft });
+  });
+  t(s, "Plus small targeted fuzzers for new features (e.g. extended statistics).", { x: MX, y: 6.35, w: 11, h: 0.35, fontSize: 13, italic: true, color: C.soft });
+}
+
+// ---------------------------------------------------------------- 4-6. Bugs
+const B = {
+  b19803: {
+    n: "01", status: "FIXED · #19803", title: "Parallel planner crash",
+    what: "The planner builds a parallel plan for a table, then marks the table \"not parallel-safe\" but keeps the plan it already built. An assertion stops the server.",
+    sql: ["CREATE TABLE pi (a int);", "CREATE TABLE pi_child () INHERITS (pi);", "WITH c1 AS (SELECT 1 FROM pi WHERE true", "            UNION ALL", "            SELECT 1 FROM pi WHERE false),", "c2 AS MATERIALIZED (SELECT 1)", "SELECT 1 FROM c1 UNION ALL SELECT 2 FROM c2;", "-- server crashes (assertion failure)"],
+    found: "the LLM arm: grammar rules learned from a recent planner commit produced this query; the crash check caught it.",
+    fix: "David Rowley, commit abda2a2, back-patched to v14.", fs: 11.5,
+  },
+  b19771: {
+    n: "02", status: "FIXED · OUR PATCH · #19771", title: "to_char() drops part of its output",
+    what: "When a number format ends with a decimal point, the end-of-string byte is copied into the output, so everything after it disappears. No error.",
+    sql: ["SELECT to_char(100::numeric,", "               'FM999.SG \"items\"');", "", "-- expected:  100+ items", "-- got:       100"],
+    found: "cross-version check: thousands of random to_char calls on master and release 18, answers compared.",
+    fix: "our patch, committed by Tom Lane (776df8a) for v19.",
+  },
+  bstats: {
+    n: "03", status: "FIXED · OUR PATCH", title: "Statistics on expressions crash",
+    what: "With extended statistics on an expression, repeating the same condition twice trips an assertion in the planner's row estimate code.",
+    sql: ["CREATE TABLE dt (a int, c bool);", "INSERT INTO dt SELECT x % 10, x % 10 < 5", "  FROM generate_series(1, 1000) x;", "CREATE STATISTICS s (dependencies)", "  ON a, (c IS TRUE) FROM dt;", "ANALYZE dt;", "SELECT * FROM dt WHERE a = 1", "  AND (c IS TRUE) AND (c IS TRUE);   -- crash"], fs: 11.5,
+    found: "our extended-statistics fuzzer: random statistics objects plus WHERE clauses that reuse the same expressions.",
+    fix: "our patch, committed by David Rowley (b0392c2), back-patched to v14.",
+  },
+  bnotin: {
+    n: "04", status: "FIXED · OUR PATCH", title: "NOT IN returns a row it should not",
+    what: "A new v19 speed-up turns NOT IN into an anti-join. It assumes no NULLs, but an implicit cast can turn a value into NULL, so a wrong row comes back.",
+    sql: ["-- i2t(0) returns NULL", "CREATE CAST (int AS text)", "  WITH FUNCTION i2t(int) AS IMPLICIT;", "-- o.t holds '1',  s.i holds 0", "SELECT t FROM o", "WHERE t NOT IN (SELECT i FROM s);", "-- expected: no rows   got: '1'"],
+    found: "differential checks: release 18, without the new speed-up, returns no rows; master returns '1'.",
+    fix: "our patch, committed by Richard Guo (b7eee09) for v19.",
+  },
+  bjson: {
+    n: "05", status: "FIXED · OUR PATCH · #19768", title: "JSON_TABLE gives wrong answers",
+    what: "JSON_TABLE forgot to assign collations to its input, so a row comparison inside it compares zero columns: wrong answer on 17/18, crash on master.",
+    sql: ["SELECT * FROM JSON_TABLE(", "  jsonb_build_object('k',", "      ROW(1, 2) < ROW(3, 4)),", "  '$' COLUMNS (a bool PATH '$.k'));", "", "-- expected: t", "-- 17, 18:   f   (wrong answer)", "-- master:   server crashes"], fs: 11.5,
+    found: "the grammar fuzzer hit the crash on master; running the same query on release 18 showed the wrong answer.",
+    fix: "our patch, committed by Amit Langote (e405a46), back-patched to v17.",
+  },
+  bignull: {
+    n: "06", status: "FIXED · OUR PATCH", title: "A query that never stops",
+    what: "first_value() / nth_value() with the new IGNORE NULLS loop forever. The query ignores statement_timeout and cancel; only killing the process helps.",
+    sql: ["SET statement_timeout = '5s';", "SELECT first_value(x) IGNORE NULLS OVER w", "FROM (VALUES (1)) v(x)", "WINDOW w AS (ROWS BETWEEN UNBOUNDED PRECEDING", "  AND UNBOUNDED FOLLOWING EXCLUDE GROUP);", "", "-- never returns, ignores the timeout"], fs: 11.5,
+    found: "the hang check: the query ran past the timeout and could not be cancelled.",
+    fix: "our patch, committed by Tatsuo Ishii (69b20fd) for v19.",
+  },
+};
+
+{
+  const s = base("Bugs 1–2: a planner crash and a broken to_char()", "Gowtham",
+    "I am Gowtham; I will take the first two bugs. Bug one is a crash in the planner. The planner prepares a parallel plan for a table, then later decides the table is not safe for parallel execution, but forgets to throw away the plan it already made. PostgreSQL's internal assertion catches this and the server stops. This one came from the LLM part of our fuzzer: the LLM read a recent planner commit and added grammar rules for those features, and a query generated from them crashed the server. David Rowley fixed it and back-patched the fix to version 14. Bug two is about to_char, the function that formats numbers as text. If the format ends with a decimal point, PostgreSQL copies the invisible end-of-string byte into the result, so everything after it, here the plus sign and the word items, silently disappears. We found it with the cross-version check: we ran thousands of random to_char calls on master and on release 18 and compared the answers. We wrote the fix, and Tom Lane committed it for version 19.");
+  bugCard(s, MX, B.b19803);
+  bugCard(s, MX + 6.08, B.b19771);
+}
+{
+  const s = base("Bugs 3–4: a statistics crash and a wrong NOT IN", "Bhuvan",
+    "I am Bhuvan. Bug three: PostgreSQL can keep extra statistics on expressions to estimate how many rows a query returns. If the same condition appears twice in the WHERE clause, an assertion in that estimate code fails and the server crashes. Our extended-statistics fuzzer found it by creating random statistics objects and random WHERE clauses that reuse the same expressions. Our patch was committed by David Rowley and back-patched to version 14. Bug four is a wrong result. Version 19 added a speed-up that turns NOT IN into an anti-join. That is only correct if no value can be NULL. But an implicit cast can turn a value into NULL: here zero becomes NULL. And 1 NOT IN (NULL) is unknown, so the correct answer is no rows, but master returns the row. Our differential checks caught it, because release 18, which does not have the speed-up, returns no rows. Richard Guo committed our patch for version 19.");
+  bugCard(s, MX, B.bstats);
+  bugCard(s, MX + 6.08, B.bnotin);
+}
+{
+  const s = base("Bugs 5–6: JSON_TABLE and a query that never stops", "Venu → Bhuvan",
+    "VENU: Bug five is in JSON_TABLE, which turns JSON into rows. PostgreSQL forgot to assign collations, the text comparison rules, to JSON_TABLE's input. As a result a row comparison inside it compares zero columns. Row one-two less than row three-four should be true; versions 17 and 18 say false, and master crashes on an assertion. Our grammar fuzzer found the crash on master, and running the same query on release 18 showed the silent wrong answer. Amit Langote committed our patch this week and back-patched it to version 17. BHUVAN: Bug six is a hang. first_value and nth_value with the new IGNORE NULLS option can loop forever on this window frame. Worse, the query ignores statement_timeout and cancel requests, so one query can hold a CPU until the process is killed. Our hang check flagged it because the query ran past its timeout and could not be cancelled. Tatsuo Ishii committed our patch for version 19.");
+  bugCard(s, MX, B.bjson);
+  bugCard(s, MX + 6.08, B.bignull);
+}
+
+// ---------------------------------------------------------------- 7. All results
+{
+  const s = base("All nine bugs", "Gowtham",
+    "Here are all nine bugs. The six we just showed are fixed upstream, five of them with our own patches. They cover every kind of failure: crashes, wrong results, an internal error and a hang. Of the other three, the MERGE internal error is confirmed by committer Tender Wang, who posted a fix; the range bug and the parallel EXPLAIN crash are reported, and for the range bug we also sent a patch. The main lesson: writing valid SQL is the easy part; knowing the right answer is the hard part, and the checks we built are what turned generated queries into real bug reports.");
+  const hdr = (x) => ({ text: x, options: { bold: true, color: C.soft, fontSize: 12 } });
+  const st = (x, col) => ({ text: x, options: { bold: true, color: col } });
   const rows = [
-    ["Bug", "Kind", "Status"],
-    ["Parallel planner crash (#19803)", "crash", "fixed"],
-    ["to_char() drops output (#19771)", "wrong output", "fixed (our patch)"],
-    ["Statistics crash (dependencies.c)", "crash", "fixed (our patch)"],
-    ["JSON_TABLE wrong answer (#19768)", "wrong answer", "accepted"],
-    ["NOT IN wrong rows", "wrong answer", "accepted"],
-    ["MERGE internal error (#19802)", "internal error", "confirmed"],
-    ["IGNORE NULLS query never ends", "hang", "confirmed"],
-    ["Range check wrong for NULL (#19793)", "wrong answer", "reported"],
-    ["Parallel EXPLAIN crash (#19766)", "crash", "reported"],
+    [hdr("BUG"), hdr("KIND"), hdr("FOUND BY"), hdr("STATUS")],
+    ["#19803  Parallel planner crash", "crash", "LLM arm", st("fixed", C.green)],
+    ["#19771  to_char() drops output", "wrong result", "cross-version", st("fixed · our patch", C.green)],
+    ["Statistics on expressions crash", "crash", "statistics fuzzer", st("fixed · our patch", C.green)],
+    ["NOT IN wrong row", "wrong result", "differential checks", st("fixed · our patch", C.green)],
+    ["#19768  JSON_TABLE wrong answer", "wrong result, crash", "grammar fuzzer", st("fixed · our patch", C.green)],
+    ["IGNORE NULLS never stops", "hang", "hang check", st("fixed · our patch", C.green)],
+    ["#19802  MERGE internal error", "internal error", "grammar fuzzer", st("confirmed", C.amber)],
+    ["#19793  Range check wrong for NULL", "wrong result", "rewrite oracle", st("reported + patch", C.grey)],
+    ["#19766  Parallel EXPLAIN crash", "crash", "grammar fuzzer", st("reported", C.grey)],
   ];
-  const col = (st) => st.startsWith("fixed") ? K.green : st === "reported" ? K.sub : K.amber;
-  s.addTable(rows.map((r, i) => r.map((c, j) => ({ text: c, options: {
-    fontFace: F, fontSize: 13, color: i === 0 ? K.white : j === 2 ? col(r[2]) : K.ink, bold: i === 0 || j === 2,
-    fill: { color: i === 0 ? K.navy : i % 2 ? K.white : "F4F7FA" } } }))),
-    { x: MX, y: 1.75, w: 8.0, colW: [4.4, 1.8, 1.8], rowH: 0.43, border: { type: "solid", pt: 0.5, color: K.line }, margin: 0.08, valign: "middle" });
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 9.1, y: 1.75, w: 3.53, h: 4.3, rectRadius: 0.12, fill: { color: K.sky }, line: { color: K.sky } });
-  stat(s, "3", "fixed in PostgreSQL (2 with our patches)", 9.4, 1.95, 3.0, K.green);
-  stat(s, "4", "accepted / confirmed", 9.4, 3.4, 3.0, K.amber);
-  s.addText("Takeaway: writing valid SQL is easy; knowing the right answer is the hard part.", { x: MX, y: 6.35, w: CW, h: 0.5, fontFace: F, fontSize: 17, bold: true, color: K.blue, margin: 0 });
+  s.addTable(rows, {
+    x: MX, y: 1.6, w: 9.35, colW: [3.55, 1.95, 1.9, 1.95],
+    fontFace: F, fontSize: 13, color: C.ink, rowH: 0.43, valign: "middle",
+    border: { type: "solid", color: C.line, pt: 0.75 }, fill: { color: C.bg }, margin: [0, 0.1, 0, 0.1],
+  });
+  s.addShape(pres.shapes.RECTANGLE, { x: 10.3, y: 1.6, w: 2.33, h: 4.3, fill: { color: C.card }, line: { color: C.line, width: 1 } });
+  t(s, "6", { x: 10.5, y: 1.8, w: 2.0, h: 0.9, fontSize: 54, bold: true, color: C.green });
+  t(s, "fixed upstream, 5 with our patches", { x: 10.5, y: 2.7, w: 2.0, h: 0.9, fontSize: 14, color: C.soft });
+  t(s, "4", { x: 10.5, y: 3.55, w: 2.0, h: 0.9, fontSize: 54, bold: true, color: C.blue });
+  t(s, "kinds of failure: crash, wrong result, internal error, hang", { x: 10.5, y: 4.45, w: 2.0, h: 1.2, fontSize: 14, color: C.soft });
+  t(s, "Writing valid SQL is the easy part; knowing the right answer is the hard part.", { x: MX, y: 6.25, w: 12, h: 0.45, fontSize: 16, bold: true, color: C.blue });
 }
 
-// ---------------------------------------------------------------- thanks
+// ---------------------------------------------------------------- 8. Thanks
 {
-  const s = pres.addSlide(); page++;
-  s.background = { color: K.navy };
-  s.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: 0.22, h: 7.5, fill: { color: "4F9BD6" }, line: { color: "4F9BD6" } });
-  s.addText("Thank you!  Questions?", { x: 0.9, y: 2.6, w: 11.5, h: 1.0, fontFace: F, fontSize: 42, bold: true, color: K.white, margin: 0 });
-  s.addText("Code, reproducers and patches:  github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi", { x: 0.9, y: 3.75, w: 11.8, h: 0.5, fontFace: F, fontSize: 18, color: "BFD6EA", margin: 0 });
-  const n = "Thank you. All the code, the reproducers and our patches are in our repository. We are happy to take questions.";
-  s.addNotes(n); NOTES.push([page, "Thank you", n]);
+  const s = base(null, "Gowtham",
+    "Thank you. Everything, the fuzzer, the reproducers and our patches, is in our repository. We are happy to take questions.");
+  s.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: 0.22, h: 7.5, fill: { color: C.blue }, line: { color: C.blue } });
+  t(s, "Thank you", { x: 1.0, y: 2.2, w: 11, h: 1.1, fontSize: 54, bold: true });
+  t(s, "Questions?", { x: 1.0, y: 3.3, w: 11, h: 0.8, fontSize: 30, color: C.orange, bold: true });
+  s.addShape(pres.shapes.LINE, { x: 1.0, y: 4.55, w: 11.3, h: 0, line: { color: C.line, width: 1 } });
+  t(s, "Code, reproducers and patches", { x: 1.0, y: 4.75, w: 8, h: 0.35, fontSize: 14, color: C.soft });
+  t(s, "github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi", { x: 1.0, y: 5.1, w: 11, h: 0.45, fontSize: 18, bold: true, color: C.blue });
+  t(s, "Venu Kummari  ·  Bhuvan Chilukuti  ·  Gowtham Reddy", { x: 1.0, y: 5.8, w: 11, h: 0.4, fontSize: 15 });
 }
 
-let md = "# Speaker notes: class presentation (7-8 minutes)\n\nAbout 40 seconds per slide. Slide numbers match talk.pptx / talk.pdf.\n\n";
-NOTES.forEach(([n, t, x]) => { md += `## Slide ${n}: ${t}\n\n${x}\n\n`; });
-fs.writeFileSync(path.join(__dirname, "SPEAKER_NOTES.md"), md);
-pres.writeFile({ fileName: path.join(__dirname, "talk.pptx") }).then((f) => console.log("wrote", f));
+fs.writeFileSync("notes.json", JSON.stringify(notes, null, 1));
+pres.writeFile({ fileName: "talk.pptx" }).then((f) => console.log("wrote", f));
