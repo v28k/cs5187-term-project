@@ -5,7 +5,7 @@
 - Paper authorship and AI-use statement: TBD
 - Anonymous artifact mirror: TBD
 - Final paper title (working title in PLAN.md section 1): TBD
-- LLM model and API key for the solver/overlay/triage LLM calls (Claude or Gemini): TBD; until then `manual` mode
+- LLM model and API key: only needed for Phase L (LLM extension, moved to the end by the owner): TBD
 - Extra machines for evaluation (this one has 4 cores, 13 GB free disk): TBD
 
 ## Blocked
@@ -25,6 +25,8 @@
   other download hosts are blocked; GitHub REST API is not available for unattached repos; Java + Maven present.
 - PostgreSQL status (verified on master 6 Nov): 6 of the 9 reported bugs fixed (#19803 abda2a2, #19771 776df8a,
   statistics b0392c2, NOT IN b7eee09, #19768 e405a46, IGNORE NULLS 69b20fd); 5 of the fixes are the team's patches.
+- Decision (owner, 6 Nov): the LLM extension comes last (Phase L in PLAN.md), after all other work;
+  C2 is now rule-targeted generation without an LLM; C6 uses engine test suites as seeds.
 - Next: A4, A1, A2, then B1 (DuckDB to 95 %) and start the DuckDB campaign.
 
 
