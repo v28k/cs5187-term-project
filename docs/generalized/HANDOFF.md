@@ -97,21 +97,26 @@ Keep the task table in `docs/generalized/PLAN.md` current (status column).
 - If an action is blocked (e.g. a permission for `cargo build`, a network host), note it under
   "Blocked" in PROGRESS.md, use a workaround if there is a sound one, and continue with other tasks.
 
-## 2. Bugs: status on 2 Nov 2026 (keep this table current)
+## 2. Bugs: status on 6 Nov 2026 (keep this table current; facts verified against commits and archives)
 
 | # | Bug | Upstream | Status | Found by |
 |---|---|---|---|---|
-| 1 | JSON_TABLE does not assign collations (wrong result 17/18, assertion master) | BUG #19768 https://www.postgresql.org/message-id/19768-3633daa830be95db@postgresql.org | reported, patch sent, no reply | grammar fuzzer |
-| 2 | range `@>` NULL element folded to true/false (wrong result 17, 18, master) | BUG #19793 https://www.postgresql.org/message-id/19793-16d3a1bf33dff0fb@postgresql.org | reported, patch sent | `(SELECT e)` rewrite oracle |
-| 3 | MERGE into partitioned table: "SubPlan found with no parent plan" | BUG #19802 | confirmed by committer (Tender Wang), patch posted | grammar campaign |
-| 4 | Parallel Append assertion | BUG #19803 | **fixed on master abda2a2c** (David Rowley) | LLM-fragment arm + TLP |
-| 5 | to_char(NaN) breaks NORMALIZE (assertion) | BUG #19771 | **fixed in 776df8a6, authored by Gowtham** | grammar campaign |
-| 6 | AUDIT-F1: NOT IN anti-join ignores implicit cast (wrong result 19/master) | https://www.postgresql.org/message-id/PN0P287MB090375874C6D5433282EC9DFA7642@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM | reported, patch | audit + TLP |
-| 7 | AUDIT-F2: IGNORE NULLS frame scan never returns (ignores timeout and cancel) | https://www.postgresql.org/message-id/PN0P287MB09038F3BD9921EBACF5646F6A7632@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM | developer (Ishii) replied | audit; hang oracle |
-| 8 | C-01: dependencies.c assertion, duplicate statistics expression | https://postgr.es/m/PN0P287MB0903563C70D8E5B81912E855A7602@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM | **fixed in b0392c26 (author Bhuvan, reviewed David Rowley, backpatched to 14)** | differential fuzzers |
-| 9 | pg_restore_extended_stats accepts non-finite MCV freqs | pgsql-hackers patch | patch submitted | CERT oracle |
-| 10 | **E-01**: corr()/regr_r2()/regr_slope() of constant input NULL serially, 1 with partial aggregation (regression from 64982876, master and REL_19) | **BUG #19826** (filed 2 Nov by Venu, patch sent) | waiting | plan-variant oracle |
-| 11 | **E-02**: "plan should not reference subplan's variable" with Memoize + correlated ALL/ANY sublink (regression from f8da64e6, 2 Nov) | filed 2 Nov by Venu, Cc Richard Guo; **bug number not yet recorded** | waiting | internal-error oracle on master 633dee1b |
+| 1 | BUG #19768: JSON_TABLE row/text comparisons in context item or PASSING give wrong results or spurious collation (wrong result 17.11/18.6, assertion on master) | https://www.postgresql.org/message-id/19768-3633daa830be95db@postgresql.org | **accepted upstream (6 Nov 2026)**; patch sent | grammar fuzzer |
+| 2 | BUG #19793: range containment with empty/unbounded constant range returns true/false for NULL element (17, 18.6, master; 16 ok) | https://www.postgresql.org/message-id/19793-16d3a1bf33dff0fb@postgresql.org | reported, patch sent, no reply yet | `(SELECT e)` rewrite oracle |
+| 3 | BUG #19802: MERGE into partitioned table, "SubPlan found with no parent plan" | report https://www.postgresql.org/message-id/19802-ef50a8f1a4b5deee@postgresql.org, thread https://www.postgresql.org/message-id/CAOZ9b%2Bq-u2HGK-0SR7ohjCsQ8TALoYXHESjSwniNx-EVKMheCA%40mail.gmail.com | confirmed by Tender Wang, patch posted, not committed | grammar fuzzer |
+| 4 | BUG #19803: Assertion `!parallel_aware \|\| pathnode->path.parallel_safe` in create_append_path | https://postgr.es/m/19803-1fcc1df108c54ab6@postgresql.org | **fixed in abda2a2c** (author David Rowley; Reported-by/Tested-by Gowtham Reddy; backpatched to 14) | LLM-fragment arm (assertion during a metamorphic check) |
+| 5 | BUG #19771: to_char(): NUL byte in result for formats with a trailing decimal point | https://www.postgresql.org/message-id/19771-4f173b891525020c@postgresql.org | **fixed in 776df8a6** (author Gowtham Reddy, committed by Tom Lane, backpatched to 19) | cross-version differential fuzzer |
+| 6 | NOT IN results with implicit casts returning NULL after anti-join optimization (wrong result 19/master) | https://www.postgresql.org/message-id/PN0P287MB090375874C6D5433282EC9DFA7642@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM | **accepted upstream (6 Nov 2026)**; patch sent | code audit + differential checks |
+| 7 | first_value()/nth_value() with IGNORE NULLS loop forever (ignores statement_timeout and cancel) | https://www.postgresql.org/message-id/PN0P287MB09038F3BD9921EBACF5646F6A7632@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM | confirmed (Tatsuo Ishii), not fixed | audit, timeout watchdog (now also the fuzzer's hang oracle) |
+| 8 | Assertion failure in dependencies_clauselist_selectivity with two clauses on the same statistics expression | https://www.postgresql.org/message-id/PN0P287MB0903563C70D8E5B81912E855A7602@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM | **fixed in b0392c26** (author Bhuvan Chilukuti, reviewed by David Rowley, backpatched to 14) | extended-statistics clause fuzzer |
+| 9 | BUG #19766: Assert in shm_toc_insert (EXPLAIN ANALYZE of a SubPlan shared by Parallel Append children) | original report https://www.postgresql.org/message-id/19766-c3d105a4e0ec5487@postgresql.org; our reply with an inheritance reproducer https://www.postgresql.org/message-id/PN0P287MB0903F87E7EAE9766FDEFED95A7992@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM | found independently, reproducer added to the existing report; no reply | grammar fuzzer |
+| 10 | E-01 = BUG #19826: corr()/regr_r2()/regr_slope() of constant input differ under partial aggregation (regression from 649828769, master and REL_19) | BUG #19826 | Tom Lane reviewed v1 (asked for the NaN forcing of 7774249d0 and better comments); v2 prepared in `docs/bughunt/new/` | plan-variant oracle |
+| 11 | E-02: "plan should not reference subplan's variable" with Memoize + correlated ALL/ANY sublink (regression from f8da64e6) | pgsql-bugs, number not recorded yet | filed 2 Nov, patch sent | internal-error oracle |
+| — | Extended-statistics: pg_restore_extended_stats accepts non-finite MCV freqs | pgsql-hackers patch | patch submitted | CERT oracle |
+
+Counts (6 Nov 2026), the 9 bugs in rows 1–9: 3 fixed (#19803, #19771, C-01; two of the fixes
+authored by the team), 4 accepted/confirmed but not committed yet (#19768, #19802, NOT IN, IGNORE NULLS),
+2 without a reply (#19793, #19766). Plus E-01 (#19826, under review) and E-02.
 
 Also: duplicates found by our oracles but reported first by others: #19800, #19772, #19784.
 Known upstream infra bug that hits our servers: #17731 (crash recovery "could not create file … File exists").
