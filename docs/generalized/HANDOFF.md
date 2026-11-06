@@ -1,4 +1,8 @@
-# HANDOFF: everything a new person (or a new Claude session) needs to continue
+# HANDOFF: everything a new person needs to continue
+
+> **Update 6 Nov 2026:** the work continues in this repository (branch `generalized`), not in a new one;
+> `PLAN.md` v2 replaces the task list in section 5. PostgreSQL: 6 of the 9 reported bugs are now fixed
+> (#19803, #19771, statistics, NOT IN b7eee09, #19768 e405a46, IGNORE NULLS 69b20fd; 5 fixes by the team).
 
 Written 2 Nov 2026 at the end of a long working session. Read this file completely before
 doing anything. Then read `docs/generalized/PLAN.md`, `docs/RESULTS_ANALYSIS.md` and
