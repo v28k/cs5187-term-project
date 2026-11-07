@@ -32,9 +32,12 @@ def cmd_run(a: argparse.Namespace) -> int:
         for fc, t in p.todo:
             print(f"  would run {fc.name} trial {t} (seed {cfg.trial_seed(t)})")
         return 0
+    from pgfuzz.core.procs import lead_process_group
+
+    lead_process_group()  # Ctrl-C / kill stops every worker, including engine workers
     try:
         run_experiment(cfg, jobs=a.jobs, only=only, trials=a.trials, fresh=a.fresh)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, SystemExit):
         print("\ninterrupted; finished trials are kept, re-run the same command to resume", file=sys.stderr)
         return 130
     if not a.no_report:
@@ -168,6 +171,11 @@ def cmd_sample(a: argparse.Namespace) -> int:
     ex.start()
     t0 = time.monotonic()
     bugs = 0
+    import collections
+    import re as _re
+
+    n_ok = n_err = q_ok = q_all = 0
+    errs: collections.Counter[str] = collections.Counter()
     try:
         for i in range(a.n):
             tc = gen.next_testcase()
@@ -175,6 +183,16 @@ def cmd_sample(a: argparse.Namespace) -> int:
                 break
             tc.id = i
             res = ex.execute(tc)
+            for sql, r in zip(tc.statements, res.statements):
+                is_q = sql.lstrip()[:6].upper() in ("SELECT", "WITH  ", "VALUES") or sql.lstrip()[:4].upper() == "WITH"
+                q_all += is_q
+                if r.status.value == "ok":
+                    n_ok += 1
+                    q_ok += is_q
+                elif r.status.value == "error":
+                    n_err += 1
+                    m = _re.sub(r'"[^"]*"|\'[^\']*\'|\d+', "?", (r.message or "").split("\n")[0])[:110]
+                    errs[m] += 1
             cls = oracle.classify(res)
             if cls.is_bug_candidate and hasattr(gen, "failure_meta"):
                 tc.meta.update(gen.failure_meta(tc) or {})
@@ -195,6 +213,12 @@ def cmd_sample(a: argparse.Namespace) -> int:
     stats["elapsed_s"] = round(time.monotonic() - t0, 1)
     stats["bug_candidates"] = bugs
     stats["executor"] = dict(getattr(ex, "diff_stats", {}) or {})
+    stats["validity"] = {"statements_ok": n_ok, "statements_error": n_err,
+                         "statement_valid_rate": round(n_ok / max(1, n_ok + n_err), 4),
+                         "queries": q_all, "query_valid_rate": round(q_ok / max(1, q_all), 4)}
+    stats["top_errors"] = errs.most_common(a.errors)
+    if a.quiet_stats:
+        stats = {k: stats[k] for k in ("validity", "top_errors", "bug_candidates", "elapsed_s")}
     print(json.dumps(stats, indent=1))
     return 0
 
@@ -496,6 +520,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--execute", action="store_true", help="run them on the configured executor")
     p.add_argument("--out", help="directory for bug-candidate test cases")
+    p.add_argument("--errors", type=int, default=25, help="how many top error messages to show")
+    p.add_argument("--quiet-stats", action="store_true", help="show only validity, top errors, candidates")
     p.set_defaults(fn=cmd_sample)
 
     p = sub.add_parser("llm", help="commit-directed grammar extension (Grammar + LLM arm)")

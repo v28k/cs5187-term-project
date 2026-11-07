@@ -27,6 +27,9 @@ _worker_id: int = 0
 
 def _init_worker(counter: Any, level: int) -> None:
     global _worker_id
+    from pgfuzz.core.procs import die_with_parent
+
+    die_with_parent()
     with counter.get_lock():
         _worker_id = counter.value
         counter.value += 1

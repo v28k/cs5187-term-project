@@ -108,6 +108,7 @@ class GrammarGenerator(Generator):
         extra_grammars: list[str] | str | None = None,
         seeds: list[str] | str | None = None,
         seed_prob: float = 0.05,
+        overlays: list[str] | str | None = None,
     ) -> None:
         self.grammar_path, self.schema_path = grammar, schema
         self.start, self.setup_rule = start, setup_rule
@@ -128,6 +129,8 @@ class GrammarGenerator(Generator):
         self.only_rewrite = only_rewrite
         self.reward_avg = 0.0
         self.extra_grammars = _paths(extra_grammars, "*.pgg")
+        self.overlay_paths = [overlays] if isinstance(overlays, str) else list(overlays or [])
+        self.overlay_report: dict[str, int] = {}
         self.seed_paths = _paths(seeds, "*.sql")
         self.seed_prob = float(seed_prob)
         self.fragments_loaded: list[str] = []
@@ -192,9 +195,15 @@ class GrammarGenerator(Generator):
     def _load_grammar(self) -> Grammar:
         """The base grammar plus every extra fragment (LLM arm) that still parses
         together with the ones before it; a fragment that breaks the combination is skipped."""
-        if not self.extra_grammars:
+        if not self.extra_grammars and not self.overlay_paths:
             return load_grammar(self.grammar_path)
         text = Path(self.grammar_path).read_text(encoding="utf-8")
+        if self.overlay_paths:
+            from pgfuzz.grammar.overlay import apply_overlays
+
+            text, rep = apply_overlays(text, [Path(o).read_text(encoding="utf-8") for o in self.overlay_paths],
+                                       self.grammar_path)
+            self.overlay_report = rep.summary()
         for f in self.extra_grammars:
             frag = Path(f).read_text(encoding="utf-8")
             try:
@@ -445,6 +454,7 @@ class GrammarGenerator(Generator):
             "plan_shapes_seen": len(self.seen_plans),
             "bandit": self._bandit_stats() if self.bandit > 0 else None,
             "llm_rewrites": sum(len(v) for v in self.extra_rewrites.values()),
+            "overlay": self.overlay_report,
             "fragments_loaded": len(self.fragments_loaded),
             "fragments_rejected": self.fragments_rejected,
             "seed_cases": len(self.seed_cases),
@@ -468,6 +478,9 @@ class GrammarGenerator(Generator):
                              "mutate_prob": self.mutate_prob, "max_depth": self.max_depth,
                              "setup_prob": self.setup_prob, "queries": list(self.queries),
                              "mm_prob": self.mm_prob, "mm_per_query": self.mm_per_query, "bandit": self.bandit}
+        if self.overlay_paths:
+            d["overlays"] = [Path(o).name for o in self.overlay_paths]
+            d["overlay_sha1"] = hashlib.sha1(b"".join(Path(o).read_bytes() for o in self.overlay_paths)).hexdigest()[:12]
         if self.extra_grammars or self.seed_paths:
             d["fragments"] = [Path(f).name for f in self.extra_grammars]
             d["seed_files"] = len(self.seed_paths)

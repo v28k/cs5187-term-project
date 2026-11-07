@@ -111,6 +111,7 @@ class Alt:
     uid: int = field(default_factory=lambda: next(_uid))
     line: int = 0
     mind: dict = field(default_factory=dict)   # type -> minimal derivation depth (filled by Grammar)
+    span: tuple[int, int] = (0, 0)             # source text offsets (used by dialect overlays)
 
 
 @dataclass
@@ -121,6 +122,7 @@ class Variant:
     concrete: str | None         # expr<int> -> "int"
     alts: list[Alt]
     line: int = 0
+    span: tuple[int, int] = (0, 0)
 
     def matches(self, typ: str | None, grammar: "Grammar") -> bool:
         if self.concrete is not None:
@@ -275,6 +277,7 @@ class _Parser:
 
     def _rule(self, attrs: dict[str, dict[str, list[str]]]) -> Variant:
         line = self.peek().line
+        start = self.peek().pos
         name = self.ident()
         param = pclass = concrete = None
         if self.at("<"):
@@ -304,8 +307,8 @@ class _Parser:
             rattrs[a] = rattrs[a] + [x for x in args if x not in rattrs[a]]
         self.expect(":")
         alts = self._alts(stop=";")
-        self.expect(";")
-        return Variant(name, param, pclass, concrete, alts, line)
+        end = self.expect(";").end
+        return Variant(name, param, pclass, concrete, alts, line, (start, end))
 
     def _alts(self, stop: str) -> list[Alt]:
         alts = [self._alt(stop)]
@@ -316,6 +319,7 @@ class _Parser:
 
     def _alt(self, stop: str) -> Alt:
         line = self.peek().line
+        start, i0 = self.peek().pos, self.i
         weight, req, forb = 1.0, set(), set()
         if self.at("<"):
             self.next()
@@ -338,7 +342,8 @@ class _Parser:
                 self.next()
                 early.add(len(elems))
             elems.append(self._postfix(self._primary()))
-        return Alt(elems, weight, frozenset(req), frozenset(forb), frozenset(early), line=line)
+        end = self.toks[self.i - 1].end if self.i > i0 else start
+        return Alt(elems, weight, frozenset(req), frozenset(forb), frozenset(early), line=line, span=(start, end))
 
     def _targ(self) -> TypeArg:
         if self.at("*"):
