@@ -35,6 +35,11 @@ class DuckDBDriver(Driver):
     sqlstate = _SQLSTATE
 
     def connect(self, setup: list[str]) -> str:
+        path = self.params.get("path")
+        if path:   # another DuckDB build (pip install --target <path> duckdb==X), e.g. the last release
+            import sys
+
+            sys.path.insert(0, str(path))
         import duckdb
 
         self._duckdb = duckdb
@@ -101,5 +106,9 @@ class DuckDBExecutor(WorkerExecutor):
 
     name = "duckdb"
 
-    def __init__(self, threads: int = 2, **kw: Any) -> None:
-        super().__init__(driver="pgfuzz.targets.duckdb_executor:DuckDBDriver", driver_params={"threads": threads}, **kw)
+    def __init__(self, threads: int = 2, path: str | None = None, **kw: Any) -> None:
+        params: dict[str, Any] = {"threads": threads}
+        if path:
+            params["path"] = path
+        kw.pop("driver", None)
+        super().__init__(driver="pgfuzz.targets.duckdb_executor:DuckDBDriver", driver_params=params, **kw)

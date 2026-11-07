@@ -54,33 +54,51 @@ def _changes_state(sql: str) -> bool:
     return bool(words) and words[0].upper().strip("(") in _STATE_VERBS
 
 
+def _make(spec: dict[str, Any]) -> Executor:
+    """``spec`` may name another executor class with ``plugin: module:Class`` (default PostgreSQL)."""
+    spec = dict(spec)
+    plugin = spec.pop("plugin", None)
+    if not plugin:
+        return PostgresExecutor(**spec)
+    import importlib
+
+    mod, _, cls = plugin.partition(":")
+    return getattr(importlib.import_module(mod), cls)(**spec)
+
+
 class CrossVersionExecutor(Executor):
+    """Works for any executor pair: PostgreSQL by default, or ``plugin:`` in both specs
+    (e.g. DuckDB nightly against the last DuckDB release)."""
+
     name = "xversion"
 
     def __init__(self, test: dict[str, Any], reference: dict[str, Any], prelude_sql: list[str] | None = None) -> None:
         self.prelude = list(prelude_sql or [])
         test = dict(test)
         reference = dict(reference)
-        test["digests"] = True
-        reference["digests"] = True
+        engine = bool(test.get("plugin"))
+        if not engine:
+            test["digests"] = True
+            reference["digests"] = True
         # The reference only has to return digests; it runs no oracles of its own.
         for k in ("differential", "metamorphic", "plan_shapes", "coverage_command", "coverage_reset_command"):
             reference.pop(k, None)
-        for k in ("setup_sql", "reset_sql", "session_sql", "statement_timeout_ms"):
+        for k in ("setup_sql", "reset_sql", "session_sql", "statement_timeout_ms", "plugin", "driver"):
             if k in test and k not in reference:
                 reference[k] = test[k]
-        self.test = PostgresExecutor(**test)
-        self.ref = PostgresExecutor(**reference)
+        self.test = _make(test)
+        self.ref = _make(reference)
         self.xstats = {"diverged": 0, "compared": 0, "mismatch": 0, "test_only_ok": 0, "ref_only_ok": 0, "ref_failures": 0}
 
     @property
     def diff_stats(self) -> dict[str, Any]:
-        return {**self.test.diff_stats, **{f"xversion_{k}": v for k, v in self.xstats.items()}}
+        return {**(getattr(self.test, "diff_stats", None) or {}), **{f"xversion_{k}": v for k, v in self.xstats.items()}}
 
     def start(self) -> None:
         self.test.start()
         self.ref.start()
-        self._ref_version = self.ref.describe().get("server_version")
+        d = self.ref.describe()
+        self._ref_version = d.get("server_version") or d.get("version")
 
     def stop(self) -> None:
         self.test.stop()
@@ -93,7 +111,7 @@ class CrossVersionExecutor(Executor):
         return self.test.sample_coverage()
 
     def execute(self, testcase: TestCase) -> ExecResult:
-        if self.prelude:
+        if self.prelude and hasattr(self.test, "run_outside"):
             self.test.run_outside(self.prelude)
             self.ref.run_outside(self.prelude)
         res = self.test.execute(testcase)
@@ -112,6 +130,11 @@ class CrossVersionExecutor(Executor):
                 self.xstats["test_only_ok"] += 1
             elif r_ok and not t_ok:
                 self.xstats["ref_only_ok"] += 1
+                # a statement that the release accepts but the build under test rejects is a
+                # regression lead (e.g. a new binder error); kept for triage, not reported online
+                leads = res.extra.setdefault("xversion_new_errors", [])
+                if len(leads) < 5:
+                    leads.append({"sql": sql[:2000], "message": (st.message or "")[:300]})
             if t_ok != r_ok and _changes_state(sql):
                 diverged = True        # e.g. a PG19-only construct inside an INSERT ... SELECT
                 self.xstats["diverged"] = self.xstats.get("diverged", 0) + 1

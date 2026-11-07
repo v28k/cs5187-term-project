@@ -1,0 +1,42 @@
+# DuckDB nightly (test, all oracles) against the last DuckDB release (reference).
+# Reference build: pip install --target /root/arbor/duckdb/v2.0.0 duckdb==2.0.0
+experiment: duckdb_xv
+output_dir: ../results
+trials: 1
+seed: 7101
+budget:
+  seconds: 7200
+coverage_interval_s: 100000
+snapshot_interval_s: 30
+log_sql: failures
+max_repros: 3
+max_harness_errors: 50
+known_bugs: ../known_bugs/duckdb.yaml
+
+executor:
+  plugin: pgfuzz.reference.xversion_executor:CrossVersionExecutor
+  params:
+    test:
+      plugin: pgfuzz.targets.duckdb_executor:DuckDBExecutor
+      setup_sql: "{config_dir}/../corpus/duckdb/schema.sql"
+      statement_timeout_ms: 3000
+      threads: 2
+      differential: {per_query: 2}
+      metamorphic: true
+    reference:
+      path: /root/arbor/duckdb/v2.0.0
+      threads: 2
+
+configs:
+  - name: grammar_xv
+    label: Grammar+Oracles+XVersion
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        overlays: ["{config_dir}/../grammar/overlays/duckdb.pgg"]
+        dialect_data: "{config_dir}/../grammar/overlays/duckdb.data.yaml"
+        schema: "{config_dir}/../corpus/duckdb/schema.yaml"
+        mm_prob: 0.5
+        plan_guidance: false
+        bandit: 0.1
