@@ -1,0 +1,40 @@
+# Turso (pyturso) with metamorphic oracles, differential against SQLite (APSW, newest release).
+#   python -m pgfuzz sample configs/turso.yaml -n 300 --execute --seed 1
+experiment: turso
+output_dir: ../results
+trials: 2
+seed: 7301
+budget:
+  seconds: 7200
+coverage_interval_s: 100000
+snapshot_interval_s: 30
+log_sql: failures
+max_repros: 3
+max_harness_errors: 50
+known_bugs: ../known_bugs/turso.yaml
+
+executor:
+  plugin: pgfuzz.reference.xversion_executor:CrossVersionExecutor
+  params:
+    test:
+      plugin: pgfuzz.targets.turso_executor:TursoExecutor
+      setup_sql: "{config_dir}/../corpus/sqlite/schema.sql"
+      statement_timeout_ms: 3000
+      metamorphic: true
+    reference:
+      plugin: pgfuzz.targets.sqlite_executor:SQLiteExecutor
+      rules: false
+
+configs:
+  - name: grammar_diff
+    label: Grammar+Oracles+vsSQLite
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        overlays: ["{config_dir}/../grammar/overlays/sqlite.pgg", "{config_dir}/../grammar/overlays/turso.pgg"]
+        dialect_data: "{config_dir}/../grammar/overlays/sqlite.data.yaml"
+        schema: "{config_dir}/../corpus/sqlite/schema.yaml"
+        mm_prob: 0.5
+        plan_guidance: false
+        bandit: 0.1

@@ -194,7 +194,7 @@ def cmd_sample(a: argparse.Namespace) -> int:
                     n_err += 1
                     m = _re.sub(r'"[^"]*"|\'[^\']*\'|\d+', "?", (r.message or "").split("\n")[0])[:110]
                     errs[m] += 1
-                    examples.setdefault(m, (sql[:600], (r.message or "")[:300]))
+                    examples.setdefault(m, (sql[:20000], (r.message or "")[:300]))
             cls = oracle.classify(res)
             if cls.is_bug_candidate and hasattr(gen, "failure_meta"):
                 tc.meta.update(gen.failure_meta(tc) or {})

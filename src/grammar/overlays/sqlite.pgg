@@ -1,0 +1,156 @@
+# SQLite dialect overlay for grammar/postgres.pgg (also the base of the Turso overlay).
+# Casts x::T are rewritten to CAST(x AS T) by the dialect data (overlays/sqlite.data.yaml).
+
+# ---------------------------------------------------------------- types SQLite does not have
+%droptype int4range
+%droptype intarr
+%droptype textarr
+%droptype interval
+
+# ---------------------------------------------------------------- statements
+%droprule merge_stmt
+%droprule explain_stmt
+explain_stmt : <2> EXPLAIN QUERY PLAN query ;
+%droprule create_stats
+%droprule create_cast
+%droprule alter_table
+%droprule set_stmt
+set_stmt
+  : <2> PRAGMA "automatic_index" "=" ("0" | "1")
+  | <1> PRAGMA "reverse_unordered_selects" "=" "1"
+  ;
+
+# ---------------------------------------------------------------- queries
+%drop select_core "rollup"
+%drop select_core "cube"
+%drop select_core "sets"
+%drop rec_cte "SEARCH"
+%drop rec_cte "CYCLE"
+%drop set_op "INTERSECT ALL"
+%drop set_op "EXCEPT ALL"
+%droprule lateral_derived
+%droprule srf_item
+
+# ---------------------------------------------------------------- expressions
+%drop expr "POSITION"
+%drop expr "\"-\" expr<date>"
+%drop expr "EXTRACT"
+%drop expr "ASCII"
+%drop expr "WIDTH_BUCKET"
+%drop expr "JSONB_"
+%drop expr "JSON_VALUE"
+%drop expr "JSON_QUERY"
+%drop expr "JSON_EXISTS"
+%drop expr "JSON_OBJECT"
+%drop expr "JSON_ARRAY"
+%drop expr "TO_JSONB"
+%drop expr "SCALE"
+%drop expr "CBRT"
+%drop expr "LEFT"
+%drop expr "MD5"
+%drop expr "TRIM \"(\" BOTH"
+%drop expr "TO_CHAR"
+%drop expr "REGEXP_REPLACE"
+%drop expr "SPLIT_PART"
+%drop expr "LPAD"
+%drop expr "REVERSE"
+%drop expr "INITCAP"
+%drop expr "NORMALIZE"
+%replace expr "COLLATE '\"C\"'" "COLLATE NOCASE"
+%dropopt expr "ILIKE"
+%drop expr "(\"~\" | \"~*\" | \"!~\")"
+%drop expr "SIMILAR TO"
+%drop expr "\"^@\""
+%drop expr "\"?\" ("
+%drop expr "\"@?\""
+%drop expr "\"@@\""
+%drop expr "\"#>\""
+%drop expr "\"#-\""
+%drop expr "\"-\" \"'k'\""
+%drop expr "(\"@>\" | \"<@\") expr<jsonb>"
+%drop expr "\"||\" expr<jsonb>"
+%drop expr "IS NOT?0.3 JSON"
+%dropopt expr "UNKNOWN"
+%replace expr "SYMMETRIC?0.2 " ""
+%drop expr "(ANY | ALL)"
+%replace expr "ROW \"(\" expr<X:key> \",\" expr<Y:key> \")\" cmp ROW" "\"(\" expr<X:key> \",\" expr<Y:key> \")\" cmp"
+%drop expr "DATE_TRUNC"
+%drop expr "MAKE_DATE"
+%drop expr "TO_TIMESTAMP"
+%drop expr "\"+\" small"
+%drop expr "\"-\" small"
+%droprule jobj
+
+expr<int>
+  : <0.4> INSTR "(" expr<text> "," expr<text> ")"
+  | <0.3> UNICODE "(" expr<text> ")"
+  | <0.2> OCTET_LENGTH "(" expr<text> ")"
+  ;
+expr<text>
+  : <0.3> TRIM "(" expr<text> "," "'a'" ")"
+  | <0.3> SUBSTR "(" expr<text> "," "1" "," small ")"
+  | <0.3> JSON_TYPE "(" expr<jsonb> ")"
+  | <0.2> PRINTF "(" ("'%5.2f'" | "'%d'" | "'%s'" | "'%x'") "," expr<*> ")"
+  | <0.2> IIF "(" expr<bool> "," expr<text> "," expr<text> ")"
+  ;
+expr<jsonb>
+  : <0.5> JSON_OBJECT "(" "'k'" "," expr<*> ")"
+  | <0.3> JSON_ARRAY "(" expr<*> "," expr<*> ")"
+  | <0.3> JSON_SET "(" expr<jsonb> "," "'$.k'" "," expr<*> ")"
+  | <0.3> JSON_EXTRACT "(" expr<jsonb> "," ("'$.a'" | "'$.k'" | "'$.a[1]'") ")"
+  ;
+expr<date>
+  : <1> DATE "(" expr<date> "," ("'+1 day'" | "'-1 month'" | "'start of month'" | "'+30 days'") ")"
+  | <0.3> DATE "(" expr<tstz> ")"
+  ;
+expr<tstz>
+  : <1> DATETIME "(" expr<tstz> "," ("'+1 hour'" | "'-2 days'" | "'start of day'") ")"
+  | <0.5> DATETIME "(" expr<date> ")"
+  ;
+
+# ---------------------------------------------------------------- aggregates and windows
+%drop agg "MODE"
+%drop agg "BIT_"
+%drop agg "STDDEV"
+%drop agg "VARIANCE"
+%drop agg "CORR"
+%drop agg "REGR_SLOPE"
+%drop agg "BOOL_"
+%drop agg "EVERY"
+%drop agg "STRING_AGG \"(\" DISTINCT"
+%drop agg "JSONB_AGG"
+%drop agg "JSON_AGG"
+%drop agg "SUM \"(\" DISTINCT"
+%drop win "IGNORE NULLS"
+agg<jsonb> : @sorted_agg(JSON_GROUP_ARRAY, int) ;
+agg<numeric> : <0.5> TOTAL "(" expr<numeric> ")" ;
+
+# ---------------------------------------------------------------- DML
+%drop returning "\"old.\""
+%droprule returning_item
+returning_item<T> : <3> @col(T) | <1> @lit(T) | <1> COALESCE "(" @col(T) "," @lit(T) ")" ;
+%droprule using_clause
+
+# ---------------------------------------------------------------- DDL
+%drop create_index "USING"
+%replace create_index "CREATE INDEX ON" "CREATE INDEX @fresh_name(i) ON"
+%dropopt create_index "INCLUDE"
+%dropopt index_col "NULLS FIRST"
+%drop create_table "UNLOGGED"
+%drop create_table "PARTITION BY"
+%drop new_col "GENERATED ALWAYS AS IDENTITY"
+%replace new_col "DEFAULT @lit(T)" "DEFAULT \"(\" @lit(T) \")\""
+%drop create_view "matview_def"
+
+# ---------------------------------------------------------------- batch 2 (measured)
+# HAVING without GROUP BY needs an aggregate in the select list in SQLite (PostgreSQL: one group)
+%replace select_core "^@global_agg having_clause?0.2" "^@global_agg"
+# ordered-set aggregates: SQLite spells them percentile_cont(x, p) / percentile_disc(x, p)
+%drop agg "WITHIN GROUP"
+agg<float8> : <0.5> PERCENTILE_CONT "(" expr<float8> "," ("0.5" | "0.9" | "0") ")" | <0.3> MEDIAN "(" expr<float8> ")" ;
+agg<T:num> : <0.3> PERCENTILE_DISC "(" expr<T> "," ("0.5" | "0" | "1") ")" ;
+# RETURNING cannot use the target's alias in SQLite
+%drop returning "@items"
+%drop expr "ARRAY \"[\""
+# OFFSET needs LIMIT in SQLite
+%replace limit_clause "| OFFSET \"2\"" "| LIMIT \"-1\" OFFSET \"2\""

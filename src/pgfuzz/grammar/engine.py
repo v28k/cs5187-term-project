@@ -275,6 +275,8 @@ class Engine:
         # per-dialect literal / fill tables (dialect data file) override the PostgreSQL defaults
         self.literals = {**_LITERALS, **(literals or {})}
         self.fills = {**_FILL, **(fills or {})}
+        # row source of @fill with one column x = 1..n (dialect data "series_from")
+        self.series_from = "generate_series(1, {n}) AS g(x)"
         self.max_depth, self.soft_depth, self.max_steps, self.max_tries = max_depth, soft_depth, max_steps, max_tries
         self.null_prob = null_prob
         self.alt_hits: Counter[int] = Counter()
@@ -929,7 +931,7 @@ def _b_fill(eng: Engine, ctx: Ctx, tv: dict, args: list[str], guide: Node | None
     else:
         n = int(args[0]) if args and args[0].isdigit() else eng.rng.choice((5, 20, 100))
         exprs = ", ".join(eng.fill_expr(c) for c in cols)
-        sql = f"{head}{exprs} FROM generate_series(1, {n}) AS g(x)"
+        sql = f"{head}{exprs} FROM " + eng.series_from.format(n=n)
     return Node("@fill", val=(sig, sql)), [sql]
 
 

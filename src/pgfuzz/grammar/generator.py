@@ -182,6 +182,11 @@ class GrammarGenerator(Generator):
             dd = yaml.safe_load(Path(self.dialect_data).read_text(encoding="utf-8")) or {}
         self.engine = Engine(self.grammar, self.schema, self.rng, self.max_depth, self.soft_depth,
                              null_prob=self.null_prob, literals=dd.get("literals"), fills=dd.get("fill"))
+        if dd.get("series_from"):
+            self.engine.series_from = str(dd["series_from"])
+        from pgfuzz.grammar.dialect import Dialect
+
+        self.dialect = Dialect.from_data(dd)
         if self.profile_path:
             from pgfuzz.grammar.profile import Profile
 
@@ -305,7 +310,7 @@ class GrammarGenerator(Generator):
             meta: dict[str, Any] = {"op": "seed"}
             if self.seed_checks[k]:
                 meta["checks"] = [dict(c) for c in self.seed_checks[k]]
-            return TestCase(list(self.seed_cases[k]), origin=self.name, meta=meta)
+            return TestCase(self._dialectize(self.seed_cases[k], meta.get("checks")), origin=self.name, meta=meta)
         built = None
         for _ in range(4):
             if self.corpus and self.rng.random() < self.mutate_prob:
@@ -327,11 +332,22 @@ class GrammarGenerator(Generator):
         checks = self._checks(built) if self.mm_prob > 0 else []
         if checks:
             meta["checks"] = checks
-        tc = TestCase(built.sql, origin=self.name, meta=meta)
+        tc = TestCase(self._dialectize(built.sql, checks), origin=self.name, meta=meta)
         self.pending[id(tc)] = built
         if len(self.pending) > 64:
             self.pending.pop(next(iter(self.pending)))
         return tc
+
+    def _dialectize(self, sql: list[str], checks: list[dict[str, Any]] | None = None) -> list[str]:
+        """Engine spelling (pgfuzz.grammar.dialect) of the statements and, in place, of the checks."""
+        d = self.dialect
+        if not d.active:
+            return list(sql)
+        for c in checks or ():
+            for k in ("lhs", "rhs"):
+                if c.get(k):
+                    c[k] = d.apply(str(c[k]))
+        return [d.apply(s) for s in sql]
 
     def failure_meta(self, tc: TestCase) -> dict[str, Any]:
         """Derivation trees of a failing test case (for grammar-tree reduction in triage)."""

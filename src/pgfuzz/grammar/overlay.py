@@ -97,9 +97,13 @@ def _direct_refs(el: object) -> tuple[set[str], set[str]]:
         rules.add(el.name)
         if el.targ is not None and el.targ.name:
             types.add(el.targ.name)
+        if el.targ is not None and el.targ.cls:
+            types.add("class:" + el.targ.cls)
     elif isinstance(el, Builtin):
         for x in el.args:
             types.add(x.split(":")[0])
+            if ":" in x:
+                types.add("class:" + x.split(":", 1)[1])
     return rules, types
 
 
@@ -299,9 +303,14 @@ def _cascade(text: str, rep: OverlayReport, max_rounds: int = 50) -> str:
         ed = _Editor(text)
         defined = {v.name for v in ed.variants}
         changed = False
+        classes_decl = set()
+        for m in re.finditer(r'^\s*%type\s+\S+\s+"[^"]*"([^\n]*)$', text, re.M):
+            classes_decl |= {w for w in m.group(1).split() if "=" not in w}
         for site in ed.sites:
             for i, el in enumerate(site.alt.elems):
-                missing = _direct_refs(el)[0] - defined
+                rules_ref, types_ref = _direct_refs(el)
+                missing = rules_ref - defined
+                missing |= {t for t in types_ref if t.startswith("class:") and t[6:] not in classes_decl}
                 if not missing:
                     continue
                 changed = True
