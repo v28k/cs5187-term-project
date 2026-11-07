@@ -99,6 +99,36 @@ class Driver:
         """Normalised plan text (no costs, no row estimates)."""
         raise NotImplementedError
 
+    def rules_off_spec(self, rules: list[str]) -> Any:
+        """Variant spec that switches off all ``rules`` at once (group testing)."""
+        return {"rules_off": list(rules)}
+
+    def fired(self, sql: str, rules: list[str] | None = None) -> tuple[str, list[str]]:
+        """Rule-firing probe: (base plan, rules whose removal changes the plan).
+
+        A rule *fires* for a query when switching that rule off (and nothing else) changes
+        the plan. This needs no instrumented build: only per-rule switches and EXPLAIN.
+        Rules are tested one at a time: switching rules off is not monotone (on SQLite,
+        MinMaxOpt off changes a plan that MinMaxOpt+QueryFlattener off leaves unchanged), so
+        group testing would miss rules. The executor bounds the cost (sampling, plan cache,
+        overhead budget, and it stops probing rules that fire for every query).
+        """
+        base = self.explain(sql)
+        self._probe_explains = 1
+        out = []
+        for r in rules if rules is not None else self.rules():
+            try:
+                self.apply_variant(self.rules_off_spec([r]))
+                other = self.explain(sql)
+            except Exception:
+                other = None
+            finally:
+                self.reset_variant()
+            self._probe_explains += 1
+            if other is not None and other != base:
+                out.append(r)
+        return base, out
+
 
 def _render(v: Any) -> str | None:
     if v is None:
@@ -167,6 +197,9 @@ def _worker(conn: Any, driver_path: str, driver_params: dict[str, Any], setup: l
                 conn.send(("ok", None, None))
             elif op == "explain":
                 conn.send(("ok", drv.explain(msg[1]), None))
+            elif op == "fired":
+                base, rules = drv.fired(msg[1], msg[2] if len(msg) > 2 else None)
+                conn.send(("ok", {"plan": base, "rules": rules, "explains": getattr(drv, "_probe_explains", 0)}, None))
             else:
                 conn.send(("error", "ClientError", f"unknown op {op}"))
         except Exception as e:
@@ -184,7 +217,8 @@ class WorkerExecutor(Executor):
     def __init__(self, driver: str, driver_params: dict[str, Any] | None = None,
                  setup_sql: list[str] | str | None = None, statement_timeout_ms: int = 5000,
                  differential: bool | dict[str, Any] = False, metamorphic: bool | dict[str, Any] = False,
-                 max_rows: int = 10000, seed: int = 0, start_timeout_s: float = 120) -> None:
+                 max_rows: int = 10000, seed: int = 0, start_timeout_s: float = 120,
+                 rule_feedback: bool | dict[str, Any] = False) -> None:
         self.driver_path = driver
         self.driver_params = dict(driver_params or {})
         self.setup_sql = _load_sql(setup_sql)
@@ -199,6 +233,17 @@ class WorkerExecutor(Executor):
         self.mm_max = int((m or {}).get("max_per_testcase", 6))
         self.max_rows = int(max_rows)
         self.rng = random.Random(seed)
+        rf = rule_feedback if isinstance(rule_feedback, dict) else ({} if rule_feedback else None)
+        self.rf_enabled = rf is not None
+        self.rf_prob = float((rf or {}).get("prob", 0.3))
+        # the probe may cost at most this fraction of the time spent executing test cases
+        self.rf_overhead = float((rf or {}).get("overhead", 0.25))
+        self.rf_seen_plans: set[str] = set()
+        # rules that fired in >= 95 % of the first `learn` probes carry no information: not probed later
+        self.rf_learn = int((rf or {}).get("learn", 40))
+        self.rf_counts: dict[str, int] = {}
+        self.rf_ubiquitous: set[str] = set()
+        self.rf_stats = {"probed": 0, "skipped_known_plan": 0, "skipped_budget": 0, "probe_ms": 0.0, "exec_ms": 0.0}
         self.proc: Any = None
         self.pipe: Any = None
         self.version: str | None = None
@@ -349,11 +394,15 @@ class WorkerExecutor(Executor):
                 if any(v["status"] == "connection_lost" for v in st.variants.values()):
                     st.status, lost = StatementStatus.CONNECTION_LOST, True
                     st.message = f"{self.name} worker died while running a plan variant"
+            if not lost and self.rf_enabled and h is not None and self.rule_names and self.rng.random() < self.rf_prob:
+                self._probe_rules(sql, st)
             if not lost and checks_by_stmt.get(idx) and res["rows"] is not None:
                 st.checks = self._run_checks(sql, res, checks_by_stmt[idx], done)
                 if any(c.get("status") == "connection_lost" for c in st.checks):
                     st.status, lost = StatementStatus.CONNECTION_LOST, True
                     st.message = f"{self.name} worker died while running a metamorphic check"
+        if self.rf_enabled:
+            self.rf_stats["exec_ms"] += _ms(t0)
         restarted = False
         if lost or not self._alive():
             self._spawn()
@@ -362,6 +411,40 @@ class WorkerExecutor(Executor):
             self._op("end")
         return ExecResult(results, wall_ms=_ms(t0), server_log=[], server_restarted=restarted,
                           extra={f"{self.name}_version": self.version})
+
+    def _probe_rules(self, sql: str, st: StatementResult) -> None:
+        """Fill ``st.plan_shape`` and ``st.rules`` (rule-firing probe). A plan seen before gets
+        its shape only: the same plan almost always fires the same rules, and probing costs one
+        EXPLAIN per rule."""
+        import hashlib
+
+        if self.rf_stats["probe_ms"] > self.rf_overhead * max(self.rf_stats["exec_ms"], 1.0):
+            self.rf_stats["skipped_budget"] += 1
+            return
+        t0 = time.perf_counter()
+        plan = self._op("explain", sql)
+        if plan["status"] != "ok" or plan["rows"] is None:
+            return
+        shape = hashlib.sha1(str(plan["rows"]).encode()).hexdigest()[:12]
+        st.plan_shape = shape
+        if shape in self.rf_seen_plans:
+            self.rf_stats["skipped_known_plan"] += 1
+            return
+        probe = [x for x in self.rule_names if x not in self.rf_ubiquitous]
+        r = self._op("fired", sql, probe)
+        if r["status"] == "ok":
+            self.rf_seen_plans.add(shape)
+            st.rules = sorted(r["rows"]["rules"])
+            self.rf_stats["probed"] += 1
+            for x in st.rules:
+                self.rf_counts[x] = self.rf_counts.get(x, 0) + 1
+            if self.rf_stats["probed"] == self.rf_learn:
+                self.rf_ubiquitous = {x for x, c in self.rf_counts.items() if c >= 0.95 * self.rf_learn}
+                self.rf_stats["ubiquitous"] = sorted(self.rf_ubiquitous)
+            self.rf_stats["explains"] = self.rf_stats.get("explains", 0) + int(r["rows"].get("explains", 0))
+        self.rf_stats["probe_ms"] += (time.perf_counter() - t0) * 1000
+        self.diff_stats.update({f"rule_{k}": round(v, 1) if isinstance(v, float) else v
+                                for k, v in self.rf_stats.items()})
 
     def _recover(self, done: list[str], killed: bool = False) -> None:
         """After an error: restore the test case's state (rollback + replay, or respawn)."""

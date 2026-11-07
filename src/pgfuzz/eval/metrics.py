@@ -63,6 +63,9 @@ class TrialMetrics:
         self.pairs: set[tuple[str, str]] = set()
         self.shapes: set[str] = set()
         self.plan_shapes: set[str] = set()
+        self.rules_fired: dict[str, int] = {}            # rule -> times it fired (rule-firing probe)
+        self.rule_pairs: set[tuple[str, str]] = set()     # rules that fired together in one statement
+        self.rules_first_t: dict[str, float] = {}
         self.known_first_t: dict[str, float] = {}
         self.signatures: dict[str, SignatureRecord] = {}
         self.time_to_first_bug: float | None = None
@@ -102,6 +105,13 @@ class TrialMetrics:
                 self.shapes.add(hashlib.blake2b(statement_shape(sql).encode(), digest_size=8).hexdigest())
             if st.plan_shape:
                 self.plan_shapes.add(st.plan_shape)
+            if st.rules:
+                for r in st.rules:
+                    if r not in self.rules_fired:
+                        self.rules_first_t[r] = round(t, 3)
+                    self.rules_fired[r] = self.rules_fired.get(r, 0) + 1
+                rs = sorted(set(st.rules))
+                self.rule_pairs |= {(a, b) for i, a in enumerate(rs) for b in rs[i + 1:]}
 
         new_sig = False
         if sig is not None and cls.is_bug_candidate:
@@ -138,6 +148,8 @@ class TrialMetrics:
             "feature_pairs": len(self.pairs),
             "shapes": len(self.shapes),
             "plan_shapes": len(self.plan_shapes),
+            "rules_fired": len(self.rules_fired),
+            "rule_pairs": len(self.rule_pairs),
             "bug_candidates": len(self.signatures),
         }
         if self.coverage is not None:
@@ -169,6 +181,10 @@ class TrialMetrics:
             "known_bugs_reproduced": known,
             "known_bugs_first_t": dict(sorted(self.known_first_t.items())),
             "plan_shapes": len(self.plan_shapes),
+            "rules_fired": len(self.rules_fired),
+            "rule_pairs": len(self.rule_pairs),
+            "rules_fired_counts": dict(sorted(self.rules_fired.items())),
+            "rules_first_t": dict(sorted(self.rules_first_t.items())),
             "statement_outcomes": dict(sorted(self.stmt_outcomes.items())),
             "testcase_outcomes": dict(sorted(self.tc_outcomes.items())),
             "features_seen": sorted(self.features),

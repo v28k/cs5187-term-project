@@ -103,7 +103,8 @@ class StatementResult:
     ``checks`` holds the outcome of metamorphic checks the generator attached to
     the statement (``TestCase.meta["checks"]``, see ``pgfuzz.grammar.rewrite``):
     ``{"kind", "status", "lhs_hash", "rhs_hash", "lhs_rows", "rhs_rows", "confirmed", ...}``.
-    ``plan_shape`` is a digest of the plan's node types (plan-shape guidance)."""
+    ``plan_shape`` is a digest of the plan's node types (plan-shape guidance); ``rules`` lists the
+    optimizer rules whose removal changes the plan (rule-firing probe, ``pgfuzz.targets.base``)."""
 
     status: StatementStatus
     sqlstate: str | None = None
@@ -114,11 +115,12 @@ class StatementResult:
     variants: dict[str, dict[str, Any]] | None = None
     checks: list[dict[str, Any]] | None = None
     plan_shape: str | None = None
+    rules: list[str] | None = None      # optimizer rules that fired for this statement (rule-firing probe)
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["status"] = self.status.value
-        for k in ("result_hash", "variants", "checks", "plan_shape"):
+        for k in ("result_hash", "variants", "checks", "plan_shape", "rules"):
             if d[k] is None:
                 d.pop(k)
         return d

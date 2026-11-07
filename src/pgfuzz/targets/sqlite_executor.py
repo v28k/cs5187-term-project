@@ -83,7 +83,9 @@ class SQLiteDriver(Driver):
         import apsw
 
         self._apsw = apsw
-        self.db = apsw.Connection(":memory:")
+        # no statement cache: a cached statement keeps the plan it was compiled with, so a query
+        # re-run under an optimizer switch (plan variants, rule probe) would reuse the old plan
+        self.db = apsw.Connection(":memory:", statementcachesize=0)
         for s in setup:
             self._run(s)
         self._tc = _test_control_function(apsw.__file__) if self.params.get("rules", True) else None
@@ -143,6 +145,12 @@ class SQLiteDriver(Driver):
         v["reverse_unordered"] = {"sql": ["PRAGMA reverse_unordered_selects = 1"]}
         v["no_automatic_index"] = {"sql": ["PRAGMA automatic_index = 0"]}
         return v
+
+    def rules_off_spec(self, rules: list[str]) -> Any:
+        mask = 0
+        for r in rules:
+            mask |= 1 << (OPT_BITS[r] - 1)
+        return {"mask": mask}
 
     def apply_variant(self, spec: Any) -> None:
         for s in spec.get("sql", []):

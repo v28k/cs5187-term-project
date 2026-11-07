@@ -110,6 +110,7 @@ class GrammarGenerator(Generator):
         seed_prob: float = 0.05,
         overlays: list[str] | str | None = None,
         dialect_data: str | None = None,
+        rule_guidance: bool = True,
     ) -> None:
         self.grammar_path, self.schema_path = grammar, schema
         self.start, self.setup_rule = start, setup_rule
@@ -140,6 +141,12 @@ class GrammarGenerator(Generator):
         self.seed_cases: list[list[str]] = []
         self.seed_checks: list[list[dict[str, Any]]] = []
         self.seen_plans: set[str] = set()
+        # rule-firing feedback (pgfuzz.targets.base, probe fills StatementResult.rules)
+        self.rule_guidance = bool(rule_guidance)
+        self.seen_rules: set[str] = set()
+        self.seen_rule_pairs: set[tuple[str, str]] = set()
+        self.rule_alt: dict[str, Counter[int]] = {}     # rule -> alternatives in trees where it fired
+        self.rule_probed_alt: Counter[int] = Counter()  # alternative -> probed trees containing it
         self.corpus: list[_Entry] = []
         self.pending: dict[int, _Built] = {}
         self.seen_pairs: set[tuple[str, str]] = set()
@@ -413,7 +420,9 @@ class GrammarGenerator(Generator):
         any_ok = any(oc is Outcome.OK for oc in fb.statement_outcomes)
         plans = {st.plan_shape for st in stmt_results if st.plan_shape} - self.seen_plans
         self.seen_plans |= plans
-        why = ("signature" if fb.new_signature else "features" if fb.new_features
+        new_rules = self._rule_feedback(built, stmt_results)
+        why = ("signature" if fb.new_signature else "rule" if new_rules and self.rule_guidance
+               else "features" if fb.new_features
                else "pairs" if new_pairs and any_ok
                else "plan" if plans and self.plan_guidance else "")
         if self.bandit > 0:
@@ -429,6 +438,33 @@ class GrammarGenerator(Generator):
             weakest = min(range(len(self.corpus) - 1),
                           key=lambda k: (self.corpus[k].why == "signature", self.corpus[k].finds, -self.corpus[k].picks))
             del self.corpus[weakest]
+
+    def _rule_feedback(self, built: _Built, stmt_results: list[Any]) -> bool:
+        """Record which rules fired (and which alternatives the statement's tree used, for
+        rule-targeted generation); True if a new rule or a new pair of rules fired."""
+        new = False
+        for i, st in enumerate(stmt_results):
+            rules = getattr(st, "rules", None)
+            if rules is None:
+                continue
+            alts: set[int] = set()
+            if i < len(built.owners):
+                alts = {n.alt for _, n in built.stmts[built.owners[i]].tree.walk() if n.sym[0] not in "#@"}
+            for a in alts:
+                self.rule_probed_alt[a] += 1
+            rs = sorted(set(rules))
+            for r in rs:
+                if r not in self.seen_rules:
+                    self.seen_rules.add(r)
+                    new = True
+                c = self.rule_alt.setdefault(r, Counter())
+                for a in alts:
+                    c[a] += 1
+            pairs = {(a, b) for k, a in enumerate(rs) for b in rs[k + 1:]} - self.seen_rule_pairs
+            if pairs:
+                self.seen_rule_pairs |= pairs
+                new = True
+        return new
 
     BOOST_MIN, BOOST_MAX = 0.2, 5.0
 
@@ -475,6 +511,8 @@ class GrammarGenerator(Generator):
             "generation_failures": self.gen_failures,
             "metamorphic_checks_built": dict(self.mm_built),
             "plan_shapes_seen": len(self.seen_plans),
+            "rules_seen": len(self.seen_rules),
+            "rule_pairs_seen": len(self.seen_rule_pairs),
             "bandit": self._bandit_stats() if self.bandit > 0 else None,
             "llm_rewrites": sum(len(v) for v in self.extra_rewrites.values()),
             "overlay": self.overlay_report,

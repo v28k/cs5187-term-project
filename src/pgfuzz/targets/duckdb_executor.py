@@ -80,6 +80,7 @@ class DuckDBDriver(Driver):
         return v
 
     def apply_variant(self, spec: Any) -> None:
+        self._applied = spec
         for s in spec.get("sql", []):
             self.db.execute(s)
         if spec.get("rules_off"):
@@ -92,8 +93,13 @@ class DuckDBDriver(Driver):
         return out
 
     def reset_variant(self) -> None:
-        for s in ("PRAGMA enable_optimizer", "RESET disabled_optimizers", f"SET threads = {self.threads}"):
-            self.db.execute(s)
+        spec = getattr(self, "_applied", None)
+        if spec is not None and not spec.get("sql"):
+            self.db.execute("RESET disabled_optimizers")    # only a rule was switched off
+        else:
+            for s in ("PRAGMA enable_optimizer", "RESET disabled_optimizers", f"SET threads = {self.threads}"):
+                self.db.execute(s)
+        self._applied = None
 
     def explain(self, sql: str) -> str:
         rows = self.db.execute("EXPLAIN " + sql).fetchall()
