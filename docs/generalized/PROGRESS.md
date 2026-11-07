@@ -10,11 +10,32 @@
 
 ## Blocked
 - `cargo build` of DataFusion `main` was blocked by the previous session's permission settings; retry, else use the `datafusion` pip package.
+- Building SQLite trunk (`configure && make` from the GitHub mirror) was blocked by the permission classifier (7 Nov).
+  Workaround: SQLite through APSW 3.54.1 (newest release); optimizer switches reached through the module's symbol table.
+  Consequence: no trunk SQLite and no coverage build of SQLite (task C5) until building is allowed.
 
 ## Bug packages ready (for the owner to file)
-- (none yet)
+- `docs/bughunt/duckdb/D-01-minmax-nested-subquery/`: DuckDB 2.0.0 regression, `min`/`max` over a LIST/STRUCT/ARRAY
+  value containing a subquery fails with "Cannot copy BoundSubqueryExpression" (from 2ef9f76b2e). Confidence: high
+  (reproduced on 2.0.0 and nightly, works on 1.5.6; root cause in minmax.cpp). Issue text ready; no patch.
 
 ## Session log
+
+## 2026-11-07
+- Done: A4 (workers die with their parent, run kills its process group), A1 (`pgfuzz/targets/base.py`: Driver +
+  WorkerExecutor; DuckDB, SQLite, Turso drivers), A2 (overlay directives with cascading, element-level removal,
+  type classes), dialect transforms (`x::T` to `CAST`), per-dialect literal/fill tables, `sample --execute` validity
+  and error examples, generic CrossVersionExecutor (any engine pair).
+- Measured validity (`sample --execute`, 600 test cases): DuckDB nightly 96.3 % of queries (from 24 % with the plain
+  PostgreSQL grammar); SQLite 3.54.1 97.7 %; Turso 0.8.3 92.7 %.
+- Rule switches verified: SQLite's 30 optimizer switches change plans exactly for the expected rule
+  (QueryFlattener, SimplifyJoin, MinMaxOpt), first evidence for C1.
+- Bugs: DuckDB D-01 packaged (see above). Lead T-01 (Turso): `FULL JOIN ... ON t.a = u.a` rejected with
+  "requires an equality condition" when `u.a` is an INTEGER PRIMARY KEY; to check against Turso's docs/limits.
+- Campaigns running: DuckDB nightly vs 2.0.0 (2 trials x 2 h), Turso vs SQLite (1 trial x 2 h).
+- Decision: keep `postgres.pgg` as the base grammar ("core") and express every engine as overlays on it (the course
+  project's grammar stays the single source); engine-specific features live in the overlays' second part.
+- Next: triage campaign candidates; C1 rule-firing feedback; B4 DataFusion.
 
 ## 2026-11-06
 - Done: plan v2 (`PLAN.md`): thesis (rule-directed fuzzing), novelty table against SQLancer++, ShQveL, Sedar,

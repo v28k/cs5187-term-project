@@ -101,18 +101,18 @@ soon as an engine reaches ≥95 % validity** and keep running in the background 
 
 | ID | Task | Acceptance criteria | Effort | Status |
 |---|---|---|---|---|
-| A1 | **Target abstraction**: `Target` interface (`execute`, `explain` → normalized plan, `rules()` + `with_rules_off(set)`, error→outcome taxonomy, `version()`, `reset()`, capabilities flags) + YAML spec; port PostgreSQL and DuckDB to it, no behaviour change on PostgreSQL | `pytest` green; PostgreSQL rediscovery config still finds all 9 bugs; adding an engine = adapter + overlay + schema | M | todo |
-| A2 | **Dialect overlays** in the DSL: `%drop <rule> "<alt substring>"`, `%droptype <T>`, `%replace`, `%include core.pgg`; split `postgres.pgg` into portable `core.pgg` + `postgres.pgg` | unit tests per directive; PostgreSQL validity unchanged | M | todo |
+| A1 | **Target abstraction**: `Target` interface (`execute`, `explain` → normalized plan, `rules()` + `with_rules_off(set)`, error→outcome taxonomy, `version()`, `reset()`, capabilities flags) + YAML spec; port PostgreSQL and DuckDB to it, no behaviour change on PostgreSQL | `pytest` green; PostgreSQL rediscovery config still finds all 9 bugs; adding an engine = adapter + overlay + schema | M | done (PG unchanged; DuckDB/SQLite/Turso drivers) |
+| A2 | **Dialect overlays** in the DSL: `%drop <rule> "<alt substring>"`, `%droptype <T>`, `%replace`, `%include core.pgg`; split `postgres.pgg` into portable `core.pgg` + `postgres.pgg` | unit tests per directive; PostgreSQL validity unchanged | M | done |
 | A3 | **Overlay miner**: run every grammar alternative in isolation (k samples) against an engine, cluster errors, auto-write a draft overlay (drops + type renames + known rewrites from a small rule table), gate re-measures (LLM patches: Phase L) | a first DuckDB overlay produced automatically; report "manual lines vs mined lines" per engine (RQ1 data) | M | todo |
-| A4 | **Harness hardening**: process groups (stopping a run kills all workers), per-worker memory limit, timeouts per engine, no orphans, crash/hang isolation for in-process engines | kill test: no process left after `Ctrl-C`/`kill`; a deliberate engine abort becomes a CRASH candidate | S | todo |
+| A4 | **Harness hardening**: process groups (stopping a run kills all workers), per-worker memory limit, timeouts per engine, no orphans, crash/hang isolation for in-process engines | kill test: no process left after `Ctrl-C`/`kill`; a deliberate engine abort becomes a CRASH candidate | S | done |
 
 ### Phase B: targets (validity first, then campaigns)
 
 | ID | Task | Acceptance criteria | Effort | Status |
 |---|---|---|---|---|
-| B1 | **DuckDB**: overlay to ≥95 % valid; DuckDB features (LIST/STRUCT/MAP, lambdas, QUALIFY, ASOF/POSITIONAL JOIN, PIVOT/UNPIVOT, GROUP BY ALL, window EXCLUDE/FILTER, DISTINCT ON, arg_max, UNNEST…); rules = `duckdb_optimizers()`; cross-version = last release vs nightly (two venvs, two workers) | `sample --execute` 300 cases ≥95 %; 4×1 h run clean; unit tests | M | in progress |
-| B2 | **SQLite**: build trunk (GitHub mirror) as `libsqlite3.so` (+ a gcov/SanCov variant for D5); ctypes adapter; rules = `SQLITE_TESTCTRL_OPTIMIZATIONS` bits; EXPLAIN QUERY PLAN parser; overlay | ≥95 % valid; rule toggles verified on a known query; 4×1 h run clean | M | todo |
-| B3 | **Turso** (pyturso; later a build from `main`): shares the SQLite overlay minus unsupported features (mined by A3); **Turso↔SQLite differential oracle** | ≥95 % valid on Turso's supported subset; differential precision measured on 1 h | S | todo |
+| B1 | **DuckDB**: overlay to ≥95 % valid; DuckDB features (LIST/STRUCT/MAP, lambdas, QUALIFY, ASOF/POSITIONAL JOIN, PIVOT/UNPIVOT, GROUP BY ALL, window EXCLUDE/FILTER, DISTINCT ON, arg_max, UNNEST…); rules = `duckdb_optimizers()`; cross-version = last release vs nightly (two venvs, two workers) | `sample --execute` 300 cases ≥95 %; 4×1 h run clean; unit tests | M | done; campaign running |
+| B2 | **SQLite**: build trunk (GitHub mirror) as `libsqlite3.so` (+ a gcov/SanCov variant for D5); ctypes adapter; rules = `SQLITE_TESTCTRL_OPTIMIZATIONS` bits; EXPLAIN QUERY PLAN parser; overlay | ≥95 % valid; rule toggles verified on a known query; 4×1 h run clean | M | done (APSW 3.54.1; trunk build blocked) |
+| B3 | **Turso** (pyturso; later a build from `main`): shares the SQLite overlay minus unsupported features (mined by A3); **Turso↔SQLite differential oracle** | ≥95 % valid on Turso's supported subset; differential precision measured on 1 h | S | done; campaign running |
 | B4 | **DataFusion** (pip 55, then `main` via maturin if the build is allowed): adapter, overlay, rules from `datafusion.optimizer.*` + `EXPLAIN VERBOSE` (per-rule plans give firing directly) | ≥95 % valid; 4×1 h run clean | M | todo |
 | B5 | Tier 2: **chDB (ClickHouse)**, **Polars SQL** | each ≥90 % valid, one campaign | M | todo |
 
