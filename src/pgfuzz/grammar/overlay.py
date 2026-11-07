@@ -15,6 +15,7 @@ Directives (one per line; strings are double-quoted, ``*`` means "every alternat
                                        declared for it and every alternative that names it
     %replace  rule "old" "new"         textual replacement inside ``rule``'s variants
     %weight   rule "substring" W       set the weight of matching top-level alternatives
+    %addclass T cls / %delclass T cls  add / remove type ``T`` to / from type class ``cls``
 
 Removals cascade: an alternative that refers to a rule which no longer exists is removed
 too, and a variant without alternatives disappears. :func:`apply_overlays` returns the
@@ -31,7 +32,7 @@ from pathlib import Path
 
 from pgfuzz.grammar.dsl import Alt, Builtin, Group, GrammarError, NT, Repeat, Variant, _Parser, parse_grammar
 
-DIRECTIVES = ("%drop", "%dropopt", "%droprule", "%droptype", "%replace", "%weight")
+DIRECTIVES = ("%drop", "%dropopt", "%droprule", "%droptype", "%replace", "%weight", "%addclass", "%delclass")
 
 
 @dataclass
@@ -53,55 +54,57 @@ class OverlayReport:
 class _Site:
     alt: Alt
     siblings: list[Alt]
-    owner: object          # Variant or Group
-    parent: "_Site | None"  # enclosing alternative for group alternatives
+    owner: object                 # Variant or Group
+    parent: "_Site | None"        # enclosing alternative for group alternatives
     rule: str
+    elem_index: int = -1          # index of the owning group's element in the parent alternative
+    optional: bool = False        # owning group is wrapped in x? / x* / x{0,n}
 
 
-def _walk_elems(elems: list[object]):
-    for el in elems:
-        yield el
-        if isinstance(el, Repeat):
-            yield from _walk_elems([el.elem])
+def _group_of(el: object) -> tuple[Group | None, bool]:
+    """The group an element wraps (directly or inside repetitions) and whether it is optional."""
+    optional = False
+    while isinstance(el, Repeat):
+        optional = optional or el.lo == 0
+        el = el.elem
+    return (el, optional) if isinstance(el, Group) else (None, optional)
 
 
 def _sites(variants: list[Variant]) -> list[_Site]:
     out: list[_Site] = []
 
-    def visit(alt: Alt, siblings: list[Alt], owner: object, parent: _Site | None, rule: str) -> None:
-        site = _Site(alt, siblings, owner, parent, rule)
+    def visit(site: _Site) -> None:
         out.append(site)
-        for el in _walk_elems(alt.elems):
-            if isinstance(el, Group):
-                for a in el.alts:
-                    visit(a, el.alts, el, site, rule)
+        for i, el in enumerate(site.alt.elems):
+            g, opt = _group_of(el)
+            if g is not None:
+                for a in g.alts:
+                    visit(_Site(a, g.alts, g, site, site.rule, i, opt))
 
     for v in variants:
         for a in v.alts:
-            visit(a, v.alts, v, None, v.name)
+            visit(_Site(a, v.alts, v, None, v.name))
     return out
 
 
-def _refs(alt: Alt) -> tuple[set[str], set[str]]:
-    """Rule names and type names an alternative mentions (including nested groups)."""
+def _direct_refs(el: object) -> tuple[set[str], set[str]]:
+    """Rules and types an element names, not looking inside groups."""
     rules: set[str] = set()
     types: set[str] = set()
-
-    def go(elems: list[object]) -> None:
-        for el in _walk_elems(elems):
-            if isinstance(el, NT):
-                rules.add(el.name)
-                if el.targ is not None and el.targ.name:
-                    types.add(el.targ.name)
-            elif isinstance(el, Builtin):
-                for a in el.args:
-                    types.add(a.split(":")[0])
-            elif isinstance(el, Group):
-                for a in el.alts:
-                    go(a.elems)
-
-    go(alt.elems)
+    while isinstance(el, Repeat):
+        el = el.elem
+    if isinstance(el, NT):
+        rules.add(el.name)
+        if el.targ is not None and el.targ.name:
+            types.add(el.targ.name)
+    elif isinstance(el, Builtin):
+        for x in el.args:
+            types.add(x.split(":")[0])
     return rules, types
+
+
+def _optional(el: object) -> bool:
+    return isinstance(el, Repeat) and el.lo == 0
 
 
 def _parse_directives(text: str) -> tuple[list[list[str]], str, int]:
@@ -127,16 +130,17 @@ class _Editor:
         self.text = text
         _types, self.variants, _attrs, _start = _Parser(text).parse()
         self.sites = _sites(self.variants)
-        self.drop: set[int] = set()            # alt uids to remove
-        self.drop_variants: set[int] = set()   # id(variant)
+        self.drop: set[int] = set()                    # alt uids to remove
+        self.drop_elems: set[tuple[int, int]] = set()  # (alt uid, element index) to remove
+        self.drop_variants: set[int] = set()           # id(variant)
         self.replacements: list[tuple[int, int, str]] = []
 
     def alt_text(self, a: Alt) -> str:
         return self.text[a.span[0]:a.span[1]]
 
     def mark(self, site: _Site, report: list[str], why: str = "") -> None:
-        """Remove an alternative; if it is the last one of a group, remove the enclosing
-        alternative; if the last of a variant, remove the variant."""
+        """Remove an alternative. A group left empty disappears if it was optional, else the
+        enclosing alternative goes; a variant left empty disappears."""
         if site.alt.uid in self.drop:
             return
         self.drop.add(site.alt.uid)
@@ -145,33 +149,41 @@ class _Editor:
             if isinstance(site.owner, Variant):
                 self.drop_variants.add(id(site.owner))
             elif site.parent is not None:
-                self.mark(site.parent, report, " (group emptied)")
+                if site.optional:
+                    self.drop_elems.add((site.parent.alt.uid, site.elem_index))
+                else:
+                    self.mark(site.parent, report, " (group emptied)")
+
+    def drop_element(self, site: _Site, idx: int, report: list[str], why: str) -> None:
+        if (site.alt.uid, idx) not in self.drop_elems:
+            self.drop_elems.add((site.alt.uid, idx))
+            s, e = site.alt.elem_spans[idx]
+            report.append(f"{site.rule}: element {self.text[s:e][:80]}{why}")
 
     def render_alt(self, a: Alt) -> str:
-        """Text of ``a`` with dropped alternatives removed from its nested groups."""
-        groups = []
-
-        def collect(elems: list[object]) -> None:
-            for el in elems:
-                if isinstance(el, Repeat):
-                    collect([el.elem])
-                elif isinstance(el, Group):
-                    groups.append(el)
-
-        collect(a.elems)
+        """Text of ``a`` without dropped elements and dropped group alternatives."""
         out, pos = [], a.span[0]
-        for g in sorted(groups, key=lambda g: g.alts[0].span[0]):
-            s, e = g.alts[0].span[0], g.alts[-1].span[1]
+        for i, el in enumerate(a.elems):
+            s, e = a.elem_spans[i]
             out.append(self.text[pos:s])
-            out.append(" | ".join(self.render_alt(k) for k in g.alts if k.uid not in self.drop))
             pos = e
+            if (a.uid, i) in self.drop_elems:
+                continue
+            g, _ = _group_of(el)
+            if g is None:
+                out.append(self.text[s:e])
+                continue
+            gs, ge = g.alts[0].span[0], g.alts[-1].span[1]
+            out.append(self.text[s:gs])
+            out.append(" | ".join(self.render_alt(k) for k in g.alts if k.uid not in self.drop))
+            out.append(self.text[ge:e])
         out.append(self.text[pos:a.span[1]])
         return "".join(out)
 
     def apply(self) -> str:
         if self.replacements:
             eds = sorted(self.replacements)
-            for (s1, e1, _), (s2, _e2, _) in zip(eds, eds[1:]):
+            for (_s1, e1, _), (s2, _e2, _) in zip(eds, eds[1:]):
                 if s2 < e1:
                     raise GrammarError("overlay: overlapping replacements in one directive")
             t = self.text
@@ -192,7 +204,26 @@ class _Editor:
         return "".join(out)
 
 
+def _class_edit(text: str, op: str, t: str, cls: str, rep: OverlayReport) -> str:
+    pat = re.compile(rf'^(\s*%type\s+{re.escape(t)}\s+"[^"]*")([^\n]*)$', re.M)
+    m = pat.search(text)
+    if not m:
+        rep.unmatched.append(f"{op} {t} {cls}")
+        return text
+    words = m.group(2).split()
+    classes = [w for w in words if "=" not in w]
+    rest = [w for w in words if "=" in w]
+    if op == "%addclass" and cls not in classes:
+        classes.append(cls)
+    elif op == "%delclass":
+        classes = [c for c in classes if c != cls]
+    rep.replaced.append(f"{op} {t} {cls}")
+    return text[:m.start()] + m.group(1) + " " + " ".join(classes + rest) + text[m.end():]
+
+
 def _one_directive(text: str, d: list[str], rep: OverlayReport) -> str:
+    if d[0] in ("%addclass", "%delclass"):
+        return _class_edit(text, d[0], d[1], d[2], rep)
     ed = _Editor(text)
     op, args = d[0], d[1:]
     hit = False
@@ -228,9 +259,14 @@ def _one_directive(text: str, d: list[str], rep: OverlayReport) -> str:
                 ed.drop_variants.add(id(v))
                 rep.dropped.append(f"{v.name}<{t}>: <variant>")
         for site in ed.sites:
-            if t in _refs(site.alt)[1]:
-                hit = True
-                ed.mark(site, rep.dropped, f" (type {t})")
+            for i, el in enumerate(site.alt.elems):
+                if t in _direct_refs(el)[1]:
+                    hit = True
+                    if _optional(el):
+                        ed.drop_element(site, i, rep.dropped, f" (type {t})")
+                    else:
+                        ed.mark(site, rep.dropped, f" (type {t})")
+                        break
     elif op == "%replace":
         rule, old, new = args[0], args[1], args[2]
         for v in ed.variants:
@@ -264,11 +300,16 @@ def _cascade(text: str, rep: OverlayReport, max_rounds: int = 50) -> str:
         defined = {v.name for v in ed.variants}
         changed = False
         for site in ed.sites:
-            rules, _ = _refs(site.alt)
-            missing = rules - defined
-            if missing:
-                ed.mark(site, rep.cascaded, f" (needs {', '.join(sorted(missing))})")
+            for i, el in enumerate(site.alt.elems):
+                missing = _direct_refs(el)[0] - defined
+                if not missing:
+                    continue
                 changed = True
+                if _optional(el):
+                    ed.drop_element(site, i, rep.cascaded, f" (needs {', '.join(sorted(missing))})")
+                else:
+                    ed.mark(site, rep.cascaded, f" (needs {', '.join(sorted(missing))})")
+                    break
         for v in ed.variants:
             if v.concrete is not None and v.concrete not in types_decl and id(v) not in ed.drop_variants:
                 # concrete may also be a class name; only drop if it is neither

@@ -112,6 +112,7 @@ class Alt:
     line: int = 0
     mind: dict = field(default_factory=dict)   # type -> minimal derivation depth (filled by Grammar)
     span: tuple[int, int] = (0, 0)             # source text offsets (used by dialect overlays)
+    elem_spans: list = field(default_factory=list)   # source offsets of each element
 
 
 @dataclass
@@ -336,14 +337,17 @@ class _Parser:
                 else:
                     raise GrammarError(f"line {t.line}: bad alternative annotation {t.text!r}")
             self.next()
-        elems, early = [], set()
+        elems, early, espans = [], set(), []
         while not (self.at("|") or self.at(stop) or self.peek().kind == "eof"):
+            es = self.peek().pos
             if self.at("^"):
                 self.next()
                 early.add(len(elems))
             elems.append(self._postfix(self._primary()))
+            espans.append((es, self.toks[self.i - 1].end))
         end = self.toks[self.i - 1].end if self.i > i0 else start
-        return Alt(elems, weight, frozenset(req), frozenset(forb), frozenset(early), line=line, span=(start, end))
+        return Alt(elems, weight, frozenset(req), frozenset(forb), frozenset(early), line=line, span=(start, end),
+                   elem_spans=espans)
 
     def _targ(self) -> TypeArg:
         if self.at("*"):

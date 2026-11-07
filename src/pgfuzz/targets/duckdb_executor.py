@@ -14,7 +14,7 @@ from typing import Any
 from pgfuzz.targets.base import Driver, WorkerExecutor
 
 _SQLSTATE = {
-    "InternalException": "XX000", "FatalException": "XX000", "InvalidInputException": "22023",
+    "InternalException": "XX000", "InternalLikeException": "XX000", "FatalException": "XX000", "InvalidInputException": "22023",
     "ParserException": "42601", "SyntaxException": "42601", "BinderException": "42703",
     "CatalogException": "42P01", "ConversionException": "22P02", "OutOfRangeException": "22003",
     "NotImplementedException": "0A000", "TypeMismatchException": "42804", "ConstraintException": "23000",
@@ -24,6 +24,9 @@ _SQLSTATE = {
 }
 # passes that are not optimizations (switching them off breaks plans or is meaningless)
 _NOT_RULES = {"expression_rewriter"}
+# messages of non-internal exception classes that still mean "the engine broke on a valid query"
+_INTERNAL_LIKE = ("Cannot copy Bound", "Cannot copy Expanded", "Unimplemented type for", "Attempted to access index",
+                  "INTERNAL Error", "Unsupported expression class", "not implemented for type")
 _EST = re.compile(r"~\s*[\d,.]+\s*(rows|row)?", re.I)
 
 
@@ -54,7 +57,12 @@ class DuckDBDriver(Driver):
         return None, None
 
     def error_name(self, exc: BaseException) -> str | None:
-        return type(exc).__name__ if isinstance(exc, self._duckdb.Error) else None
+        if not isinstance(exc, self._duckdb.Error):
+            return None
+        name = type(exc).__name__
+        if name == "SerializationException" and any(m in str(exc) for m in _INTERNAL_LIKE):
+            return "InternalLikeException"   # e.g. "Cannot copy BoundSubqueryExpression" on a valid query
+        return name
 
     def rules(self) -> list[str]:
         return list(self._rules)

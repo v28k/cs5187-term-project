@@ -176,6 +176,7 @@ def cmd_sample(a: argparse.Namespace) -> int:
 
     n_ok = n_err = q_ok = q_all = 0
     errs: collections.Counter[str] = collections.Counter()
+    examples: dict[str, tuple[str, str]] = {}
     try:
         for i in range(a.n):
             tc = gen.next_testcase()
@@ -193,6 +194,7 @@ def cmd_sample(a: argparse.Namespace) -> int:
                     n_err += 1
                     m = _re.sub(r'"[^"]*"|\'[^\']*\'|\d+', "?", (r.message or "").split("\n")[0])[:110]
                     errs[m] += 1
+                    examples.setdefault(m, (sql[:600], (r.message or "")[:300]))
             cls = oracle.classify(res)
             if cls.is_bug_candidate and hasattr(gen, "failure_meta"):
                 tc.meta.update(gen.failure_meta(tc) or {})
@@ -217,8 +219,11 @@ def cmd_sample(a: argparse.Namespace) -> int:
                          "statement_valid_rate": round(n_ok / max(1, n_ok + n_err), 4),
                          "queries": q_all, "query_valid_rate": round(q_ok / max(1, q_all), 4)}
     stats["top_errors"] = errs.most_common(a.errors)
+    if a.examples:
+        stats["error_examples"] = {m: examples[m] for m, _ in errs.most_common(a.errors)}
     if a.quiet_stats:
-        stats = {k: stats[k] for k in ("validity", "top_errors", "bug_candidates", "elapsed_s")}
+        stats = {k: stats[k] for k in ("validity", "top_errors", "bug_candidates", "elapsed_s", "error_examples")
+                 if k in stats}
     print(json.dumps(stats, indent=1))
     return 0
 
@@ -521,6 +526,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--execute", action="store_true", help="run them on the configured executor")
     p.add_argument("--out", help="directory for bug-candidate test cases")
     p.add_argument("--errors", type=int, default=25, help="how many top error messages to show")
+    p.add_argument("--examples", action="store_true", help="show one failing statement per error message")
     p.add_argument("--quiet-stats", action="store_true", help="show only validity, top errors, candidates")
     p.set_defaults(fn=cmd_sample)
 

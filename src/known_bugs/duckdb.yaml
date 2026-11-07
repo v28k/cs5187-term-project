@@ -1,2 +1,12 @@
-# Known DuckDB bugs (none yet).
-bugs: []
+# Known DuckDB bugs found by this fuzzer (format: pgfuzz/eval/known_bugs.py).
+# Filing packages: docs/bughunt/duckdb/<ID>-<slug>/ (filed by the owner).
+bugs:
+  - id: duckdb-D01
+    title: "min/max over a LIST/STRUCT/ARRAY (or collated VARCHAR) argument containing a subquery: Cannot copy BoundSubqueryExpression"
+    source: "docs/bughunt/duckdb/D-01-minmax-nested-subquery/ (not filed yet)"
+    affected: "2.0.0, nightly 2.1.0.dev (nested types: regression from 5432471e7a); collated VARCHAR also 1.5.x"
+    fixed_in: "open"
+    match:
+      outcome: internal_error
+      message_regex: "Cannot copy BoundSubqueryExpression"
+    poc: pocs/duckdb_D01_minmax_subquery.sql

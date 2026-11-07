@@ -81,3 +81,28 @@ def test_unmatched_is_reported():
 def test_unknown_directive():
     with pytest.raises(GrammarError):
         apply_overlays(BASE, ["%frobnicate x"])
+
+
+OPT = """
+%type int "int" num
+stmt : SELECT @lit(int) ( WHERE TRUE | WHERE FALSE )?0.5 tail?0.3 ;
+tail : LIMIT "1" ;
+"""
+
+
+def test_emptied_optional_group_removes_only_the_element():
+    text, rep = apply_overlays(OPT, ['%dropopt stmt "WHERE"'])
+    g = parse_grammar(text)
+    assert alts(text, "stmt") == 1 and "WHERE" not in text and "tail?0.3" in text
+
+
+def test_dropped_rule_behind_optional_reference_keeps_the_alternative():
+    text, rep = apply_overlays(OPT, ["%droprule tail"])
+    assert alts(text, "stmt") == 1 and "tail" not in text
+    assert any("element tail?0.3" in c for c in rep.cascaded)
+
+
+def test_addclass_and_delclass():
+    text, _ = apply_overlays(BASE, ["%addclass text num", "%delclass int num"])
+    g = parse_grammar(text)
+    assert g.classes["num"] == ["text"]

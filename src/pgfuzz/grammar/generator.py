@@ -109,6 +109,7 @@ class GrammarGenerator(Generator):
         seeds: list[str] | str | None = None,
         seed_prob: float = 0.05,
         overlays: list[str] | str | None = None,
+        dialect_data: str | None = None,
     ) -> None:
         self.grammar_path, self.schema_path = grammar, schema
         self.start, self.setup_rule = start, setup_rule
@@ -131,6 +132,7 @@ class GrammarGenerator(Generator):
         self.extra_grammars = _paths(extra_grammars, "*.pgg")
         self.overlay_paths = [overlays] if isinstance(overlays, str) else list(overlays or [])
         self.overlay_report: dict[str, int] = {}
+        self.dialect_data = dialect_data   # YAML: literals / fill tables per type for this dialect
         self.seed_paths = _paths(seeds, "*.sql")
         self.seed_prob = float(seed_prob)
         self.fragments_loaded: list[str] = []
@@ -173,8 +175,13 @@ class GrammarGenerator(Generator):
         if missing:
             raise ValueError(f"{self.grammar_path}: missing rules {missing}")
         self.start = self.start or self.grammar.start
+        dd: dict[str, Any] = {}
+        if self.dialect_data:
+            import yaml
+
+            dd = yaml.safe_load(Path(self.dialect_data).read_text(encoding="utf-8")) or {}
         self.engine = Engine(self.grammar, self.schema, self.rng, self.max_depth, self.soft_depth,
-                             null_prob=self.null_prob)
+                             null_prob=self.null_prob, literals=dd.get("literals"), fills=dd.get("fill"))
         if self.profile_path:
             from pgfuzz.grammar.profile import Profile
 

@@ -268,8 +268,13 @@ class Engine:
         max_steps: int = 6000,
         max_tries: int = 4,
         null_prob: float = 0.06,
+        literals: dict[str, list[str]] | None = None,
+        fills: dict[str, list[str]] | None = None,
     ) -> None:
         self.g, self.base_schema, self.rng = grammar, schema, rng
+        # per-dialect literal / fill tables (dialect data file) override the PostgreSQL defaults
+        self.literals = {**_LITERALS, **(literals or {})}
+        self.fills = {**_FILL, **(fills or {})}
         self.max_depth, self.soft_depth, self.max_steps, self.max_tries = max_depth, soft_depth, max_steps, max_tries
         self.null_prob = null_prob
         self.alt_hits: Counter[int] = Counter()
@@ -584,7 +589,7 @@ class Engine:
             v = self.profile.pick(t, self.rng)     # data quantiles and interval boundaries
             if v is not None:
                 return v
-        vals = _LITERALS.get(t)
+        vals = self.literals.get(t)
         if not vals:
             return f"NULL::{self.sql_type(t)}"
         if t == "int" and self.rng.random() < 0.3:
@@ -596,7 +601,7 @@ class Engine:
         t = c.type
         if "pk" in c.flags:
             return {"int": "x", "bigint": "x::bigint", "numeric": "x::numeric", "text": "x::text"}.get(t, f"x::{self.sql_type(t)}")
-        exprs = _FILL.get(t) or [self.literal(t)]
+        exprs = self.fills.get(t) or [self.literal(t)]
         return self.rng.choice(exprs)
 
     def stats(self) -> dict[str, Any]:
@@ -935,7 +940,7 @@ def _wrap_col_expr(eng: Engine, it: Item, c: Column, tk: list[str]) -> list[str]
     if c.type == "numeric":
         out = ["(", "ABS", "("] + out + [")", "%", "1000", ")"]
     if c.flags & {"pk", "notnull"} or c.name == "c0":
-        fallback = _LITERALS.get(c.type, [f"NULL::{eng.sql_type(c.type)}"])[0]
+        fallback = eng.literals.get(c.type, [f"NULL::{eng.sql_type(c.type)}"])[0]
         out = ["COALESCE", "("] + out + [",", fallback, ")"]
     return out
 
