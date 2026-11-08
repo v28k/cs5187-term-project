@@ -280,7 +280,8 @@ def load_records(path: str) -> list[Record]:
 
 
 def learn_from_config(config: str, name: str | None, n: int, seed: int = 1,
-                      records_out: str | None = None, depth: int | None = 5) -> tuple[Learned, dict[str, Any]]:
+                      records_out: str | None = None, depth: int | None = 5,
+                      guard_min_rate: float = 0.5) -> tuple[Learned, dict[str, Any]]:
     """Generate ``n`` test cases with the config's generator and probe its cross-engine executor
     pair (``executor.params.test`` / ``reference``) without any normalizer; learn on half the
     test cases and evaluate on the other half."""
@@ -332,7 +333,7 @@ def learn_from_config(config: str, name: str | None, n: int, seed: int = 1,
     train_sql = {s for c in cases[:half] for s in c}
     train = [r for r in records if r.sql in train_sql]
     test = [r for r in records if r.sql not in train_sql]
-    learned = infer(train)
+    learned = infer(train, guard_min_rate=guard_min_rate)
     report = {"train": learned.stats, "held_out": evaluate(learned, test),
               "pair": [sides[0].describe().get("version"), sides[1].describe().get("version")]}
     learned.stats = report

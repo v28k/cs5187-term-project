@@ -60,7 +60,7 @@ def cmd_learn_normalizers(a: argparse.Namespace) -> int:
 
     from pgfuzz.normalizers.infer import learn_from_config
 
-    learned, report = learn_from_config(a.config, a.name, a.n, a.seed, a.records, a.depth or None)
+    learned, report = learn_from_config(a.config, a.name, a.n, a.seed, a.records, a.depth or None, a.guard_rate)
     print(json.dumps({"normalize": learned.normalize, "guards": learned.guards, **report}, indent=1, default=str))
     if a.out:
         Path(a.out).write_text(yaml.safe_dump(learned.to_dict(), sort_keys=False), encoding="utf-8")
@@ -499,6 +499,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", help="write the learned rules here (YAML)")
     p.add_argument("--records", help="also save the probe records here (JSON lines)")
     p.add_argument("--depth", type=int, default=5, help="grammar depth of the probes (small probes; 0: config's)")
+    p.add_argument("--guard-rate", type=float, default=0.5,
+                   help="minimum share of a feature's comparisons that must disagree for it to become a guard")
     p.set_defaults(fn=cmd_learn_normalizers)
 
     p = sub.add_parser("validate", help="check run logs against the log format")
