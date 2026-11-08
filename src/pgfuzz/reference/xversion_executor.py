@@ -72,10 +72,23 @@ class CrossVersionExecutor(Executor):
 
     name = "xversion"
 
-    def __init__(self, test: dict[str, Any], reference: dict[str, Any], prelude_sql: list[str] | None = None) -> None:
+    def __init__(self, test: dict[str, Any], reference: dict[str, Any], prelude_sql: list[str] | None = None,
+                 learned: str | None = None, guards: list[str] | None = None) -> None:
         self.prelude = list(prelude_sql or [])
         test = dict(test)
         reference = dict(reference)
+        # learned cross-engine rules (pgfuzz.normalizers.infer, `pgfuzz learn-normalizers`): value
+        # normalizers for both sides and guards (query features whose results are not comparable)
+        self.guards = set(guards or [])
+        if learned:
+            import yaml
+            from pathlib import Path
+
+            rules = yaml.safe_load(Path(learned).read_text(encoding="utf-8")) or {}
+            for side in (test, reference):
+                if "normalize" not in side and rules.get("normalize"):
+                    side["normalize"] = list(rules["normalize"])
+            self.guards |= set(rules.get("guards") or [])
         engine = bool(test.get("plugin"))
         if not engine:
             test["digests"] = True
@@ -88,7 +101,8 @@ class CrossVersionExecutor(Executor):
                 reference[k] = test[k]
         self.test = _make(test)
         self.ref = _make(reference)
-        self.xstats = {"diverged": 0, "compared": 0, "mismatch": 0, "test_only_ok": 0, "ref_only_ok": 0, "ref_failures": 0}
+        self.xstats = {"diverged": 0, "compared": 0, "mismatch": 0, "test_only_ok": 0, "ref_only_ok": 0, "ref_failures": 0,
+                       "guarded": 0}
 
     @property
     def diff_stats(self) -> dict[str, Any]:
@@ -141,6 +155,13 @@ class CrossVersionExecutor(Executor):
             if diverged or not (t_ok and r_ok) or st.result_hash is None or rt.result_hash is None \
                     or not xversion_eligible(sql):
                 continue
+            guards = getattr(self, "guards", None)
+            if guards:
+                from pgfuzz.normalizers.infer import query_features
+
+                if query_features(sql) & guards:
+                    self.xstats["guarded"] = self.xstats.get("guarded", 0) + 1
+                    continue
             self.xstats["compared"] += 1
             if st.result_hash != rt.result_hash:
                 self.xstats["mismatch"] += 1

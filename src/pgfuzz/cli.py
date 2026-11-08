@@ -54,6 +54,19 @@ def cmd_report(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_learn_normalizers(a: argparse.Namespace) -> int:
+    """Probe a cross-engine pair, learn normalizers and guards, report held-out precision."""
+    import yaml
+
+    from pgfuzz.normalizers.infer import learn_from_config
+
+    learned, report = learn_from_config(a.config, a.name, a.n, a.seed, a.records, a.depth or None)
+    print(json.dumps({"normalize": learned.normalize, "guards": learned.guards, **report}, indent=1, default=str))
+    if a.out:
+        Path(a.out).write_text(yaml.safe_dump(learned.to_dict(), sort_keys=False), encoding="utf-8")
+    return 0
+
+
 def cmd_validate(a: argparse.Namespace) -> int:
     from pgfuzz.runlog import validate_run
 
@@ -477,6 +490,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out")
     p.add_argument("--no-plots", action="store_true")
     p.set_defaults(fn=cmd_report)
+
+    p = sub.add_parser("learn-normalizers", help="infer value normalizers and guards for a cross-engine pair (C4)")
+    p.add_argument("config")
+    p.add_argument("--name", help="config (arm) whose generator to use (default: the first)")
+    p.add_argument("-n", type=int, default=400, help="number of probe test cases")
+    p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--out", help="write the learned rules here (YAML)")
+    p.add_argument("--records", help="also save the probe records here (JSON lines)")
+    p.add_argument("--depth", type=int, default=5, help="grammar depth of the probes (small probes; 0: config's)")
+    p.set_defaults(fn=cmd_learn_normalizers)
 
     p = sub.add_parser("validate", help="check run logs against the log format")
     p.add_argument("path", help="trial directory or experiment directory")
