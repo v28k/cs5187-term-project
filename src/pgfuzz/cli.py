@@ -468,6 +468,23 @@ def cmd_profile(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_hunt(a: argparse.Namespace) -> int:
+    from pgfuzz.agent.hunt import hunt
+
+    s = hunt(a.configs, a.budget, a.out, jobs=a.jobs, repeat=a.repeat, max_triage=a.max_triage)
+    n = sum(len(e["packages"]) for e in s["engines"].values())
+    print(f"hunt: {len(s['engines'])} campaigns, {n} packages -> {a.out}/HUNT.md")
+    return 0
+
+
+def cmd_package(a: argparse.Namespace) -> int:
+    from pgfuzz.agent.package import make_package
+
+    for t in a.triage_dirs:
+        print(make_package(a.engine, t, a.out))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="pgfuzz", description="Evaluation harness for grammar-aware PostgreSQL fuzzing")
     ap.add_argument("-v", "--verbose", action="count", default=1, help="-v info (default), -vv debug")
@@ -604,6 +621,21 @@ def main(argv: list[str] | None = None) -> int:
     q.add_argument("--repeat", type=int, default=2)
     q.add_argument("--out")
     p.set_defaults(fn=cmd_bench)
+
+    p = sub.add_parser("hunt", help="autonomous round: campaigns per engine, triage of new failures, package drafts")
+    p.add_argument("configs", nargs="+")
+    p.add_argument("--budget", type=float, default=3600, help="seconds per campaign")
+    p.add_argument("--out", default="results/hunt")
+    p.add_argument("-j", "--jobs", type=int, default=2, help="campaigns in parallel")
+    p.add_argument("--repeat", type=int, default=3)
+    p.add_argument("--max-triage", type=int, default=20)
+    p.set_defaults(fn=cmd_hunt)
+
+    p = sub.add_parser("package", help="filing-package draft (native regression test, report) from triage output")
+    p.add_argument("engine", choices=["duckdb", "sqlite", "turso", "datafusion", "postgres"])
+    p.add_argument("triage_dirs", nargs="+")
+    p.add_argument("--out", default="results/packages")
+    p.set_defaults(fn=cmd_package)
 
     a = ap.parse_args(argv)
     _setup_logging(0 if a.quiet else a.verbose)
