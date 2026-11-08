@@ -45,6 +45,11 @@ _INTERNAL_MSGS = ("malformed database schema", "database disk image is malformed
                   "unable to close due to", "SQL logic error")
 
 
+def _returns_rows(sql: str) -> bool:
+    head = sql.lstrip().lstrip("(").split(None, 1)[0].upper() if sql.strip() else ""
+    return head in ("SELECT", "WITH", "VALUES", "EXPLAIN", "PRAGMA") or " RETURNING " in f" {sql.upper()} "
+
+
 def _test_control_function(module_path: str) -> Any | None:
     """Address of the (local) sqlite3_test_control symbol inside the loaded APSW module."""
     try:
@@ -101,7 +106,11 @@ class SQLiteDriver(Driver):
         try:
             desc = cur.getdescription()
         except self._apsw.ExecutionCompleteError:
-            return None, None          # no result set (DDL, DML without RETURNING)
+            # APSW cannot describe a statement that produced no rows: a query (or DML with
+            # RETURNING) that returned nothing is an empty result set, everything else has none
+            if _returns_rows(sql):
+                return ([], []) if fetch else (None, None)
+            return None, None
         rows = []
         for r in cur:
             rows.append(r)

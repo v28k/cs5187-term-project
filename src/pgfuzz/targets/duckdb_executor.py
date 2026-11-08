@@ -69,6 +69,19 @@ class DuckDBDriver(Driver):
             return "InternalLikeException"   # e.g. "Cannot copy BoundSubqueryExpression" on a valid query
         return name
 
+    # settings a test case may change (overlays/duckdb.pgg set_stmt); they survive ROLLBACK
+    _SESSION_RESET = ("PRAGMA enable_optimizer", "RESET disabled_optimizers", "RESET default_null_order",
+                      "RESET preserve_insertion_order")
+
+    def end(self) -> None:
+        try:
+            self.db.execute("ROLLBACK")
+        except self._duckdb.Error:
+            pass
+        for s in self._SESSION_RESET:
+            self.db.execute(s)
+        self.db.execute(f"SET threads = {self.threads}")
+
     def rules(self) -> list[str]:
         return list(self._rules)
 

@@ -147,11 +147,18 @@ def load_driver(path: str, params: dict[str, Any]) -> Driver:
     return getattr(importlib.import_module(mod), cls)(**params)
 
 
-def _worker(conn: Any, driver_path: str, driver_params: dict[str, Any], setup: list[str]) -> None:
+def _worker(conn: Any, driver_path: str, driver_params: dict[str, Any], setup: list[str],
+            stderr_path: str | None = None) -> None:
     """Worker process main loop (spawned)."""
     from pgfuzz.core.procs import die_with_parent
 
     die_with_parent()
+    if stderr_path:   # panics / assertion messages of the engine end up here (read after a crash)
+        import os
+
+        fd = os.open(stderr_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+        os.dup2(fd, 2)
+        os.close(fd)
     drv = load_driver(driver_path, driver_params)
     try:
         version = drv.connect(setup)
@@ -218,7 +225,7 @@ class WorkerExecutor(Executor):
                  setup_sql: list[str] | str | None = None, statement_timeout_ms: int = 5000,
                  differential: bool | dict[str, Any] = False, metamorphic: bool | dict[str, Any] = False,
                  max_rows: int = 10000, seed: int = 0, start_timeout_s: float = 120,
-                 rule_feedback: bool | dict[str, Any] = False) -> None:
+                 rule_feedback: bool | dict[str, Any] = False, normalize: list[str] | None = None) -> None:
         self.driver_path = driver
         self.driver_params = dict(driver_params or {})
         self.setup_sql = _load_sql(setup_sql)
@@ -233,6 +240,9 @@ class WorkerExecutor(Executor):
         self.mm_max = int((m or {}).get("max_per_testcase", 6))
         self.max_rows = int(max_rows)
         self.rng = random.Random(seed)
+        from pgfuzz.eval.normalize import make as _make_normalizer
+
+        self.normalize = _make_normalizer(normalize)   # cross-engine value normalizers (digests only)
         rf = rule_feedback if isinstance(rule_feedback, dict) else ({} if rule_feedback else None)
         self.rf_enabled = rf is not None
         self.rf_prob = float((rf or {}).get("prob", 0.3))
@@ -266,6 +276,15 @@ class WorkerExecutor(Executor):
             self.aborts = r[1]["aborts"]
 
     def stop(self) -> None:
+        p = getattr(self, "_stderr_path", None)
+        if p:
+            import os
+
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
+            self._stderr_path = None
         if self.proc is not None:
             try:
                 self.pipe.send(("quit",))
@@ -280,8 +299,12 @@ class WorkerExecutor(Executor):
     def _spawn(self) -> None:
         ctx = mp.get_context("spawn")
         parent, child = ctx.Pipe()
-        self.proc = ctx.Process(target=_worker, args=(child, self.driver_path, self.driver_params, self.setup_sql),
-                                daemon=True)
+        if not getattr(self, "_stderr_path", None):
+            import tempfile
+
+            self._stderr_path = tempfile.mkstemp(prefix=f"pgfuzz-{self.name}-", suffix=".stderr")[1]
+        self.proc = ctx.Process(target=_worker, args=(child, self.driver_path, self.driver_params, self.setup_sql,
+                                                      self._stderr_path), daemon=True)
         self.proc.start()
         child.close()
         self.pipe = parent
@@ -314,14 +337,37 @@ class WorkerExecutor(Executor):
     def _result(self, r: tuple | None) -> dict[str, Any]:
         if r is None:
             code = self.proc.exitcode if self.proc is not None else None
-            return {"status": "connection_lost", "message": f"{self.name} worker died (exit code {code})",
-                    "exitcode": code}
+            msg = f"{self.name} worker died (exit code {code})"
+            tail = self._stderr_tail()
+            if tail:
+                msg += "\n" + tail
+            return {"status": "connection_lost", "message": msg, "exitcode": code}
         if r[0] == "timeout":
             return {"status": "timeout", "sqlstate": "57014", "message": "statement timeout (worker killed)"}
         if r[0] == "error":
             return {"status": "error", "sqlstate": self._sqlstate.get(r[1], Driver.default_sqlstate),
                     "message": f"{r[1]}: {r[2]}", "error_class": r[1]}
         return {"status": "ok", "rows": r[1], "types": r[2]}
+
+    def _stderr_tail(self) -> str:
+        """The engine's last panic / assertion / fatal message from the worker's stderr."""
+        import re
+
+        p = getattr(self, "_stderr_path", None)
+        if not p:
+            return ""
+        try:
+            with open(p, "rb") as f:
+                f.seek(0, 2)
+                f.seek(max(0, f.tell() - 16384))
+                text = f.read().decode("utf-8", "replace")
+        except OSError:
+            return ""
+        m = None
+        for m in re.finditer(r"(panicked at [^\n]*\n[^\n]*|Assertion[^\n]*failed[^\n]*|INTERNAL Error[^\n]*|"
+                             r"FATAL[^\n]*|Segmentation fault[^\n]*)", text):
+            pass
+        return m.group(1)[:600] if m else ""
 
     def _exec(self, sql: str, fetch: bool = True) -> dict[str, Any]:
         return self._result(self._call(("exec", sql, fetch, self.max_rows)))
@@ -342,6 +388,8 @@ class WorkerExecutor(Executor):
         rows = res.get("rows")
         if rows is None:
             return None, 0
+        if self.normalize is not None:
+            rows = self.normalize(rows)
         return diff.result_digest(rows, [self._oid(t) for t in res.get("types") or []], diff.masks_floats(sql),
                                   self.max_rows)
 

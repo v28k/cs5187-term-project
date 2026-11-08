@@ -1,0 +1,37 @@
+# name: test/sql/subquery/scalar/outer_join_condition_two_subqueries.test
+# description: an outer-join condition with two subqueries, one compared with ANY over a list of both sides' columns
+# group: [scalar]
+
+statement ok
+CREATE TABLE t (a INTEGER, b BOOLEAN);
+
+statement ok
+CREATE TABLE u (c INTEGER);
+
+statement ok
+INSERT INTO t VALUES (1, true), (6, false);
+
+statement ok
+INSERT INTO u VALUES (1);
+
+query IIII
+SELECT * FROM t LEFT JOIN (SELECT 5 AS x) s ON ((SELECT 1) = ANY ([t.a + s.x]) OR 1 IN (SELECT c FROM u)) ORDER BY ALL;
+----
+1	true	5
+6	false	5
+
+query IIII
+SELECT * FROM t LEFT JOIN (SELECT 5 AS x) s ON ((SELECT 1) = ANY ([t.a + s.x]) OR 1 IN (SELECT c FROM u WHERE c > 5)) ORDER BY ALL;
+----
+1	true	NULL
+6	false	NULL
+
+query IIII
+SELECT * FROM t RIGHT JOIN (SELECT 5 AS x) s ON ((SELECT 1) = ANY ([t.a + s.x]) OR 1 IN (SELECT c FROM u)) ORDER BY ALL;
+----
+1	true	5
+6	false	5
+
+statement ok
+MERGE INTO t USING (SELECT 5 AS x) s ON ((SELECT 1) = ANY ([t.a + s.x]) OR 1 IN (SELECT c FROM u))
+WHEN NOT MATCHED THEN INSERT VALUES (1, true);
