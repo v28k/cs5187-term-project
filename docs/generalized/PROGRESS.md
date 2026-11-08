@@ -40,6 +40,14 @@ Filing order suggested in each `steps.md`: issue first, then the PR. Ready to fi
 
 ## Session log
 
+## 2026-11-08 (night): T-05 second review follow-up
+- Two findings on tursodatabase/turso#11595 (head fcfc80b): duplicated percentile step, fraction not validated like
+  SQLite. One commit: shared `fraction_step` with the upper bound as a parameter (as SQLite's mxFrac), SQLite's
+  fraction errors and order of checks, one first-error slot; core/percentile.rs -25 lines. 8 new sqltest cases checked
+  against SQLite 3.54.1 (7 fail without the change); corpus, unit tests, fmt and clippy pass. Push to the fork is
+  refused from this environment, so the commit is `followup-fraction.patch` in the T-05 package.
+- The `big-db` corpus tests need ~10 GB of temporary files; run them with the disk mostly free.
+
 ## 2026-11-08 (later): T-05 review follow-up
 - Review finding on tursodatabase/turso#11595: percentile aggregates must reject non-numeric (TEXT/BLOB) input as
   SQLite does. Fixed in core/percentile.rs (one commit on top of the PR head 79d092a), 5 new sqltest cases checked

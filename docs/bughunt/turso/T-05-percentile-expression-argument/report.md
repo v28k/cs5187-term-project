@@ -79,3 +79,12 @@ non-NULL TEXT or BLOB value ("input to <name>() is not numeric"), Turso read num
 in one more commit, "core: reject non-numeric input to percentile aggregates" (`followup-nonnumeric.patch`), with 5
 more sqltest cases; the full sqlite-sqltests corpus (12707 passed), `cargo fmt --check` and clippy pass. Details:
 `followup-review.md`.
+
+## Second follow-up after review (PR head fcfc80b)
+
+Two more review findings, both fixed in one commit on top of fcfc80b, "core: share the percentile fraction check and
+validate it like SQLite" (`followup-fraction.patch`): percentile, percentile_cont and percentile_disc share one
+step with the fraction's upper bound as a parameter, and the fraction is validated exactly as SQLite's `percentStep`
+does (NULL, non-numeric or out-of-range fraction is an error with SQLite's wording, also for rows whose value is NULL;
+the fraction must not change across rows). `core/percentile.rs` shrinks by 25 lines. Details and test results:
+`followup-review.md`.

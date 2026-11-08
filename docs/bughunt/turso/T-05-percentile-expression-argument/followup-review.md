@@ -43,3 +43,31 @@ author and committer Venu Kummari. Only `core/percentile.rs` and the PR's sqltes
 The push of branch `percentile-nonnumeric` to v28k/turso was refused from this environment (no write access), so
 the commit is kept here as `followup-nonnumeric.patch`; applying it with `git am` onto 79d092a gives tree `c5d856b2d13931a027ef6cfa8135e2ab1467f1b1`. The PR branch is updated by a normal
 (non-force) push of that branch onto `fix-percentile-expression-argument`; the step is done by the owner's release tool from the prompt given to the owner.
+
+## Second review (PR head fcfc80b): shared fraction step, fraction validated like SQLite
+
+Findings of the review bot: (1) `Percentile::step` was a copy of `fraction_step` that differed only in the upper bound
+100; (2) the fraction was not checked like SQLite (`percentile_disc(1, 2)`, `percentile_disc(1, NULL)`,
+`percentile(1, 'abc')` returned NULL instead of an error).
+
+Change: one commit on top of fcfc80b, "core: share the percentile fraction check and validate it like SQLite"
+(`followup-fraction.patch`, branch `percentile-fraction`, tree fa3178d97b0de693f35c667b16abcf2b37152a9e; author
+Venu Kummari, committer v28k).
+- `fraction_step(state, args, name, max_fraction)` is used by percentile (100.0), percentile_cont and
+  percentile_disc (1.0), like `mxFrac` in SQLite's percentile.c. It follows SQLite's `percentStep` order: the fraction
+  must be INTEGER, REAL or numeric TEXT in [0, max] ("the fraction argument to <name>() is not between 0.0 and
+  1.0|100.0"), it must be the same on every row within 0.001 of the scaled fraction ("... is not the same for all input
+  rows"), then a NULL value is skipped and TEXT/BLOB values fail ("input to <name>() is not numeric").
+- One "first error" slot replaces the two error slots: SQLite stops at the first error, and `finalize` returns it
+  before anything else, so the error also appears when no value was aggregated. Errors are formatted `String`s.
+- `core/percentile.rs` vs fcfc80b: 76 insertions, 101 deletions (it shrinks by 25 lines).
+
+Checked against SQLite 3.54.1: the five cases above raise SQLite's errors with the same wording; over an empty table
+all five return NULL (SQLite never calls the step); a row with a NULL value and fraction 2 raises the fraction error;
+`percentile_cont(a, a * 0.1)` raises the "not the same" error. These 8 cases were added to
+`percentile-expression-argument.sqltest`; 7 fail without the change (the empty-table case passes either way).
+
+Tests (8 Nov 2026): the two percentile sqltest files 23/23; full `sqlite-sqltests` corpus, cli backend: 12713 passed,
+4 skipped, and `big-db` / `big-db-mvcc` failed only because the disk filled up during that run (re-run with free disk: both passed);
+`cargo test -p turso_core --lib percentile` 3 passed; `cargo fmt --check` and
+`cargo clippy --workspace --all-features --all-targets -- --deny=warnings` clean. JS backend not run locally.
