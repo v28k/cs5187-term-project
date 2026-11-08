@@ -189,6 +189,7 @@ class GrammarGenerator(Generator):
             dd = yaml.safe_load(Path(self.dialect_data).read_text(encoding="utf-8")) or {}
         self.engine = Engine(self.grammar, self.schema, self.rng, self.max_depth, self.soft_depth,
                              null_prob=self.null_prob, literals=dd.get("literals"), fills=dd.get("fill"))
+        self._dialect_data = dd
         if dd.get("series_from"):
             self.engine.series_from = str(dd["series_from"])
         from pgfuzz.grammar.dialect import Dialect
@@ -209,7 +210,7 @@ class GrammarGenerator(Generator):
                     self.extra_rewrites.setdefault(r["type"], {})[str(r["name"])] = str(r["template"])
         self.rewriter = Rewriter(self.grammar, self.rng, self.mm_per_query, self.mm_weights,
                                  policies=load_policies(self.rls_path), extra_rewrites=self.extra_rewrites,
-                                 only=self.only_rewrite)
+                                 only=self.only_rewrite, exclude=self._dialect_data.get("rewrite_exclude"))
 
     def _load_grammar(self) -> Grammar:
         """The base grammar plus every extra fragment (LLM arm) that still parses

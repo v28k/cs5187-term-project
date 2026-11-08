@@ -384,14 +384,17 @@ class WorkerExecutor(Executor):
                 return v
         return 0
 
-    def _digest(self, res: dict[str, Any], sql: str) -> tuple[str | None, int]:
+    def _digest(self, res: dict[str, Any], sql: str, mask: bool | None = None) -> tuple[str | None, int]:
+        """Digest of a result. ``mask`` (float rounding) defaults to what the statement's text calls
+        for; the two sides of a metamorphic check must use the same decision (one shared value)."""
         rows = res.get("rows")
         if rows is None:
             return None, 0
         if self.normalize is not None:
             rows = self.normalize(rows)
-        return diff.result_digest(rows, [self._oid(t) for t in res.get("types") or []], diff.masks_floats(sql),
-                                  self.max_rows)
+        if mask is None:
+            mask = diff.masks_floats(sql)
+        return diff.result_digest(rows, [self._oid(t) for t in res.get("types") or []], mask, self.max_rows)
 
     # ------------------------------------------------------------------ public helpers (oracles, C1)
     def explain(self, sql: str) -> str | None:
@@ -532,10 +535,10 @@ class WorkerExecutor(Executor):
             out[name] = rec
         return out
 
-    def _side(self, sql: str, done: list[str]) -> dict[str, Any]:
+    def _side(self, sql: str, done: list[str], mask: bool | None = None) -> dict[str, Any]:
         res = self._exec(sql)
         if res["status"] == "ok":
-            h, n = self._digest(res, sql)
+            h, n = self._digest(res, sql, mask)
             return {"status": "ok", "hash": h, "rows": n}
         if res["status"] != "connection_lost":
             self._recover(done, res["status"] == "timeout")
@@ -549,12 +552,16 @@ class WorkerExecutor(Executor):
             rec: dict[str, Any] = {"kind": kind}
             if kind in ("cert", "rls"):   # need EXPLAIN estimates / roles: PostgreSQL only
                 continue
+            # one masking decision for both sides (as the PostgreSQL executor): the generator's flag,
+            # or the original statement's text; never per side (a rewrite adding an aggregate would
+            # mask floats on one side only)
+            mask = bool(c.get("mask")) or diff.masks_floats(sql)
             if lhs is None:
-                h, n = self._digest(first, sql)
+                h, n = self._digest(first, sql, mask)
                 left = {"status": "ok", "hash": h, "rows": n}
             else:
-                left = self._side(lhs, done)
-            right = self._side(rhs, done) if left["status"] == "ok" else {"status": "skipped"}
+                left = self._side(lhs, done, mask)
+            right = self._side(rhs, done, mask) if left["status"] == "ok" else {"status": "skipped"}
             failed = left if left["status"] != "ok" else right if right["status"] not in ("ok", "skipped") else None
             if failed is not None:
                 side = "lhs" if failed is left else "rhs"
@@ -568,8 +575,8 @@ class WorkerExecutor(Executor):
                        lhs_rows=left["rows"], rhs_rows=right["rows"])
             if left["hash"] and right["hash"] and left["hash"] != right["hash"]:
                 rec.update(lhs_sql=lhs, rhs_sql=rhs)
-                l2 = self._side(lhs if lhs is not None else sql, done)
-                r2 = self._side(rhs, done)
+                l2 = self._side(lhs if lhs is not None else sql, done, mask)
+                r2 = self._side(rhs, done, mask)
                 rec["confirmed"] = l2.get("hash") == left["hash"] and r2.get("hash") == right["hash"]
             out.append(rec)
         return out

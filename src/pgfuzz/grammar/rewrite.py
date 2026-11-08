@@ -302,8 +302,12 @@ class Rewriter:
     def __init__(self, grammar: Grammar, rng: random.Random, per_query: int = 1,
                  weights: dict[str, float] | None = None, query_rules: tuple[str, ...] = ("query",),
                  policies: dict[str, str] | None = None,
-                 extra_rewrites: dict[str, dict[str, str]] | None = None, only: str | None = None) -> None:
+                 extra_rewrites: dict[str, dict[str, str]] | None = None, only: str | None = None,
+                 exclude: list[str] | None = None) -> None:
         self.rng = rng
+        # "type:rewrite" pairs that are not equivalences in the target dialect (dialect data
+        # rewrite_exclude), e.g. "date:plus_zero" for SQLite, where a date is text and d + 0 is a number
+        self.exclude = set(exclude or [])
         self.policies = dict(policies or {})
         # type -> name -> template (LLM-proposed, accepted by the validation gate)
         self.extra = {t: {f"llm_{n}": template_rewrite(tpl) for n, tpl in d.items()}
@@ -631,6 +635,9 @@ class Rewriter:
             rw = {self.only: rw[self.only]}
         if any(a.sym in ("agg", "win") for a in t.ancestors(n)):
             rw.pop("scalar_sub", None)   # keep sub-selects out of aggregate/window arguments
+        rw = {k: v for k, v in rw.items() if f"{n.typ}:{k}" not in self.exclude and f"*:{k}" not in self.exclude}
+        if not rw:
+            return None
         name = self.rng.choice(sorted(rw))
         return f"expr:{name}", None, t.replace(n, rw[name](t.tokens(n) or []))
 
