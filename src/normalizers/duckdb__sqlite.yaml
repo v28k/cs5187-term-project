@@ -1,46 +1,45 @@
 normalize:
+- float32
 - bool_int
-- float_round_12
 - integral_float
-guards:
-- op:/
+guards: []
 stats:
   train:
     records: 1083
     comparable: 1072
-    disagree: 317
+    disagree: 308
     explained_by:
-      bool_int: 110
-      float_round_12: 130
-      integral_float: 11
-    residual_after_normalize: 66
-    residual_after_guards: 47
-    guarded_share: 0.0215
+      float32: 138
+      bool_int: 137
+      integral_float: 13
+    residual_after_normalize: 20
+    residual_after_guards: 20
+    guarded_share: 0.0
   held_out:
     comparable: 1070
-    disagree_rate_before: 0.2869
-    disagree_rate_after_normalize: 0.0495
-    disagree_rate_after_guards: 0.0363
-    guarded_share: 0.0215
-    residual: 38
+    disagree_rate_before: 0.2832
+    disagree_rate_after_normalize: 0.015
+    disagree_rate_after_guards: 0.015
+    guarded_share: 0.0
+    residual: 16
     residual_examples:
     - SELECT a1.c3 AS c0, FALSE AS c1, '2000-01-01 00:00:00' AS c2, CAST(10.0 AS REAL)
       AS c3 FROM t4 AS a1 ORDER BY 2, 4
-    - 'SELECT a1.c2 AS c0, CAST((-1.5) AS REAL) AS c1, a1.c2 AS c2, ''{"k": 2, "a":
-      [0]}'' AS c3 FROM t0 AS a1 WHERE TRUE ORDER BY 1'
     - SELECT DISTINCT '1999-12-31' AS c0, a1.c3 AS c1, CAST(100 AS INTEGER) AS c2,
       CAST(10 AS INTEGER) AS c3 FROM t4 AS a1 WHERE TRUE
     - SELECT CAST(NULL AS INTEGER) AS c0 FROM v0 AS a1
-    - SELECT DISTINCT CAST((-0.0) AS REAL) AS c0, CAST(100.0 AS REAL) AS c1, CAST(NULL
-      AS NUMERIC) AS c2, CAST(5e-324 AS REAL) AS c3 FROM v0 AS a1
-    - SELECT CAST(5e-324 AS REAL) AS c0, CAST(0.5 AS REAL) AS c1 FROM ti AS a1 ORDER
-      BY 1
     - SELECT a1.c0 AS c0, a1.c1 AS c1, CAST(10.0 AS NUMERIC) AS c2 FROM t2 AS a1
-    - SELECT a1.c1 AS c0, TRUE AS c1 FROM t3 AS a1 WHERE TRUE GROUP BY a1.c2, a1.c1
     - 'SELECT a1.c3 AS c0, ''1970-01-01'' AS c1, a1.c1 AS c2, ''{"k": 2, "a": [0]}''
       AS c3 FROM t4 AS a1'
-    - SELECT FALSE AS c0, a1.c0 AS c1, CAST(5e-324 AS REAL) AS c2 FROM t3 AS a1 WHERE
-      a1.c1
+    - SELECT a1.c3 AS c0, a1.c0 AS c1 FROM t4 AS a1 WHERE TRUE
+    - "SELECT CAST('\xE9' AS TEXT) AS c0, 1 AS c1, CAST(NULL AS INTEGER) AS c2, '{\"\
+      k\": 1, \"a\": [1, 2]}' AS c3 FROM t2 AS a1 WHERE TRUE GROUP BY a1.c0, a1.c1"
+    - SELECT TRUE AS c0 FROM v0 AS a1 WHERE (a1.n BETWEEN CAST((-1) AS INTEGER) AND
+      CAST(10 AS INTEGER)) ORDER BY 1
+    - 'SELECT ''{"k": 0, "a": [3, 4, 5]}'' AS c0, a1.c3 AS c1 FROM t4 AS a1 WHERE
+      TRUE'
+    - 'SELECT CAST(100.0 AS NUMERIC) AS c0, a1.c1 AS c1, a1.c1 AS c2, ''{"k": 2, "a":
+      [0]}'' AS c3 FROM t2 AS a1 WHERE TRUE'
   pair:
   - 2.1.0.dev2610310630
   - 3.54.1

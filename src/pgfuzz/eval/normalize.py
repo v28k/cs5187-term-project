@@ -50,6 +50,20 @@ def _integral_float(v: str | None) -> str | None:
     return v
 
 
+def _float32(v: str | None) -> str | None:
+    """A floating-point number -> its nearest single-precision value, 7 significant digits
+    (engines where REAL is 4 bytes, e.g. DuckDB, against engines where it is 8 bytes)."""
+    if v is None or not _NUM.match(v) or ("." not in v and "e" not in v.lower()):
+        return v
+    import struct
+
+    try:
+        f = struct.unpack("f", struct.pack("f", float(v)))[0]
+    except (OverflowError, ValueError):
+        return v
+    return format(f, ".7g")
+
+
 def _bool_int(v: str | None) -> str | None:
     """true/false -> 1/0."""
     return {"true": "1", "false": "0", "True": "1", "False": "0"}.get(v, v) if v is not None else None
@@ -60,6 +74,7 @@ NORMALIZERS: dict[str, Callable[[str | None], str | None]] = {
     "float_round_12": _float_round_12,
     "integral_float": _integral_float,
     "bool_int": _bool_int,
+    "float32": _float32,
 }
 
 
