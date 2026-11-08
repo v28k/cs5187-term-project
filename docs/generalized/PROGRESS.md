@@ -63,9 +63,17 @@ Filing order suggested in each `steps.md`: issue first, then the PR. Ready to fi
   predicate that reads no column (constants, EXISTS), and many partition a SELECT nested in an outer query whose
   own filter decides the rows. Not the "halve vacuity" target yet (next: restrict / weight TLP toward top-level
   cores and column predicates; solve for the outer query too).
-- C4 (first version): `pgfuzz learn-normalizers` learns value normalizers and guards from probes; DuckDB vs SQLite
-  held-out disagreement 28.7 % -> 5.0 % (normalizers) -> 3.6 % (guard `op:/`, 2.2 % of comparisons skipped);
-  rules in `src/normalizers/duckdb__sqlite.yaml`. Turso vs SQLite needed none.
+- C4 (first version): `pgfuzz learn-normalizers` learns value normalizers and guards from shallow grammar probes.
+  DuckDB vs SQLite (3000 probes, depth 6, learned on half, measured on the other half): disagreement 30.8 % ->
+  3.3 % after normalizers (`float32`, `bool_int`, `integral_float`) -> 2.5 % after guards (`fn:MIN`, `fn:MAX`,
+  `fn:FORMAT`; 1.1 % of comparisons skipped). Rules in `src/normalizers/duckdb__sqlite.yaml`. Turso vs SQLite
+  needed none. First cross-engine campaign (`configs/duckdb_vs_sqlite.yaml`, depth 7) was still too noisy
+  (dozens of mismatch signatures in minutes; the ones checked were dialect differences: floats/booleans printed
+  inside text, integer division, ROUND on NUMERIC). Next for C4: features for values inside text and operator/type
+  pairs, then measure campaign precision on a hand-labelled sample (RQ5).
+- C5 started: SQLite trunk (GitHub mirror, 8581447, 3.55.0) amalgamation generated (Tcl installed with apt);
+  next: build APSW 3.54.1 against it with `--coverage` (the `pip download --no-binary` of APSW's source failed in
+  this session; fetch the source from the APSW GitHub repository instead), then gcov per arm.
 - Contribution policies of DuckDB, DataFusion and Turso read and recorded under Open decisions.
 - Next: C5 coverage builds (SQLite trunk with gcov, DuckDB if disk allows), D1 campaign agent; a DuckDB-vs-SQLite
   cross-engine campaign with the learned rules; triage of new candidates into packages.
