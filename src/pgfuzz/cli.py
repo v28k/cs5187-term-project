@@ -238,6 +238,13 @@ def cmd_sample(a: argparse.Namespace) -> int:
     if a.quiet_stats:
         stats = {k: stats[k] for k in ("validity", "top_errors", "bug_candidates", "elapsed_s", "error_examples")
                  if k in stats}
+    if a.mine_overlay:
+        from pgfuzz.grammar.miner import mine, render_overlay
+
+        found = mine(gen, a.mine_min_uses, a.mine_max_ok)
+        Path(a.mine_overlay).write_text(render_overlay(found, Path(a.config).stem), encoding="utf-8")
+        stats["mined_overlay"] = {"path": a.mine_overlay, "directives": sum(1 for d in found if d["key"]),
+                                  "alternatives": len(found)}
     print(json.dumps(stats, indent=1))
     return 0
 
@@ -571,6 +578,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--errors", type=int, default=25, help="how many top error messages to show")
     p.add_argument("--examples", action="store_true", help="show one failing statement per error message")
     p.add_argument("--quiet-stats", action="store_true", help="show only validity, top errors, candidates")
+    p.add_argument("--mine-overlay", metavar="PATH", help="(with --execute) write a draft overlay of failing alternatives (A3)")
+    p.add_argument("--mine-min-uses", type=int, default=20)
+    p.add_argument("--mine-max-ok", type=float, default=0.1)
     p.set_defaults(fn=cmd_sample)
 
     p = sub.add_parser("llm", help="commit-directed grammar extension (Grammar + LLM arm)")

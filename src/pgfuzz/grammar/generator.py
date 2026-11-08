@@ -242,9 +242,10 @@ class GrammarGenerator(Generator):
     def _load_grammar(self) -> Grammar:
         """The base grammar plus every extra fragment (LLM arm) that still parses
         together with the ones before it; a fragment that breaks the combination is skipped."""
-        if not self.extra_grammars and not self.overlay_paths:
-            return load_grammar(self.grammar_path)
         text = Path(self.grammar_path).read_text(encoding="utf-8")
+        if not self.extra_grammars and not self.overlay_paths:
+            self.grammar_text = text
+            return load_grammar(self.grammar_path)
         if self.overlay_paths:
             from pgfuzz.grammar.overlay import apply_overlays
 
@@ -261,6 +262,7 @@ class GrammarGenerator(Generator):
                 continue
             text += f"\n# ---- fragment {Path(f).name}\n" + frag
             self.fragments_loaded.append(Path(f).name)
+        self.grammar_text = text
         return parse_grammar(text, self.grammar_path)
 
     # ------------------------------------------------------------ generation
