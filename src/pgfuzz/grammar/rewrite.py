@@ -141,6 +141,7 @@ class Check:
     lhs_role: str | None = None   # run the left side as this role (RLS oracle)
     pred: str | None = None   # the WHERE predicate the check partitions on (data synthesis)
     arms: list[str] | None = None   # TLP: the statement restricted to each partition (vacuity)
+    from_sql: str | None = None   # the FROM clause of the partitioned SELECT (join conditions)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -342,6 +343,7 @@ class Rewriter:
             tried.add(k)
             self._pred_toks: list[str] | None = None
             self._arms: list[list[str]] | None = None
+            self._from_toks: list[str] | None = None
             built = builders[k](t, root, schema)
             if built is None:
                 continue
@@ -356,7 +358,8 @@ class Rewriter:
             mask = masks_floats(lhs_sql or sql) or masks_floats(rhs_sql)
             pred = render(self._pred_toks) if self._pred_toks else None
             arms = [render(a) for a in self._arms] if self._arms else None
-            out.append(Check(index, kind, lhs_sql, rhs_sql, mask, role, pred, arms))
+            frm = render(self._from_toks) if self._from_toks else None
+            out.append(Check(index, kind, lhs_sql, rhs_sql, mask, role, pred, arms, frm))
         return out
 
     # ---- helpers
@@ -405,6 +408,8 @@ class Rewriter:
         p = t.tokens(pred) or []
         start, end = t.region(core)  # type: ignore[misc]
         cs, ce = t.region(clause)  # type: ignore[misc]
+        frm = t.child(core, "from_clause")
+        self._from_toks = t.tokens(frm) if frm is not None else None
         arms = []
         for cond in (_paren(p), ["NOT"] + _paren(p), _paren(p) + ["IS", "NULL"]):
             arm = t.toks[start:cs] + [keyword] + cond + t.toks[ce:end]
@@ -624,7 +629,7 @@ class Rewriter:
             return None
         start, _ = t.region(core)  # type: ignore[misc]
         prefix = t.toks[:start]
-        self._pred_toks = p
+        self._pred_toks, self._from_toks = p, f
         lhs = prefix + ["SELECT", "COUNT", "(", "*", ")"] + f + w
         rhs = prefix + ["SELECT", "COALESCE", "(", "SUM", "(", "CASE", "WHEN"] + _paren(p) + \
             ["THEN", "1", "ELSE", "0", "END", ")", ",", "0", ")"] + f

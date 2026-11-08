@@ -324,6 +324,34 @@ def parse_predicate(sql: str):
     return _Parser(tokenize(sql)).parse()
 
 
+def join_conditions(from_sql: str) -> list[str]:
+    """The ``ON`` conditions of a FROM clause (text), outermost level of each join."""
+    toks = tokenize(from_sql)
+    out: list[str] = []
+    i = 0
+    while i < len(toks):
+        if toks[i].upper() != "ON":
+            i += 1
+            continue
+        depth, j = 0, i + 1
+        while j < len(toks):
+            w = toks[j]
+            if w in "([{":
+                depth += 1
+            elif w in ")]}":
+                if depth == 0:
+                    break
+                depth -= 1
+            elif depth == 0 and (w == "," or w.upper() in ("JOIN", "LEFT", "RIGHT", "FULL", "INNER", "CROSS",
+                                                          "NATURAL", "WHERE", "LATERAL", "POSITIONAL", "ASOF")):
+                break
+            j += 1
+        if j > i + 1:
+            out.append(" ".join(toks[i + 1:j]))
+        i = j
+    return out
+
+
 _TABLE_REF = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)(?:\s+AS\s+([A-Za-z_][A-Za-z0-9_]*))?(?!\s*\(|\.)", re.I)
 
 
@@ -669,10 +697,11 @@ class DataSynth:
         self.z3, self.schema = z3, schema
         self.rng = rng or random.Random(0)
         self.timeout_ms = timeout_ms
-        self.stats = {"predicates": 0, "unsupported": 0, "solved": 0, "unsat": 0, "rows": 0}
+        self.stats = {"predicates": 0, "unsupported": 0, "solved": 0, "unsat": 0, "rows": 0, "joins_kept": 0}
 
-    def rows(self, predicate: str, sql: str) -> list[tuple[str, dict[str, str]]]:
-        """``(table, {column: literal})`` rows, one per alias and solvable outcome."""
+    def rows(self, predicate: str, sql: str, from_sql: str | None = None) -> list[tuple[str, dict[str, str]]]:
+        """``(table, {column: literal})`` rows, one per alias and solvable outcome. The ``ON``
+        conditions of ``from_sql`` are made TRUE too where possible, so the rows survive the joins."""
         self.stats["predicates"] += 1
         tree = parse_predicate(predicate)
         aliases = alias_map(sql, self.schema)
@@ -681,6 +710,7 @@ class DataSynth:
             val = enc.enc(tree)
             t, f = enc.truth(val)
             nul = self.z3.Not(self.z3.Or(t, f))
+            joins = [enc.truth(enc.enc(parse_predicate(c)))[0] for c in join_conditions(from_sql or "")]
             enc.cover(aliases)
         except (self.z3.Z3Exception, TypeError, AttributeError):
             self.stats["unsupported"] += 1
@@ -694,6 +724,13 @@ class DataSynth:
             s = self.z3.Solver()
             s.set("timeout", self.timeout_ms)
             s.add(*enc.domain, *blocked, goal)
+            if joins:
+                s.push()
+                s.add(*joins)
+                if s.check() == self.z3.sat:
+                    self.stats["joins_kept"] += 1
+                else:
+                    s.pop()
             if s.check() != self.z3.sat:
                 self.stats["unsat"] += 1
                 continue
@@ -710,9 +747,9 @@ class DataSynth:
         self.stats["rows"] += len(out)
         return out
 
-    def inserts(self, predicate: str, sql: str) -> list[str]:
+    def inserts(self, predicate: str, sql: str, from_sql: str | None = None) -> list[str]:
         stmts = []
-        for table, cols in self.rows(predicate, sql):
+        for table, cols in self.rows(predicate, sql, from_sql):
             rel = self.schema.relations[table]
             full = dict(cols)
             for c in rel.columns:                     # required columns the predicate does not read

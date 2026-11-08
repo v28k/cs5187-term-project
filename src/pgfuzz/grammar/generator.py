@@ -385,7 +385,7 @@ class GrammarGenerator(Generator):
         out: list[str] = []
         for c in checks:
             if c.get("pred") and 0 <= int(c["stmt"]) < len(built.sql):
-                out += self.synth.inserts(str(c["pred"]), built.sql[int(c["stmt"])])
+                out += self.synth.inserts(str(c["pred"]), built.sql[int(c["stmt"])], c.get("from_sql"))
         return out[: self.data_synth_max]
 
     def _dialectize(self, sql: list[str], checks: list[dict[str, Any]] | None = None) -> list[str]:
