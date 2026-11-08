@@ -281,6 +281,7 @@ class Engine:
         self.null_prob = null_prob
         self.alt_hits: Counter[int] = Counter()
         self.alt_boost: dict[int, float] = {}
+        self.target_boost: dict[int, float] = {}      # rule-targeted generation (C2), on top of alt_boost
         self._nid = 0
         self._minimal = 0          # > 0 while deriving a subtree marked MINIMAL
         self.profile: Any = None   # pgfuzz.grammar.profile.Profile: literals from the data
@@ -400,7 +401,7 @@ class Engine:
         lo = min(c[2] for c in cands)
         keyed = []
         for c in rest:
-            w = c[1].weight * self.alt_boost.get(c[1].uid, 1.0)
+            w = c[1].weight * self.alt_boost.get(c[1].uid, 1.0) * self.target_boost.get(c[1].uid, 1.0)
             if depth >= self.soft_depth:
                 w *= 0.15 ** (c[2] - lo)
             if w <= 0:

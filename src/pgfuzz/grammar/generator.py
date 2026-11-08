@@ -111,6 +111,7 @@ class GrammarGenerator(Generator):
         overlays: list[str] | str | None = None,
         dialect_data: str | None = None,
         rule_guidance: bool = True,
+        rule_target: bool | dict[str, Any] = False,
     ) -> None:
         self.grammar_path, self.schema_path = grammar, schema
         self.start, self.setup_rule = start, setup_rule
@@ -147,6 +148,21 @@ class GrammarGenerator(Generator):
         self.seen_rule_pairs: set[tuple[str, str]] = set()
         self.rule_alt: dict[str, Counter[int]] = {}     # rule -> alternatives in trees where it fired
         self.rule_probed_alt: Counter[int] = Counter()  # alternative -> probed trees containing it
+        self.rule_fires: Counter[str] = Counter()
+        self.rule_probes = 0
+        # rule-targeted generation (C2): after `stall` test cases without a new rule or rule pair,
+        # boost the alternatives most associated with a rarely fired rule for `span` test cases
+        rt = rule_target if isinstance(rule_target, dict) else ({} if rule_target else None)
+        self.rt_enabled = rt is not None
+        self.rt_stall = int((rt or {}).get("stall", 150))
+        self.rt_span = int((rt or {}).get("span", 150))
+        self.rt_max = float((rt or {}).get("max_boost", 4.0))
+        self.rt_min_probes = int((rt or {}).get("min_probes", 3))
+        self.rt_since_new = 0
+        self.rt_target: str | None = None
+        self.rt_left = 0
+        self.rt_hit = False
+        self.rt_log: Counter[str] = Counter()          # "target:<rule>" / "hit:<rule>"
         self.corpus: list[_Entry] = []
         self.pending: dict[int, _Built] = {}
         self.seen_pairs: set[tuple[str, str]] = set()
@@ -454,7 +470,11 @@ class GrammarGenerator(Generator):
             for a in alts:
                 self.rule_probed_alt[a] += 1
             rs = sorted(set(rules))
+            self.rule_probes += 1
             for r in rs:
+                self.rule_fires[r] += 1
+                if r == self.rt_target:
+                    self.rt_hit = True
                 if r not in self.seen_rules:
                     self.seen_rules.add(r)
                     new = True
@@ -465,7 +485,39 @@ class GrammarGenerator(Generator):
             if pairs:
                 self.seen_rule_pairs |= pairs
                 new = True
+        if self.rt_enabled:
+            self._rule_target_step(new)
         return new
+
+    def _rule_target_step(self, new: bool) -> None:
+        """Advance rule-targeted generation by one test case."""
+        self.rt_since_new = 0 if new else self.rt_since_new + 1
+        if self.rt_target is not None:
+            self.rt_left -= 1
+            if self.rt_left > 0:
+                return
+            if self.rt_hit:
+                self.rt_log[f"hit:{self.rt_target}"] += 1
+            self.rt_target, self.engine.target_boost = None, {}
+        if self.rt_since_new < self.rt_stall or not self.rule_fires or self.rule_probes < 20:
+            return
+        # rarely fired rules first (weight ~ 1/fires), sampled so that repeated stalls rotate targets
+        rules = sorted(self.rule_fires)
+        weights = [1.0 / self.rule_fires[r] for r in rules]
+        target = self.rng.choices(rules, weights)[0]
+        base = self.rule_fires[target] / max(1, self.rule_probes)
+        boost: dict[int, float] = {}
+        for alt, n in self.rule_alt.get(target, {}).items():
+            probes = self.rule_probed_alt[alt]
+            if probes >= self.rt_min_probes:
+                lift = (n / probes) / max(base, 1e-9)
+                if lift > 1.0:
+                    boost[alt] = min(self.rt_max, lift)
+        if not boost:
+            return
+        self.engine.target_boost = boost
+        self.rt_target, self.rt_left, self.rt_hit, self.rt_since_new = target, self.rt_span, False, 0
+        self.rt_log[f"target:{target}"] += 1
 
     BOOST_MIN, BOOST_MAX = 0.2, 5.0
 
@@ -513,6 +565,7 @@ class GrammarGenerator(Generator):
             "metamorphic_checks_built": dict(self.mm_built),
             "plan_shapes_seen": len(self.seen_plans),
             "rules_seen": len(self.seen_rules),
+            "rule_targets": dict(self.rt_log) if self.rt_enabled else {},
             "rule_pairs_seen": len(self.seen_rule_pairs),
             "bandit": self._bandit_stats() if self.bandit > 0 else None,
             "llm_rewrites": sum(len(v) for v in self.extra_rewrites.values()),
