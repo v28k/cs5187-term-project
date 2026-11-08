@@ -1,2 +1,18 @@
-# Known Turso bugs found by this fuzzer (format: pgfuzz/eval/known_bugs.py).
-bugs: []
+# Known Turso bugs found by this fuzzer (format: pgfuzz/eval/known_bugs.py). Packages: docs/bughunt/turso/.
+bugs:
+  - id: turso-T02
+    title: "panic in window planning: window function over a column-free call referenced twice in ORDER BY"
+    source: "docs/bughunt/turso/T-02-window-arg-call-order-by-twice/ (not filed)"
+    affected: "pyturso 0.8.3"
+    fixed_in: "open"
+    match:
+      outcome: crash
+      message_regex: "window\\.rs:(3428|3564)"
+  - id: turso-T05
+    title: "percentile_disc/percentile_cont with an expression as the value argument: NULL or bogus error"
+    source: "docs/bughunt/turso/T-05-percentile-expression-argument/ (not filed)"
+    affected: "pyturso 0.8.3"
+    fixed_in: "open"
+    match:
+      outcome: wrong_result
+      offline: true

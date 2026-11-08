@@ -29,6 +29,13 @@
   fails with "No field named __common_expr_1". Confidence: medium until re-run on `main` (steps.md).
 - `docs/bughunt/datafusion/DF-02-values-scalar-subquery/`: `VALUES ((SELECT 1), 5)` -> internal error
   "ScalarSubqueryExpr evaluated before the subquery was executed". Confidence: medium until re-run on `main`.
+- `docs/bughunt/turso/T-05-percentile-expression-argument/`: Turso percentile_disc/percentile_cont return NULL or
+  "Percentile value must be between 0.0 and 1.0" when the value argument is an expression (wrong results vs SQLite).
+  Confidence: medium-high (pyturso 0.8.3; re-run on main).
+- `docs/bughunt/turso/T-02-window-arg-call-order-by-twice/`: Turso panic (unreachable!) for a window function over
+  DATE()/DATETIME() referenced twice in ORDER BY. Confidence: medium (part of window.rs changed on main).
+- `docs/bughunt/turso/T-01-full-join-rowid-equality/`: FULL JOIN on an INTEGER PRIMARY KEY rejected with "requires
+  an equality condition". Confidence: medium (may be a known limitation).
 
 ## Session log
 
