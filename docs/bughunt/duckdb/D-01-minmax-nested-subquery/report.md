@@ -65,7 +65,8 @@ the collated sort key are two separate expressions there. The PR text mentions i
 - `unittest "test/sql/function/list/*"`: all passed (9982 assertions, 137 test cases).
 - `unittest "test/sql/aggregate/*"`: 261091 of 261092 assertions passed; the one failure,
   `test_string_agg_overflow.test_slow:10`, fails identically on unpatched `main` (unrelated).
-- full fast suite (`unittest` with no arguments): see "Fast suite" below.
+- full fast suite (`unittest` with no arguments) with the patch: **All tests passed** (8751 test cases,
+  6719874 assertions, 212 skipped for missing extensions/environment).
 - `clang-format` 11.0.1 (the project's version): no changes.
 
 ## Duplicate search

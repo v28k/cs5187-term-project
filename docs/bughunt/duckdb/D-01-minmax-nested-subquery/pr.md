@@ -29,4 +29,5 @@ to share one projected expression, which I left out of this fix.
 Tests: `test/sql/aggregate/aggregates/test_minmax_subquery_argument.test` covers LIST, STRUCT, LIST(VARCHAR) and ARRAY
 arguments, a correlated subquery, `EXISTS` inside `CASE`, and `max(x, n)`. `test/sql/collate/*`,
 `test/sql/subquery/*`, `test/sql/function/list/*` and `test/sql/aggregate/*` pass locally (except
-`test_string_agg_overflow.test_slow`, which fails the same way on `main` without this change).
+`test_string_agg_overflow.test_slow`, which fails the same way on `main` without this change), and so does the
+fast `unittest` suite.

@@ -6,38 +6,70 @@
 - Anonymous artifact mirror: TBD
 - Final paper title (working title in PLAN.md section 1): TBD
 - LLM model and API key: only needed for Phase L (LLM extension, moved to the end by the owner): TBD
-- Extra machines for evaluation (this one has 4 cores, 13 GB free disk): TBD
+- Extra machines for evaluation (this one has 4 cores; the session's disk allowance is ~40 GB, about 13-17 GB free
+  with one engine build at a time): TBD
+- **Contribution policies of the three projects (read before filing):** DuckDB `AI_POLICY.md` allows AI-assisted code
+  but requires issues, PR descriptions and replies to be written by the human contributor in their own words, and
+  closes contributions from autonomous agents; DataFusion's AI policy requires the author to understand the whole PR and
+  answer reviews personally, and limits non-committers to 3 open PRs; Turso's PR template has a required
+  "Description of AI Usage" section. The packages' `issue.md` / `pr.md` are therefore notes to rewrite in your own
+  words, and Turso's AI-usage section is left for you (`<!-- TO FILL BY THE OWNER -->`). Which bugs to file and when,
+  and what to write in Turso's AI section: owner's decision.
 
 ## Blocked
-- `cargo build` of DataFusion `main` was blocked by the previous session's permission settings; retry, else use the `datafusion` pip package.
-- Building SQLite trunk (`configure && make` from the GitHub mirror) was blocked by the permission classifier (7 Nov).
-  Workaround: SQLite through APSW 3.54.1 (newest release); optimizer switches reached through the module's symbol table.
-  Consequence: no trunk SQLite and no coverage build of SQLite (task C5) until building is allowed.
-- Running a prebuilt Turso 0.9.0-pre CLI (GitHub release asset) was blocked (8 Nov), as is building Turso or
-  DataFusion `main`. Consequence: Turso and DataFusion findings are reproduced only on the newest PyPI wheels
-  (pyturso 0.8.3, datafusion-python 55.0.0); their packages say so and ask the owner to re-run on `main` first.
-  **If the owner allows `cargo build` (DataFusion `datafusion-cli`, Turso `tursodb`), validation becomes automatic.**
+- (8 Nov) Builds are allowed now: DuckDB `main`, DataFusion `main` (`datafusion-cli`, sqllogictests) and Turso `main`
+  (`tursodb`, sqltest runner) were built from source this session. Resolved: the earlier "cargo build blocked" items.
+- Building SQLite trunk was not retried yet this session (C5 needs it; next).
+- GitHub GraphQL (`gh search`) is not available; the REST search API works and was used for duplicate searches.
 
 ## Bug packages ready (for the owner to file)
-- `docs/bughunt/duckdb/D-01-minmax-nested-subquery/`: DuckDB 2.0.0 regression, `min`/`max` over a LIST/STRUCT/ARRAY
-  value containing a subquery fails with "Cannot copy BoundSubqueryExpression" (from 2ef9f76b2e). Confidence: high
-  (reproduced on 2.0.0 and nightly, works on 1.5.6; root cause in minmax.cpp). Issue text ready; no patch.
-- `docs/bughunt/duckdb/D-02-outer-join-two-subqueries/`: DuckDB 2.0.0+ INTERNAL "Failed to bind column reference"
-  for a LEFT/RIGHT JOIN or MERGE condition with two subqueries. Confidence: high (nightly, 2.0.0; 1.5.6 said
-  "not implemented"). Issue text and sqllogictest ready.
-- `docs/bughunt/datafusion/DF-01-update-coalesce-common-expr/`: `UPDATE t SET c0 = COALESCE(c0, 0)` (INT column)
-  fails with "No field named __common_expr_1". Confidence: medium until re-run on `main` (steps.md).
-- `docs/bughunt/datafusion/DF-02-values-scalar-subquery/`: `VALUES ((SELECT 1), 5)` -> internal error
-  "ScalarSubqueryExpr evaluated before the subquery was executed". Confidence: medium until re-run on `main`.
-- `docs/bughunt/turso/T-05-percentile-expression-argument/`: Turso percentile_disc/percentile_cont return NULL or
-  "Percentile value must be between 0.0 and 1.0" when the value argument is an expression (wrong results vs SQLite).
-  Confidence: medium-high (pyturso 0.8.3; re-run on main).
-- `docs/bughunt/turso/T-02-window-arg-call-order-by-twice/`: Turso panic (unreachable!) for a window function over
-  DATE()/DATETIME() referenced twice in ORDER BY. Confidence: medium (part of window.rs changed on main).
-- `docs/bughunt/turso/T-01-full-join-rowid-equality/`: FULL JOIN on an INTEGER PRIMARY KEY rejected with "requires
-  an equality condition". Confidence: medium (may be a known limitation).
+Status after re-checking each bug on the engine's newest development code built from source (8 Nov 2026):
+
+| Bug | Engine | Reproduces on main? | Fix written and tested? | Package |
+|---|---|---|---|---|
+| D-01 min/max over nested value with subquery | DuckDB | yes (d4eea3f208) | yes (`fix.patch`, new .test, fast unittest suite passes) | `docs/bughunt/duckdb/D-01-minmax-nested-subquery/` |
+| D-02 outer join / MERGE ON with two subqueries | DuckDB | **no: fixed upstream by 57a6875edf (PR #28246, issue #28156)**, confirmed by reverting it | not needed | `docs/bughunt/duckdb/D-02-outer-join-two-subqueries/` (do not file) |
+| DF-01 UPDATE/DELETE with repeated expression (`__common_expr`) | DataFusion | yes (bc86321); also WHERE of UPDATE/DELETE | yes (`fix.patch`, new .slt cases, all 546 .slt files + clippy pass) | `docs/bughunt/datafusion/DF-01-update-coalesce-common-expr/` |
+| DF-02 scalar subquery in VALUES | DataFusion | yes (bc86321); also INSERT ... VALUES | yes (`fix.patch`, new .slt cases, all 546 .slt files + clippy pass) | `docs/bughunt/datafusion/DF-02-values-scalar-subquery/` |
+| T-05 percentile with expression argument | Turso | yes (9b71df9ab) | yes (`fix.patch`, new .sqltest; full sqlite-sqltests corpus 12700 passed) | `docs/bughunt/turso/T-05-percentile-expression-argument/` |
+| T-02 window fn over DATE() twice in ORDER BY (panic) | Turso | **no: fixed upstream by merge 8f1f6ee83 "register ORDER BY window functions only for terms that are kept" (16 Oct 2026), found by bisect** | not needed | `docs/bughunt/turso/T-02-window-arg-call-order-by-twice/` (do not file) |
+| T-01 FULL JOIN on INTEGER PRIMARY KEY rejected | Turso | **no: fixed upstream by 44fe44520 "core: implement SQLite-style right and full joins" (merge 2b9184f8d, 7 Oct 2026; parent still fails, merge works)** | not needed | `docs/bughunt/turso/T-01-full-join-rowid-equality/` (do not file) |
+
+Filing order suggested in each `steps.md`: issue first, then the PR. Ready to file: D-01, DF-01, DF-02, T-05
+(DataFusion: one PR at a time on a first contribution).
 
 ## Session log
+
+## 2026-11-08
+- Bug packages (owner's request: turn the 7 verified bugs into ready-to-file issue + PR packages). Each engine's
+  development code was built from source: DuckDB `main` d4eea3f208 (`make release`), DataFusion `main` bc86321
+  (`datafusion-cli`, sqllogictests, `--profile ci`), Turso `main` 9b71df9ab (`tursodb`, sqltest runner).
+  - Still failing on main, fixed here with regression tests in the project's own format: D-01 (DuckDB), DF-01 and
+    DF-02 (DataFusion), T-05 (Turso). Each package has `fix.patch` (author Venu Kummari), `issue.md`, `pr.md`
+    (project PR template), `steps.md` (fork, `git am`, build/test commands, issue then PR) and an updated
+    `report.md` (versions, root cause, test results, duplicate searches via the GitHub REST search API).
+  - Already fixed upstream (marked, do not file): D-02 by 57a6875edf (PR #28246; confirmed by reverting only that
+    change), T-01 by 44fe44520 (Turso's SQLite-style RIGHT/FULL join rewrite, which removed the error),
+    T-02 by merge 8f1f6ee83 (found with `git bisect --first-parent`, building `tursodb` per step). T-01's
+    commit was confirmed by building the merge and its parent.
+  - DF-01 turned out wider than reported: the WHERE clause of UPDATE and DELETE is affected the same way; the fix
+    and tests cover both.
+  - Test results: D-01 fast `unittest` suite passes (8751 test cases); DF-01/DF-02 all 546 sqllogictest files and
+    clippy pass; T-05 full `sqlite-sqltests` corpus passes (12700). Every new test fails without its fix.
+- C3 (first version): Z3 data synthesis for TLP/NoREC predicates (three-valued encoding; CASE, COALESCE, NULLIF,
+  LIKE, BETWEEN, IN; join ON conditions satisfied where possible), opt-in `data_synth`; partition-vacuity
+  measurement (`metamorphic.measure_partitions`). Measured on DuckDB (300 test cases): among TLP checks whose
+  predicate reads a column, 40 % non-vacuous with synthesis vs 34 % without; about half of all vacuous checks have a
+  predicate that reads no column (constants, EXISTS), and many partition a SELECT nested in an outer query whose
+  own filter decides the rows. Not the "halve vacuity" target yet (next: restrict / weight TLP toward top-level
+  cores and column predicates; solve for the outer query too).
+- C4 (first version): `pgfuzz learn-normalizers` learns value normalizers and guards from probes; DuckDB vs SQLite
+  held-out disagreement 28.7 % -> 5.0 % (normalizers) -> 3.6 % (guard `op:/`, 2.2 % of comparisons skipped);
+  rules in `src/normalizers/duckdb__sqlite.yaml`. Turso vs SQLite needed none.
+- Contribution policies of DuckDB, DataFusion and Turso read and recorded under Open decisions.
+- Next: C5 coverage builds (SQLite trunk with gcov, DuckDB if disk allows), D1 campaign agent; a DuckDB-vs-SQLite
+  cross-engine campaign with the learned rules; triage of new candidates into packages.
+
 
 ## 2026-11-07
 - Done: A4 (workers die with their parent, run kills its process group), A1 (`pgfuzz/targets/base.py`: Driver +

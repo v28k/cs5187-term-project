@@ -1,6 +1,4 @@
-# Steps for the owner
+# Steps for the owner (T-01)
 
-1. Install the newest Turso (main or the latest pre-release) and run the statements of issue.md / repro.sql. If they work, it was fixed: do not file.
-2. Search https://github.com/tursodatabase/turso/issues for a duplicate (keywords in report.md).
-3. File https://github.com/tursodatabase/turso/issues/new with the text of issue.md.
-4. Tell me the issue number.
+Nothing to do: fixed on Turso `main` by merge 2b9184f8d (44fe44520, 7 Oct 2026); pyturso 0.8.3 comes from the
+0.8.x release branch, which does not have it. Do not file.

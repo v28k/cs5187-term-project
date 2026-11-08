@@ -1,3 +1,5 @@
+> **Do not file: fixed upstream (see report.md). Kept for the record.**
+
 **Title:** FULL OUTER JOIN on an INTEGER PRIMARY KEY column: "requires an equality condition in the ON clause"
 
 ```sql

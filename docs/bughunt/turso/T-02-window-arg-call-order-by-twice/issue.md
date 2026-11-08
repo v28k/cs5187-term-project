@@ -1,3 +1,5 @@
+> **Do not file: fixed upstream (see report.md). Kept for the record.**
+
 **Title:** panic (unreachable!) in window planning: window function over DATE()/DATETIME() referenced twice in ORDER BY
 
 ```sql
