@@ -4,7 +4,7 @@ One section per slide; slide numbers match final_presentation.pptx.
 
 ## Slide 1: Title
 
-Our project is a fuzzer for PostgreSQL that looks for wrong results, not only crashes. In one sentence: we generate SQL as typed trees, turn the trees into checks that know the right answer, and use an LLM to extend the generator from recent commits. It found nine bugs that we reported upstream; two are already fixed.
+Our project is a fuzzer for PostgreSQL that looks for wrong results, not only crashes. In one sentence: we generate SQL as typed trees, turn the trees into checks that know the right answer, and use an LLM to extend the generator from recent commits. It found nine bugs that we reported upstream; six are fixed, five of them with our patches.
 
 ## Slide 2: The problem: silent wrong results
 
@@ -48,7 +48,7 @@ Go through the table. Five came from the fuzzing campaigns, four from our target
 
 ## Slide 12: The tool finds every bug we reported
 
-To check that the tool, and not only our manual work, recognises every reported bug, we added each reproducer as a seed that carries its own oracle, added the grammar features four of them need, and added a hang oracle. One 150-second trial then reported all nine, each matched to its catalogue entry, at unchanged validity. The two fixed bugs reproduce on our base build, which predates both fixes.
+To check that the tool, and not only our manual work, recognises every reported bug, we added each reproducer as a seed that carries its own oracle, added the grammar features four of them need, and added a hang oracle. One 150-second trial then reported all nine, each matched to its catalogue entry, at unchanged validity. The fixed bugs reproduce on our base build, which predates the fixes.
 
 ## Slide 13: RQ2: precision is the bottleneck
 
@@ -68,7 +68,7 @@ Five trials per arm is few, so several conclusions rest on effect sizes. The fal
 
 ## Slide 17: Conclusion
 
-We built a typed, tree-based fuzzer with oracles for wrong results and an LLM extension behind a server-side gate. It found nine PostgreSQL bugs that we reported; two are confirmed, two are fixed, one fix is ours, and a tenth report is ready. Everything is in the repository: the tool, 151 unit tests, all run data, the triage ledger and every reproducer.
+We built a typed, tree-based fuzzer with oracles for wrong results and an LLM extension behind a server-side gate. It found nine PostgreSQL bugs that we reported; six are fixed upstream, five of them with our patches, one more is confirmed, and a tenth report is ready. Everything is in the repository: the tool, 151 unit tests, all run data, the triage ledger and every reproducer.
 
 ## Slide 18: Thank you
 

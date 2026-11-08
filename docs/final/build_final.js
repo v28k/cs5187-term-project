@@ -64,7 +64,7 @@ const B = (t) => ({ text: t, options: { bold: true } });
   s.addText("LLM-Guided Grammar-Aware Fuzzing of PostgreSQL", { x: MX, y: 1.9, w: 12, h: 1.5, fontSize: 40, bold: true, color: K.white, fontFace: F, valign: "bottom", margin: 0 });
   s.addText("Finding the bugs that do not crash", { x: MX, y: 3.55, w: 12, h: 0.6, fontSize: 24, color: "C9D8E6", fontFace: F, margin: 0 });
   s.addText("CS-5187 term project A3 · final presentation · 12 November 2026", { x: MX, y: 4.5, w: 12, h: 0.4, fontSize: 16, color: "9DB2C4", fontFace: F, margin: 0 });
-  NOTES.push([1, "Title", "Our project is a fuzzer for PostgreSQL that looks for wrong results, not only crashes. In one sentence: we generate SQL as typed trees, turn the trees into checks that know the right answer, and use an LLM to extend the generator from recent commits. It found nine bugs that we reported upstream; two are already fixed."]);
+  NOTES.push([1, "Title", "Our project is a fuzzer for PostgreSQL that looks for wrong results, not only crashes. In one sentence: we generate SQL as typed trees, turn the trees into checks that know the right answer, and use an LLM to extend the generator from recent commits. It found nine bugs that we reported upstream; six are fixed, five of them with our patches."]);
 }
 // 2 problem
 {
@@ -161,23 +161,23 @@ const B = (t) => ({ text: t, options: { bold: true } });
 }
 // 11 bugs
 {
-  const s = slide("RQ2: nine bugs reported upstream", "Two confirmed by committers, two already fixed, one fix written by our team.",
+  const s = slide("RQ2: nine bugs reported upstream", "Six fixed upstream, five with our patches; one more confirmed.",
     "Go through the table. Five came from the fuzzing campaigns, four from our targeted bug hunt on recent features. The oracles column shows that four of them are not crashes at all: they need a metamorphic or estimate oracle. A tenth bug, corr() under partial aggregation, is a new regression we found while deciding the last candidates; its report is ready to file.");
   table(s, [["Bug", "Report", "Oracle", "State"],
     ["Parallel Append assertion", "#19803", "TLP (LLM arm)", G("fixed")],
-    ["to_char(NaN) breaks NORMALIZE", "#19771", "assertion", G("fixed")],
-    ["MERGE: SubPlan with no parent", "#19802", "internal error", G("confirmed")],
-    ["IGNORE NULLS frame never returns", "pgsql-bugs", "hang", G("answered")],
+    ["to_char(NaN) breaks NORMALIZE", "#19771", "assertion", G("fixed (our patch)")],
+    ["JSON_TABLE assigns no collations", "#19768", "assertion", G("fixed (our patch)")],
+    ["NOT IN anti-join ignores a cast", "pgsql-bugs", "TLP", G("fixed (our patch)")],
+    ["IGNORE NULLS frame never returns", "pgsql-bugs", "hang", G("fixed (our patch)")],
+    ["duplicate statistics expression", "pgsql-bugs", "assertion", G("fixed (our patch)")],
+    ["MERGE: SubPlan with no parent", "#19802", "internal error", G("confirmed, patch")],
     ["range @> NULL folded to a constant", "#19793", "(SELECT e) rewrite", A("reported, patch")],
-    ["JSON_TABLE assigns no collations", "#19768", "assertion", A("reported, patch")],
-    ["NOT IN anti-join ignores a cast", "pgsql-bugs", "TLP", A("reported, patch")],
-    ["duplicate statistics expression", "pgsql-bugs", "assertion", A("reported, patch")],
     ["non-finite imported MCV frequencies", "pgsql-hackers", "CERT estimate", A("patch")]], MX, 1.9, [4.6, 1.9, 2.6, 2.03], { fs: 13, rowH: 0.47 });
 }
 // 12 rediscovery
 {
   const s = slide("The tool finds every bug we reported", "One 150-second run on the base build reports all nine.",
-    "To check that the tool, and not only our manual work, recognises every reported bug, we added each reproducer as a seed that carries its own oracle, added the grammar features four of them need, and added a hang oracle. One 150-second trial then reported all nine, each matched to its catalogue entry, at unchanged validity. The two fixed bugs reproduce on our base build, which predates both fixes.");
+    "To check that the tool, and not only our manual work, recognises every reported bug, we added each reproducer as a seed that carries its own oracle, added the grammar features four of them need, and added a hang oracle. One 150-second trial then reported all nine, each matched to its catalogue entry, at unchanged validity. The fixed bugs reproduce on our base build, which predates the fixes.");
   stat(s, MX, 1.9, 3.6, "9 / 9", "reported bugs rediscovered", K.green);
   stat(s, MX + 4.2, 1.9, 3.6, "150 s", "one trial, base build", K.blue);
   stat(s, MX + 8.4, 1.9, 3.6, "99.3%", "validity unchanged", K.green);
@@ -220,9 +220,9 @@ const B = (t) => ({ text: t, options: { bold: true } });
 // 17 conclusion
 {
   const s = slide("Conclusion", "A fuzzer for the bugs that do not crash.",
-    "We built a typed, tree-based fuzzer with oracles for wrong results and an LLM extension behind a server-side gate. It found nine PostgreSQL bugs that we reported; two are confirmed, two are fixed, one fix is ours, and a tenth report is ready. Everything is in the repository: the tool, 151 unit tests, all run data, the triage ledger and every reproducer.");
+    "We built a typed, tree-based fuzzer with oracles for wrong results and an LLM extension behind a server-side gate. It found nine PostgreSQL bugs that we reported; six are fixed upstream, five of them with our patches, one more is confirmed, and a tenth report is ready. Everything is in the repository: the tool, 151 unit tests, all run data, the triage ledger and every reproducer.");
   stat(s, MX, 1.9, 2.8, "9", "bugs reported upstream", K.blue);
-  stat(s, MX + 3.1, 1.9, 2.8, "2", "fixed on master", K.green);
+  stat(s, MX + 3.1, 1.9, 2.8, "6", "fixed upstream", K.green);
   stat(s, MX + 6.2, 1.9, 2.8, "36.7%", "backend lines (random 22.2%)", K.blue);
   stat(s, MX + 9.3, 1.9, 2.8, "151", "unit tests", K.green);
   card(s, MX, 4.1, CW, 2.4, "Take-away", "Generating valid SQL is the easy part; knowing the right answer is the hard part. Typed trees make sound rewrites possible, and measuring precision tells you where the oracle is still wrong.", { size: 16, accent: K.green });

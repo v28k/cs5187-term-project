@@ -9,6 +9,9 @@ row-level-security check, plan-variant and cross-version oracles), reduces every
 finding on its tree and tokens, and extends the grammar from recent PostgreSQL
 commits with an LLM behind a server-side validation gate.
 
+**Submission:** paper, slides, progress material and an index with run instructions and evidence are in
+[`submission/`](submission/README.md).
+
 ## Results in one page (details: [`docs/RESULTS_ANALYSIS.md`](docs/RESULTS_ANALYSIS.md))
 
 * Base: PostgreSQL master `26bd08fb`, assertions on; 5 trials x 1 h per arm.
