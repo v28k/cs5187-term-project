@@ -71,3 +71,11 @@ argument registers. `git log` of `main` to 9b71df9ab: no change to the External 
 
 `issue.md` (issue body; Turso has no issue template), `pr.md` (PR title and body in Turso's PR template),
 `fix.patch`, `percentile-expression-argument.sqltest` (the test in the patch), `repro.sql`, `steps.md`.
+
+## Follow-up after review (8 Nov 2026)
+
+The PR (tursodatabase/turso#11595, head 79d092a) got one review finding: SQLite's percentile aggregates reject a
+non-NULL TEXT or BLOB value ("input to <name>() is not numeric"), Turso read numeric-looking text as a number. Fixed
+in one more commit, "core: reject non-numeric input to percentile aggregates" (`followup-nonnumeric.patch`), with 5
+more sqltest cases; the full sqlite-sqltests corpus (12707 passed), `cargo fmt --check` and clippy pass. Details:
+`followup-review.md`.

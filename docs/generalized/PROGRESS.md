@@ -40,6 +40,13 @@ Filing order suggested in each `steps.md`: issue first, then the PR. Ready to fi
 
 ## Session log
 
+## 2026-11-08 (later): T-05 review follow-up
+- Review finding on tursodatabase/turso#11595: percentile aggregates must reject non-numeric (TEXT/BLOB) input as
+  SQLite does. Fixed in core/percentile.rs (one commit on top of the PR head 79d092a), 5 new sqltest cases checked
+  against SQLite 3.54.1; full sqlite-sqltests corpus 12707 passed, fmt and clippy clean; JS backend not run locally.
+  Pushing to the fork was refused from this environment, so the commit is in
+  `docs/bughunt/turso/T-05-percentile-expression-argument/followup-nonnumeric.patch`; the owner updates the PR branch.
+
 ## 2026-11-08
 - Bug packages (owner's request: turn the 7 verified bugs into ready-to-file issue + PR packages). Each engine's
   development code was built from source: DuckDB `main` d4eea3f208 (`make release`), DataFusion `main` bc86321
