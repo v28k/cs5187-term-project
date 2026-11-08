@@ -110,7 +110,10 @@ class Runner:
         v = cand.details.get("variant")
         if cand.outcome is Outcome.WRONG_RESULT and v and v != "xversion" and not str(v).startswith("mm:"):
             base.diff_enabled = True
-            base.variants = {v: dict(cand.details.get("settings") or {})}
+            if hasattr(base, "variant_names"):          # engine executor (pgfuzz.targets.base): named variants
+                base.variant_names = [v]
+            else:
+                base.variants = {v: dict(cand.details.get("settings") or {})}
             base.diff_per_query = 1
         if cand.check is not None:
             base.mm_enabled = True
@@ -128,9 +131,11 @@ class Runner:
 
     def rows(self, executor: Any, statements: list[str], query: str, limit: int = 30) -> dict[str, Any]:
         """Run setup statements and ``query`` in a rolled-back transaction; return text rows."""
+        ex = getattr(executor, "test", executor)
+        if hasattr(ex, "run_rows"):                     # engine executor
+            return ex.run_rows(statements, query, limit)
         import psycopg
 
-        ex = getattr(executor, "test", executor)
         if not ex._alive():
             ex._connect(wait=True)
         out: dict[str, Any] = {}
@@ -271,9 +276,14 @@ def reduced_sql(cand: Candidate, stmts: list[str], culprit: int, check: dict[str
         lines.append("-- default plan:")
         lines.append(stmts[culprit].rstrip(";") + ";")
         lines.append(f"-- plan variant {v} (must return the same rows):")
-        lines += [f"SET {k} = '{val}';" for k, val in (cand.details.get("settings") or {}).items()]
-        lines.append(stmts[culprit].rstrip(";") + ";")
-        lines += [f"RESET {k};" for k in (cand.details.get("settings") or {})]
+        settings = cand.details.get("settings") or {}
+        if "variant" in settings:                       # engine executor: the variant's own SQL / switches
+            lines += [x.rstrip(";") + ";" if not x.startswith(".") else x for x in settings.get("sql") or []]
+            lines.append(stmts[culprit].rstrip(";") + ";")
+        else:
+            lines += [f"SET {k} = '{val}';" for k, val in settings.items()]
+            lines.append(stmts[culprit].rstrip(";") + ";")
+            lines += [f"RESET {k};" for k in settings]
     else:
         lines.append(stmts[culprit].rstrip(";") + ";")
     return "\n".join(lines) + "\n"

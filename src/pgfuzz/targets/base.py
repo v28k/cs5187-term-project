@@ -401,6 +401,26 @@ class WorkerExecutor(Executor):
         r = self._op("explain", sql)
         return r["rows"] if r["status"] == "ok" else None
 
+    def run_rows(self, statements: list[str], query: str, limit: int = 30) -> dict[str, Any]:
+        """Run ``statements`` then ``query`` in one isolated test case; text rows (triage reports)."""
+        if not self._alive():
+            self._spawn()
+        self._op("begin")
+        for s in statements:
+            r = self._exec(s, fetch=False)
+            if r["status"] in ("connection_lost", "timeout"):
+                self._spawn()
+                return {"error": r.get("message")}
+        r = self._exec(query)
+        if self._alive():
+            self._op("end")
+        else:
+            self._spawn()
+        if r["status"] != "ok":
+            return {"error": f"{r.get('sqlstate', '')} {r.get('message', '')}".strip()}
+        rows = r["rows"] or []
+        return {"columns": [], "rows": [list(x) for x in rows[:limit]], "row_count": len(rows)}
+
     def run_variant(self, name: str, sql: str) -> dict[str, Any]:
         """Run ``sql`` under plan variant ``name`` (outside any test case)."""
         self._op("variant", name)
