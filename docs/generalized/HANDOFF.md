@@ -273,7 +273,19 @@ First measurement (300 test cases, 992 statements) — **validity is still poor*
 
 1. Clone and create your public repo as in section 1b.
 2. Read this file, `docs/generalized/PLAN.md`, `docs/RESULTS_ANALYSIS.md`.
-3. `cd src && pip install -r requirements.txt && pip install --pre -U duckdb && python -m pytest -q` (151 pass).
-4. Continue at section 5 "Next steps", step 1 (dialect overlay), and push after each step.
+3. `cd src && pip install -r requirements.txt && pip install --pre -U duckdb apsw pyturso datafusion z3-solver && python -m pytest -q` (192 pass).
+4. Continue from section 9 (state at wrap-up) and docs/generalized/FUTURE_WORK.md; push after each step.
 5. Create your public repository (section 1b), continue `docs/generalized/PROGRESS.md`, push.
 6. Do not wait for answers: open decisions go into PROGRESS.md (placeholders), work continues.
+
+## 9. State at wrap-up (8 Nov 2026, latest; supersedes the "where it stopped" notes above)
+
+The owner wrapped the project up on 8 Nov (exams). Every PLAN task has code, a script or a first
+version; PLAN.md's Status column is current; long runs and improvements are listed in
+`docs/generalized/FUTURE_WORK.md`. Tests: `cd src && python -m pytest -q` (192 passed, 1 skipped).
+
+New commands: `hunt`, `package`, `import-tests`, `ledger`, `sample --mine-overlay`. New scripts:
+`scripts/coverage/`, `scripts/baselines/`, `scripts/bench/`, `scripts/eval/`. Filed bugs and
+their links: `docs/bughunt/filed.yaml` (the owner filed them; never comment or push on them).
+
+To continue: read FUTURE_WORK.md section 1, run `DRY=1 scripts/eval/run_all.sh`, then the runs.

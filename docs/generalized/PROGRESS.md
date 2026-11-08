@@ -22,7 +22,7 @@
 - Building SQLite trunk was not retried yet this session (C5 needs it; next).
 - GitHub GraphQL (`gh search`) is not available; the REST search API works and was used for duplicate searches.
 
-## Bug packages ready (for the owner to file)
+## Bug packages (filed: T-05, D-01, DF-01 by the owner; links in docs/bughunt/filed.yaml)
 Status after re-checking each bug on the engine's newest development code built from source (8 Nov 2026):
 
 | Bug | Engine | Reproduces on main? | Fix written and tested? | Package |
@@ -39,6 +39,33 @@ Filing order suggested in each `steps.md`: issue first, then the PR. Ready to fi
 (DataFusion: one PR at a time on a first contribution).
 
 ## Session log
+
+## 2026-11-08 (wrap-up): every remaining task has code or a script; long runs moved to future work
+- Owner's decision: wrap the project up tonight (end-semester exams); no long campaigns, no result-chasing; what is
+  left is written down in `docs/generalized/FUTURE_WORK.md`.
+- D1/D3: `pgfuzz hunt` (campaign per engine, triage x3 of new failures, package drafts, HUNT.md) and `pgfuzz package`
+  (native regression test in DuckDB `.test` / DataFusion and SQLite `.slt` / Turso `.sqltest`, repro.sql, report.md,
+  issue.md). Smoke: a 20 s DataFusion round produced 3 reproducible package drafts.
+- A3: overlay miner (`sample --execute --mine-overlay`): failing grammar alternatives become `%drop` lines, with a
+  guard against blaming parents for their children. DuckDB without its manual overlay: 32.1 % -> 44.1 % statement
+  validity after one mined round (`grammar/overlays/duckdb.mined.pgg`, 134 directives).
+- C6: `pgfuzz import-tests` (sqllogictest `.test`/`.slt`, Turso `.sqltest` -> seed files). DataFusion suite: 406 seed
+  files, 19602 statements, 83 % execute; DuckDB optimizer tests: 134 files.
+- D4: `pgfuzz ledger` -> `docs/generalized/LEDGER.md` (precision per engine x oracle, package status, filed links from
+  `docs/bughunt/filed.yaml`).
+- C5: `scripts/coverage/` (gcov sqlite3 shell from the SQLite source, per-file line coverage, DuckDB lcov script,
+  Spearman correlation). Smoke: 200 SQLite test cases cover 69.4 % of the optimizer files' lines.
+- E2: `scripts/baselines/` (SQLancer build/run/summary; the build itself was refused by the sandbox: future work).
+- E3: `scripts/bench/duckdb_fixes.py` (334 candidate fix commits since May 2026; works on the blob-less clone) and
+  `duckdb_reinject.sh` (revert src/, build, keep bugs whose own test fails).
+- E4: `scripts/eval/make_configs.py` writes 11 configs (`configs/eval/e4_*`: rules, synthesis, suite seeds per engine;
+  normalizers off/on) from the engine configs; `scripts/eval/run_all.sh` (DRY=1 passes; 15 s smoke of 5 arms ran).
+- E5: `docs/generalized/paper/OUTLINE.md`.
+- Validity measured again (600 test cases): Turso 93.3 % of queries (95.4 % statements); DataFusion 79.4 % of queries
+  (86.5 % statements), so B4 stays below its 95 % target (future work).
+- Filed by the owner: Turso #11594 / PR #11595 (T-05), DuckDB #28551 / PR #28552 (D-01), DataFusion #27235 /
+  PR #27236 (DF-01).
+- Tests: 192 passed, 1 skipped.
 
 ## 2026-11-08 (night): T-05 second review follow-up
 - Two findings on tursodatabase/turso#11595 (head fcfc80b): duplicated percentile step, fraction not validated like

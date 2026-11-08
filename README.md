@@ -9,7 +9,36 @@ row-level-security check, plan-variant and cross-version oracles), reduces every
 finding on its tree and tokens, and extends the grammar from recent PostgreSQL
 commits with an LLM behind a server-side validation gate.
 
-## Results in one page (details: [`docs/RESULTS_ANALYSIS.md`](docs/RESULTS_ANALYSIS.md))
+## Generalized fuzzer (this branch, `generalized`)
+
+The same core now tests **DuckDB, SQLite, Turso and Apache DataFusion** (PostgreSQL stays an
+evaluation target). New since the course paper: engine drivers in spawned workers, dialect
+overlays and an overlay miner, optimizer-rule firing as feedback and coverage, rule-targeted
+generation, Z3 data synthesis, learned cross-engine normalizers, engine test suites as seeds and
+an autonomous hunt -> triage -> filing-package loop.
+
+* Bugs: 7 packages in `docs/bughunt/{duckdb,turso,datafusion}/`; 3 were fixed upstream before
+  filing, 3 are filed with fixes (Turso [#11594](https://github.com/tursodatabase/turso/issues/11594) /
+  [PR #11595](https://github.com/tursodatabase/turso/pull/11595), DuckDB
+  [#28551](https://github.com/duckdb/duckdb/issues/28551) / [PR #28552](https://github.com/duckdb/duckdb/pull/28552),
+  DataFusion [#27235](https://github.com/apache/datafusion/issues/27235) /
+  [PR #27236](https://github.com/apache/datafusion/pull/27236)); ledger in `docs/generalized/LEDGER.md`.
+* Plan and status: `docs/generalized/PLAN.md`; log: `PROGRESS.md`; what is left: `FUTURE_WORK.md`;
+  paper skeleton: `docs/generalized/paper/OUTLINE.md`.
+
+```sh
+cd src && pip install -r requirements.txt && pip install duckdb apsw pyturso datafusion z3-solver
+python -m pytest -q                                                     # 192 tests
+python -m pgfuzz -q sample configs/duckdb.yaml -n 300 --execute --quiet-stats   # validity on DuckDB
+python -m pgfuzz run configs/datafusion.yaml                            # a campaign (budget in the config)
+python -m pgfuzz hunt configs/duckdb.yaml configs/datafusion.yaml --budget 600  # campaign + triage + packages
+python -m pgfuzz learn-normalizers configs/eval/c4_duckdb_sqlite.yaml -n 400    # C4
+python -m pgfuzz import-tests <engine test dir> --out corpus/suites/<engine>   # C6
+DRY=1 ../scripts/eval/run_all.sh                                        # check every evaluation config
+python -m pgfuzz ledger                                                 # precision ledger
+```
+
+## Course project results in one page (details: [`docs/RESULTS_ANALYSIS.md`](docs/RESULTS_ANALYSIS.md))
 
 * Base: PostgreSQL master `26bd08fb`, assertions on; 5 trials x 1 h per arm.
 * **RQ1** typed grammar 36.7% backend lines vs 22.2% random mutation; 99% vs 26% valid statements; oracles double plan shapes.
