@@ -492,6 +492,14 @@ def cmd_package(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_import_tests(a: argparse.Namespace) -> int:
+    from pgfuzz.agent.suites import import_suite
+
+    st = import_suite(a.paths, a.out, max_statements=a.max_statements, max_files=a.max_files)
+    print(json.dumps(st))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="pgfuzz", description="Evaluation harness for grammar-aware PostgreSQL fuzzing")
     ap.add_argument("-v", "--verbose", action="count", default=1, help="-v info (default), -vv debug")
@@ -646,6 +654,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("triage_dirs", nargs="+")
     p.add_argument("--out", default="results/packages")
     p.set_defaults(fn=cmd_package)
+
+    p = sub.add_parser("import-tests", help="engine test suites (.test/.slt/.sqltest) -> seed .sql files (C6)")
+    p.add_argument("paths", nargs="+", help="test files or directories")
+    p.add_argument("--out", required=True, help="seed directory (use as generator.params.seeds)")
+    p.add_argument("--max-statements", type=int, default=200)
+    p.add_argument("--max-files", type=int)
+    p.set_defaults(fn=cmd_import_tests)
 
     a = ap.parse_args(argv)
     _setup_logging(0 if a.quiet else a.verbose)
