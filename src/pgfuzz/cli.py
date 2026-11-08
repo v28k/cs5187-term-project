@@ -184,7 +184,8 @@ def cmd_sample(a: argparse.Namespace) -> int:
                 break
             tc.id = i
             res = ex.execute(tc)
-            for sql, r in zip(tc.statements, res.statements):
+            k = int(tc.meta.get("synth", 0))     # synthesized rows (C3) are not generated statements
+            for sql, r in zip(tc.statements[k:], res.statements[k:]):
                 is_q = sql.lstrip()[:6].upper() in ("SELECT", "WITH  ", "VALUES") or sql.lstrip()[:4].upper() == "WITH"
                 q_all += is_q
                 if r.status.value == "ok":

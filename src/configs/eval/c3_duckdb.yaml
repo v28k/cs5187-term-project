@@ -1,0 +1,55 @@
+# C3 evaluation: TLP-WHERE vacuity with and without constraint-based data synthesis (DuckDB)
+experiment: duckdb
+output_dir: ../../results
+trials: 4
+seed: 7001
+budget:
+  seconds: 1800
+coverage_interval_s: 100000
+snapshot_interval_s: 30
+log_sql: failures
+max_repros: 3
+max_harness_errors: 50
+known_bugs: ../../known_bugs/duckdb.yaml
+executor:
+  plugin: pgfuzz.targets.duckdb_executor:DuckDBExecutor
+  params:
+    setup_sql: '{config_dir}/../../corpus/duckdb/schema.sql'
+    statement_timeout_ms: 3000
+    threads: 2
+    differential:
+      per_query: 0
+    metamorphic: {measure_partitions: true}
+configs:
+- generator:
+    params:
+      bandit: 0.1
+      dialect_data: '{config_dir}/../../grammar/overlays/duckdb.data.yaml'
+      grammar: '{config_dir}/../../grammar/postgres.pgg'
+      mm_prob: 1.0
+      overlays:
+      - '{config_dir}/../../grammar/overlays/duckdb.pgg'
+      plan_guidance: false
+      schema: '{config_dir}/../../corpus/duckdb/schema.yaml'
+      mm_weights:
+        tlp_where: 1.0
+      data_synth: 0.0
+    plugin: pgfuzz.grammar.generator:GrammarGenerator
+  label: tlp_plain
+  name: tlp_plain
+- generator:
+    params:
+      bandit: 0.1
+      dialect_data: '{config_dir}/../../grammar/overlays/duckdb.data.yaml'
+      grammar: '{config_dir}/../../grammar/postgres.pgg'
+      mm_prob: 1.0
+      overlays:
+      - '{config_dir}/../../grammar/overlays/duckdb.pgg'
+      plan_guidance: false
+      schema: '{config_dir}/../../corpus/duckdb/schema.yaml'
+      mm_weights:
+        tlp_where: 1.0
+      data_synth: 1.0
+    plugin: pgfuzz.grammar.generator:GrammarGenerator
+  label: tlp_synth
+  name: tlp_synth

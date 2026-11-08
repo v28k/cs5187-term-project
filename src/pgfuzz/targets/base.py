@@ -238,6 +238,8 @@ class WorkerExecutor(Executor):
         m = metamorphic if isinstance(metamorphic, dict) else ({} if metamorphic else None)
         self.mm_enabled = m is not None
         self.mm_max = int((m or {}).get("max_per_testcase", 6))
+        # run each TLP partition on its own and record its row count (vacuity measurement, C3)
+        self.measure_partitions = bool((m or {}).get("measure_partitions", False))
         self.max_rows = int(max_rows)
         self.rng = random.Random(seed)
         from pgfuzz.eval.normalize import make as _make_normalizer
@@ -593,6 +595,9 @@ class WorkerExecutor(Executor):
                 continue
             rec.update(status="ok", lhs_hash=left["hash"], rhs_hash=right["hash"],
                        lhs_rows=left["rows"], rhs_rows=right["rows"])
+            if self.measure_partitions and c.get("arms"):
+                sides = [self._side(str(a), done, mask) for a in c["arms"]]
+                rec["partitions"] = [x.get("rows") if x.get("status") == "ok" else None for x in sides]
             if left["hash"] and right["hash"] and left["hash"] != right["hash"]:
                 rec.update(lhs_sql=lhs, rhs_sql=rhs)
                 l2 = self._side(lhs if lhs is not None else sql, done, mask)

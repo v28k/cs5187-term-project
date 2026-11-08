@@ -112,6 +112,8 @@ class GrammarGenerator(Generator):
         dialect_data: str | None = None,
         rule_guidance: bool = True,
         rule_target: bool | dict[str, Any] = False,
+        data_synth: float = 0.0,
+        data_synth_max: int = 12,
     ) -> None:
         self.grammar_path, self.schema_path = grammar, schema
         self.start, self.setup_rule = start, setup_rule
@@ -163,6 +165,11 @@ class GrammarGenerator(Generator):
         self.rt_left = 0
         self.rt_hit = False
         self.rt_log: Counter[str] = Counter()          # "target:<rule>" / "hit:<rule>"
+        # constraint-based data synthesis (C3): rows that make TLP / NoREC partitions non-empty
+        self.data_synth, self.data_synth_max = float(data_synth), int(data_synth_max)
+        self.synth: Any = None
+        self.synth_errors = 0
+        self.vacuity: Counter[str] = Counter()          # "<kind>:checked" / "<kind>:vacuous"
         self.corpus: list[_Entry] = []
         self.pending: dict[int, _Built] = {}
         self.seen_pairs: set[tuple[str, str]] = set()
@@ -224,6 +231,10 @@ class GrammarGenerator(Generator):
             for r in json.loads(Path(f).read_text(encoding="utf-8")).get("rewrites", []):
                 if r.get("type") in self.grammar.types and "{e}" in str(r.get("template", "")):
                     self.extra_rewrites.setdefault(r["type"], {})[str(r["name"])] = str(r["template"])
+        if self.data_synth > 0:
+            from pgfuzz.datasynth import DataSynth
+
+            self.synth = DataSynth(self.schema, self.rng)
         self.rewriter = Rewriter(self.grammar, self.rng, self.mm_per_query, self.mm_weights,
                                  policies=load_policies(self.rls_path), extra_rewrites=self.extra_rewrites,
                                  only=self.only_rewrite, exclude=self._dialect_data.get("rewrite_exclude"))
@@ -354,13 +365,28 @@ class GrammarGenerator(Generator):
         self.n_testcases += 1
         meta: dict[str, Any] = {"op": built.op}
         checks = self._checks(built) if self.mm_prob > 0 else []
+        prefix = self._synthesize(built, checks)
+        if prefix:
+            meta["synth"] = len(prefix)
+            for c in checks:
+                c["stmt"] = int(c["stmt"]) + len(prefix)
         if checks:
             meta["checks"] = checks
-        tc = TestCase(self._dialectize(built.sql, checks), origin=self.name, meta=meta)
+        tc = TestCase(self._dialectize(prefix + built.sql, checks), origin=self.name, meta=meta)
         self.pending[id(tc)] = built
         if len(self.pending) > 64:
             self.pending.pop(next(iter(self.pending)))
         return tc
+
+    def _synthesize(self, built: _Built, checks: list[dict[str, Any]]) -> list[str]:
+        """INSERTs that put rows into every partition of the checks' predicates (C3)."""
+        if self.synth is None or not checks or self.rng.random() >= self.data_synth:
+            return []
+        out: list[str] = []
+        for c in checks:
+            if c.get("pred") and 0 <= int(c["stmt"]) < len(built.sql):
+                out += self.synth.inserts(str(c["pred"]), built.sql[int(c["stmt"])])
+        return out[: self.data_synth_max]
 
     def _dialectize(self, sql: list[str], checks: list[dict[str, Any]] | None = None) -> list[str]:
         """Engine spelling (pgfuzz.grammar.dialect) of the statements and, in place, of the checks."""
@@ -408,16 +434,29 @@ class GrammarGenerator(Generator):
     # ------------------------------------------------------------ feedback
     def feedback(self, fb: Feedback) -> None:
         built = self.pending.pop(id(fb.testcase), None)
-        stmt_results = fb.result.statements
-        for i, oc in enumerate(fb.statement_outcomes):
+        k = int(fb.testcase.meta.get("synth", 0))       # synthesized INSERTs come first
+        self.synth_errors += sum(oc is not Outcome.OK for oc in fb.statement_outcomes[:k])
+        stmt_results = fb.result.statements[k:]
+        outcomes = fb.statement_outcomes[k:]
+        for i, oc in enumerate(outcomes):
             self.outcomes[oc.value] += 1
             if oc is not Outcome.OK and i < len(stmt_results) and stmt_results[i].message:
                 self.errors[f"{oc.value}: {normalize_message(stmt_results[i].message)}"] += 1
+        for st in stmt_results:
+            for c in getattr(st, "checks", None) or []:
+                if c.get("kind") == "tlp_where" and c.get("status") == "ok":
+                    tag = "synth" if k else "plain"
+                    self.vacuity[f"{tag}:checked"] += 1
+                    self.vacuity[f"{tag}:empty"] += int(not c.get("lhs_rows"))
+                    parts = c.get("partitions")
+                    if parts and None not in parts:
+                        self.vacuity[f"{tag}:measured"] += 1
+                        self.vacuity[f"{tag}:vacuous"] += int(sum(1 for n in parts if n) < 2)
         if built is None:
             return
         if self.track_alternatives:
             ok_by_tree: dict[int, bool] = {}
-            for i, oc in enumerate(fb.statement_outcomes):
+            for i, oc in enumerate(outcomes):
                 if i < len(built.owners):
                     t = built.owners[i]
                     ok_by_tree[t] = ok_by_tree.get(t, True) and oc is Outcome.OK
@@ -434,7 +473,7 @@ class GrammarGenerator(Generator):
             feats |= features_of(s)
         new_pairs = feature_pairs(feats) - self.seen_pairs
         self.seen_pairs |= new_pairs
-        any_ok = any(oc is Outcome.OK for oc in fb.statement_outcomes)
+        any_ok = any(oc is Outcome.OK for oc in outcomes)
         plans = {st.plan_shape for st in stmt_results if st.plan_shape} - self.seen_plans
         self.seen_plans |= plans
         new_rules = self._rule_feedback(built, stmt_results)
@@ -443,7 +482,7 @@ class GrammarGenerator(Generator):
                else "pairs" if new_pairs and any_ok
                else "plan" if plans and self.plan_guidance else "")
         if self.bandit > 0:
-            self._bandit_update(built, fb, bool(why))
+            self._bandit_update(built, outcomes, bool(why))
         if not why:
             return
         if built.parent is not None:
@@ -521,13 +560,13 @@ class GrammarGenerator(Generator):
 
     BOOST_MIN, BOOST_MAX = 0.2, 5.0
 
-    def _bandit_update(self, built: _Built, fb: Feedback, novel: bool) -> None:
+    def _bandit_update(self, built: _Built, outcomes: list[Outcome], novel: bool) -> None:
         """Every alternative used by a tree gets the reward of that tree: 1 if the test
         case was novel (it enters the corpus), -0.5 if the tree's statements failed, 0
         otherwise; its weight is multiplied by exp(rate * (reward - average reward)),
         clipped so that no alternative dies or dominates."""
         bad: set[int] = set()
-        for i, oc in enumerate(fb.statement_outcomes):
+        for i, oc in enumerate(outcomes):
             if i < len(built.owners) and oc is not Outcome.OK and not oc.is_bug_candidate:
                 bad.add(built.owners[i])
         rewards = []
@@ -563,6 +602,8 @@ class GrammarGenerator(Generator):
             "corpus": len(self.corpus),
             "generation_failures": self.gen_failures,
             "metamorphic_checks_built": dict(self.mm_built),
+            "data_synth": ({**self.synth.stats, "insert_errors": self.synth_errors} if self.synth else None),
+            "tlp_vacuity": self._vacuity(),
             "plan_shapes_seen": len(self.seen_plans),
             "rules_seen": len(self.seen_rules),
             "rule_targets": dict(self.rt_log) if self.rt_enabled else {},
@@ -576,6 +617,17 @@ class GrammarGenerator(Generator):
             "corpus_reasons": dict(Counter(e.why for e in self.corpus)),
             **self.engine.stats(),
         }
+
+    def _vacuity(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for tag in ("plain", "synth"):
+            n = self.vacuity[f"{tag}:checked"]
+            if n:
+                m = self.vacuity[f"{tag}:measured"]
+                out[tag] = {"checked": n, "empty_rate": round(self.vacuity[f"{tag}:empty"] / n, 4),
+                            "measured": m,
+                            "vacuous_rate": round(self.vacuity[f"{tag}:vacuous"] / m, 4) if m else None}
+        return out
 
     def _bandit_stats(self) -> dict[str, Any]:
         b = self.engine.alt_boost

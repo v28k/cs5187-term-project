@@ -139,6 +139,8 @@ class Check:
     rhs: str
     mask: bool = False        # mask float columns when digesting both sides
     lhs_role: str | None = None   # run the left side as this role (RLS oracle)
+    pred: str | None = None   # the WHERE predicate the check partitions on (data synthesis)
+    arms: list[str] | None = None   # TLP: the statement restricted to each partition (vacuity)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -338,6 +340,8 @@ class Rewriter:
             left = [k for k in kinds if k not in tried]
             k = self.rng.choices(left, weights=[self.weights[x] for x in left])[0]
             tried.add(k)
+            self._pred_toks: list[str] | None = None
+            self._arms: list[list[str]] | None = None
             built = builders[k](t, root, schema)
             if built is None:
                 continue
@@ -350,7 +354,9 @@ class Rewriter:
             elif rhs_sql == (lhs_sql or sql):
                 continue
             mask = masks_floats(lhs_sql or sql) or masks_floats(rhs_sql)
-            out.append(Check(index, kind, lhs_sql, rhs_sql, mask, role))
+            pred = render(self._pred_toks) if self._pred_toks else None
+            arms = [render(a) for a in self._arms] if self._arms else None
+            out.append(Check(index, kind, lhs_sql, rhs_sql, mask, role, pred, arms))
         return out
 
     # ---- helpers
@@ -403,6 +409,7 @@ class Rewriter:
         for cond in (_paren(p), ["NOT"] + _paren(p), _paren(p) + ["IS", "NULL"]):
             arm = t.toks[start:cs] + [keyword] + cond + t.toks[ce:end]
             arms.append(_paren(arm))
+        self._arms = [t.toks[:start] + a[1:-1] + t.toks[end:] for a in arms]
         joined = arms[0] + [union] + arms[1] + [union] + arms[2]
         if nested:   # keep INTERSECT (binds tighter than UNION) from regrouping the arms
             joined = _paren(joined)
@@ -419,6 +426,7 @@ class Rewriter:
         where = t.child(core, "where_clause")
         distinct = t.child(core, "distinct") is not None
         lhs = t.replace(where, [])  # type: ignore[arg-type]
+        self._pred_toks = t.tokens(t.child(where, "expr"))  # type: ignore[arg-type]
         rhs = self._partition(t, core, where, "WHERE", "UNION" if distinct else "UNION ALL",  # type: ignore[arg-type]
                               nested=core is not self._core(t, root))
         return "tlp_where", lhs, rhs
@@ -460,6 +468,7 @@ class Rewriter:
             return None
         start, end = t.region(core)  # type: ignore[misc]
         lhs = t.replace(where, [])  # type: ignore[arg-type]
+        self._pred_toks = t.tokens(t.child(where, "expr"))  # type: ignore[arg-type]
         part = self._partition(t, core, where, "WHERE", "UNION ALL", nested=False)  # type: ignore[arg-type]
         arms = part[start:len(part) - (len(t.toks) - end)]
         sel: list[str] = []
@@ -615,6 +624,7 @@ class Rewriter:
             return None
         start, _ = t.region(core)  # type: ignore[misc]
         prefix = t.toks[:start]
+        self._pred_toks = p
         lhs = prefix + ["SELECT", "COUNT", "(", "*", ")"] + f + w
         rhs = prefix + ["SELECT", "COALESCE", "(", "SUM", "(", "CASE", "WHEN"] + _paren(p) + \
             ["THEN", "1", "ELSE", "0", "END", ")", ",", "0", ")"] + f
