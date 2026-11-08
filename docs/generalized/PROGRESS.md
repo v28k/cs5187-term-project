@@ -13,11 +13,22 @@
 - Building SQLite trunk (`configure && make` from the GitHub mirror) was blocked by the permission classifier (7 Nov).
   Workaround: SQLite through APSW 3.54.1 (newest release); optimizer switches reached through the module's symbol table.
   Consequence: no trunk SQLite and no coverage build of SQLite (task C5) until building is allowed.
+- Running a prebuilt Turso 0.9.0-pre CLI (GitHub release asset) was blocked (8 Nov), as is building Turso or
+  DataFusion `main`. Consequence: Turso and DataFusion findings are reproduced only on the newest PyPI wheels
+  (pyturso 0.8.3, datafusion-python 55.0.0); their packages say so and ask the owner to re-run on `main` first.
+  **If the owner allows `cargo build` (DataFusion `datafusion-cli`, Turso `tursodb`), validation becomes automatic.**
 
 ## Bug packages ready (for the owner to file)
 - `docs/bughunt/duckdb/D-01-minmax-nested-subquery/`: DuckDB 2.0.0 regression, `min`/`max` over a LIST/STRUCT/ARRAY
   value containing a subquery fails with "Cannot copy BoundSubqueryExpression" (from 2ef9f76b2e). Confidence: high
   (reproduced on 2.0.0 and nightly, works on 1.5.6; root cause in minmax.cpp). Issue text ready; no patch.
+- `docs/bughunt/duckdb/D-02-outer-join-two-subqueries/`: DuckDB 2.0.0+ INTERNAL "Failed to bind column reference"
+  for a LEFT/RIGHT JOIN or MERGE condition with two subqueries. Confidence: high (nightly, 2.0.0; 1.5.6 said
+  "not implemented"). Issue text and sqllogictest ready.
+- `docs/bughunt/datafusion/DF-01-update-coalesce-common-expr/`: `UPDATE t SET c0 = COALESCE(c0, 0)` (INT column)
+  fails with "No field named __common_expr_1". Confidence: medium until re-run on `main` (steps.md).
+- `docs/bughunt/datafusion/DF-02-values-scalar-subquery/`: `VALUES ((SELECT 1), 5)` -> internal error
+  "ScalarSubqueryExpr evaluated before the subquery was executed". Confidence: medium until re-run on `main`.
 
 ## Session log
 

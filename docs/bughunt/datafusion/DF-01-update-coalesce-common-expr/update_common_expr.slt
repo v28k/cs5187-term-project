@@ -1,0 +1,17 @@
+# UPDATE whose SET expression mentions a column twice after rewriting (COALESCE -> CASE)
+statement ok
+CREATE TABLE t (c0 INT, c1 VARCHAR);
+
+statement ok
+INSERT INTO t VALUES (1, 'a'), (NULL, 'b');
+
+query I
+UPDATE t SET c0 = COALESCE(c0, 0);
+----
+2
+
+query IT
+SELECT * FROM t ORDER BY c1;
+----
+1 a
+0 b

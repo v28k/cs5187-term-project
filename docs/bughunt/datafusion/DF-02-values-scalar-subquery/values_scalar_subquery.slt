@@ -1,0 +1,10 @@
+# scalar subqueries inside a VALUES list
+query II
+VALUES ((SELECT 1), 5);
+----
+1 5
+
+query II
+SELECT * FROM (VALUES ((SELECT min(x) FROM (VALUES (1), (2)) AS v(x)), 5)) AS t(a, b);
+----
+1 5
