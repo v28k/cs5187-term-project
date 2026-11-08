@@ -930,7 +930,8 @@ def _b_fill(eng: Engine, ctx: Ctx, tv: dict, args: list[str], guide: Node | None
         sql = guide.val[1]
     else:
         n = int(args[0]) if args and args[0].isdigit() else eng.rng.choice((5, 20, 100))
-        exprs = ", ".join(eng.fill_expr(c) for c in cols)
+        # aliased: some engines (DataFusion) need unique names for the projected expressions
+        exprs = ", ".join(f"{eng.fill_expr(c)} AS f{i}" for i, c in enumerate(cols))
         sql = f"{head}{exprs} FROM " + eng.series_from.format(n=n)
     return Node("@fill", val=(sig, sql)), [sql]
 

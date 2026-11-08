@@ -1,0 +1,74 @@
+# DataFusion dialect overlay for grammar/postgres.pgg (PostgreSQL-like SQL, no indexes, no
+# transactions; every test case runs in a fresh session, so settings cannot leak).
+
+%droptype int4range
+%droptype jsonb
+
+# statements
+%droprule merge_stmt
+%droprule explain_stmt
+explain_stmt : <2> EXPLAIN query ;
+%droprule create_index
+%droprule create_stats
+%droprule create_cast
+%droprule alter_table
+%drop setup_stmt "ANALYZE @table"
+%droprule set_stmt
+set_stmt
+  : <2> SET "datafusion.optimizer.prefer_hash_join" "=" ("true" | "false")
+  | <1> SET "datafusion.execution.target_partitions" "=" ("1" | "3")
+  | <1> SET "datafusion.optimizer.repartition_joins" "=" "false"
+  | <1> SET "datafusion.execution.batch_size" "=" ("2" | "7")
+  | <0.5> SET "datafusion.optimizer.enable_dynamic_filter_pushdown" "=" "false"
+  ;
+
+# DML: no ON CONFLICT, no RETURNING
+%droprule on_conflict
+%droprule returning
+%droprule using_clause
+
+# DDL
+%drop create_table "UNLOGGED"
+%drop create_table "PARTITION BY"
+%replace create_table "\";\" ANALYZE @target_name" ""
+%replace ctas "\";\" ANALYZE @target_name" ""
+%drop new_col "GENERATED"
+%drop new_col "CHECK"
+%drop create_view "matview_def"
+
+# ---------------------------------------------------------------- batch 2 (measured)
+%drop srf_item "WITH ORDINALITY"
+%drop agg "PERCENTILE_DISC"
+%drop agg "MODE"
+%drop expr "IS NOT?0.3 JSON"
+%droprule update_from
+%drop expr "'{}'::int[]"
+%drop expr "\"^@\""
+%dropopt expr "\"&&\""
+%drop expr "COLLATE"
+%drop expr "\"*\" (\"0\" | \"1\" | \"2\" | \"(-1)\")"
+%drop expr "TO_CHAR \"(\" expr<numeric>"
+%drop expr "ARRAY_REMOVE"
+%drop expr "ARRAY_POSITIONS"
+%drop expr "TRIM_ARRAY"
+%drop expr "JSONB_"
+%drop expr "JSON_VALUE"
+%drop expr "ARRAY in_sub"
+%drop expr "(ANY | ALL) in_sub"
+%drop from_clause "LATERAL"
+
+# ---------------------------------------------------------------- batch 4 (measured)
+%drop expr "WIDTH_BUCKET"
+%drop expr "NORMALIZE"
+%drop expr "FORMAT"
+%drop agg "EVERY"
+%drop expr "JUSTIFY_HOURS"
+%drop expr "SCALE"
+%drop expr "MAKE_INTERVAL"
+%drop expr "REGEXP_SPLIT_TO_ARRAY"
+%drop expr "AGE"
+%drop srf_item "ROWS FROM"
+%droprule materialized
+%drop rec_cte "SEARCH"
+%drop rec_cte "CYCLE"
+%replace expr "SYMMETRIC?0.2 " ""
