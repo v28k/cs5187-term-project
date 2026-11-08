@@ -1,8 +1,45 @@
-# Steps for the owner (DF-02)
+# Steps for the owner (DF-02): issue first, then the fix PR
 
-1. Re-run on `main`: `git clone https://github.com/apache/datafusion && cd datafusion && cargo run -p datafusion-cli --release`
-   and paste `repro.sql`. (I could only run the 55.0.0 python wheel: building was blocked in my environment.)
-   If it works on main, it was fixed: do not file (tell me, I mark it fixed-upstream).
-2. Search https://github.com/apache/datafusion/issues?q=%22ScalarSubqueryExpr+evaluated+before%22 for a duplicate.
-3. File https://github.com/apache/datafusion/issues/new (bug report) with `issue.md`.
-4. Optional PR: `values_scalar_subquery.slt` is ready for `datafusion/sqllogictest/test_files/`.
+Same policy notes as DF-01 (DataFusion AI policy; at most 3 open PRs; better one PR at a time on a first
+contribution, so open this one after DF-01 has had a review). Read `report.md` and `fix.patch` first.
+
+## 1. Re-check and search
+
+https://github.com/apache/datafusion/issues?q=%22ScalarSubqueryExpr+evaluated+before%22 and
+https://github.com/apache/datafusion/issues?q=VALUES+scalar+subquery for anything new since 8 Nov 2026.
+
+## 2. Open the issue
+
+https://github.com/apache/datafusion/issues/new?template=bug_report.yml — fields from `issue.md`. Note the number.
+
+## 3. Fork (once), apply, test
+
+```bash
+cd datafusion && git fetch upstream main && git checkout -b fix-values-scalar-subquery upstream/main
+```
+
+```bash
+git am /path/to/DF-02-values-scalar-subquery/fix.patch
+```
+
+```bash
+cargo test --profile ci -p datafusion-sqllogictest --test sqllogictests -- subquery values insert explain
+```
+
+```bash
+cargo fmt --all && cargo clippy --all-targets --all-features -- -D warnings
+```
+
+```bash
+cargo test --profile ci -p datafusion-sqllogictest --test sqllogictests
+```
+
+## 4. Open the PR
+
+```bash
+git push -u origin fix-values-scalar-subquery
+```
+
+PR against `apache/datafusion:main`, title and body from `pr.md` (replace `#ISSUE`, in your own words).
+
+## 5. Tell me the issue and PR numbers.
