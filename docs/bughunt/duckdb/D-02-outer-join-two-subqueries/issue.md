@@ -1,3 +1,5 @@
+> **Do not file: fixed upstream by 57a6875edf (PR #28246, issue #28156). Kept for the record.**
+
 **Title:** INTERNAL Error "Failed to bind column reference" for an outer-join / MERGE condition with two subqueries
 
 **What happens?**

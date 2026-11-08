@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| Status | **ready to file** (not filed) |
+| Status | **fixed upstream (57a6875edf, PR #28246 "Fix internal error with correlated IN under a mark join", which fixes #28156; merged 2 Nov 2026). Do not file.** |
 | Target | DuckDB (https://github.com/duckdb/duckdb) |
 | Kind | INTERNAL error on a valid query (internal-error oracle) |
 | Severity | medium: LEFT/RIGHT JOIN and MERGE conditions that combine an uncorrelated scalar subquery compared with `ANY` over a list of columns from both sides and a second subquery fail |
-| Affected | 2.0.0, nightly 2.1.0.dev2610310630. In 1.5.6 the same queries raised `Not implemented Error: Cannot perform non-inner join on subquery!`, so this is in the support for subqueries in non-inner join conditions that is new in 2.0 |
+| Affected | 2.0.0, nightly 2.1.0.dev2610310630 (71f47d410f, 31 Oct 2026). **Not** `main` d4eea3f208 (6 Nov 2026). In 1.5.6 the same queries raised `Not implemented Error: Cannot perform non-inner join on subquery!`, so this is in the support for subqueries in non-inner join conditions that is new in 2.0 |
 | Found by | our grammar fuzzer, DuckDB campaign (nightly vs 2.0.0, 7 Nov 2026), internal-error oracle; signature 0184a1f8f3ea; found on a MERGE statement |
 
 ## Minimal reproducer
@@ -46,3 +46,22 @@ the child only exposes `#[48.0]`). We did not build DuckDB to confirm the exact 
 ## Files
 
 `issue.md`, `repro.sql`, `outer_join_two_subqueries.test` (sqllogictest for `test/sql/subquery/scalar/`), `steps.md`.
+
+## Re-check on `main` (8 Nov 2026): fixed upstream
+
+- `main` d4eea3f208 (v2.1.0-dev82473), built from source: all three statements of `repro.sql` succeed and return the
+  expected rows (`(1, true, 5), (6, false, 5)` for the LEFT and the RIGHT JOIN; MERGE inserts nothing).
+- The nightly wheel 2.1.0.dev2610310630 (71f47d410f) still fails, also with `PRAGMA disable_optimizer`, so the bug is
+  in subquery planning, not in an optimizer rule.
+- Fixing commit, confirmed by reverting only its change to `src/planner/subquery/flatten_dependent_join.cpp` on
+  d4eea3f208 and rebuilding: all three errors come back (`Failed to bind column reference "a" [38.0]`, `"x" [39.0]`,
+  `"x" [34.0]`). The commit is 57a6875edf "Fix internal error with correlated IN under a mark join (#28246)", fixing
+  #28156: decorrelation added the correlated column to a MARK join's left input (here the mark join of
+  `1 IN (SELECT c FROM u)` above the lateral join that the pair-dependent rewrite builds for the outer join with the
+  correlated `ANY`) but not to its `left_projection_map`.
+- Related open issue, still failing on `main`: #27719 (`LEFT JOIN ... ON false AND r.a IN (SELECT 3) WHERE true`,
+  same error text, different path). Not ours to report.
+
+Nothing to file. Optional: `outer_join_two_subqueries.test` covers a different shape (outer join + `= ANY(list)` over
+both sides + a second subquery) than the test added by #28246; it passes on `main` and could be offered as extra
+regression coverage, but that is low value and not prepared as a PR.

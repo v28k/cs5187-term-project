@@ -27,14 +27,15 @@ SELECT max((SELECT [x]), 1) FROM a;                           -- expected [[2]]
 SELECT min(CASE WHEN EXISTS (SELECT 1) THEN [x] END) FROM a;  -- expected [1]
 ```
 
-All four return `Serialization Error: Cannot copy BoundSubqueryExpression` on 2.0.0 and on the current nightly;
+All four return `Serialization Error: Cannot copy BoundSubqueryExpression` on 2.0.0, on the current nightly and on
+`main` (d4eea3f208, built from source);
 1.5.6 returns the expected values. `arg_min((SELECT [1]), 1)` and `first((SELECT [1]))` work.
 
 **OS:** Linux x86_64
 
-**DuckDB Version:** 2.0.0 and 2.1.0.dev2610310630 (nightly); 1.5.6 not affected
+**DuckDB Version:** 2.0.0, 2.1.0.dev2610310630 (nightly) and main d4eea3f208 (v2.1.0-dev82473); 1.5.6 not affected
 
-**DuckDB Client:** Python
+**DuckDB Client:** Python and CLI
 
 **Hardware:** x86_64, 4 cores
 
@@ -42,7 +43,7 @@ All four return `Serialization Error: Cannot copy BoundSubqueryExpression` on 2.
 
 **Affiliation:** IIT Guwahati
 
-**What is the latest build you tested with?** nightly 2.1.0.dev2610310630
+**What is the latest build you tested with?** main d4eea3f208 built from source (and nightly 2.1.0.dev2610310630)
 
 **Did you include all relevant configuration?** Yes
 
