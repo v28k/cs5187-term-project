@@ -43,8 +43,10 @@ code that changed.
 \begin{figure}[t]
 \begin{lstlisting}[numbers=none,escapechar=!,language=SQL]
 SELECT c,
-       '(,)'::int4range @> c       AS contains,   -- must be NULL when c is NULL
-       NOT ('empty'::int4range @> c) AS not_empty  -- must be NULL when c is NULL
+       '(,)'::int4range @> c AS contains,
+         -- must be NULL when c is NULL
+       NOT ('empty'::int4range @> c) AS not_empty
+         -- must be NULL when c is NULL
 FROM (VALUES (NULL::int), (1)) v(c);
 
   c   | contains | not_empty

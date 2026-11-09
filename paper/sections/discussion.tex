@@ -29,3 +29,30 @@ model only has to name the SQL that reaches a commit, and the \gate rejects what
 does not parse, is never derived, fails on the server or misses the changed
 lines. Repair helps rarely: of the 4 accepted commits 2 passed in the first
 round, and 6 of 10 never passed.
+
+\paragraph{Does the approach carry over to other engines?}
+\label{sec:beyond}
+Yes, with a small adapter per engine. After the \pg campaigns we generalized
+\tool (public branch \texttt{generalized}) to DuckDB, SQLite, Turso and Apache
+DataFusion. Each engine runs in its own worker process, and a dialect
+\emph{overlay} of a few dozen lines drops or rewrites the parts of the \pg
+grammar the engine does not accept. With the manual overlays, 96.3\% of the
+generated queries are valid on DuckDB, 97.7\% on SQLite, 93.3\% on Turso and
+79.4\% on DataFusion. An overlay miner drafts the overlay from the measured
+failure rate of each grammar alternative: one mined round lifts DuckDB from 32.1\%
+to 44.1\% valid statements without any manual line. Optimizer-rule firing, read
+from rule switches or from per-rule plan traces, replaces the \pg plan variants
+as feedback and as a coverage measure. Other additions are Z3-synthesized rows that
+make TLP partitions non-empty, normalizers learned from probes for cross-engine
+comparison (DuckDB against SQLite: held-out disagreements drop from 28.7\% to
+3.6\%), engine test suites as seeds, and a loop that triages new failures and
+drafts a filing package with a regression test in the engine's own format.
+The short campaigns found seven bugs. Three of them were fixed upstream before
+we could report them. One is ready to file. For the other three we filed an
+issue and a pull request with a fix and a regression test on 8~November~2026; all
+six are open and awaiting review:
+Turso \#11594 / PR \#11595 (\texttt{percentile\_disc} with an expression argument),
+DuckDB \#28551 / PR \#28552 (\texttt{min}/\texttt{max} over a nested value
+computed by a subquery, a 2.0.0 regression) and
+DataFusion \#27235 / PR \#27236 (\texttt{UPDATE}/\texttt{DELETE} that repeat
+an expression fail on an internal common-subexpression column).

@@ -3,6 +3,7 @@
 # Settings come from paper.conf (PAGE_LIMIT=...).
 cd "$(dirname "$0")/.." || exit 1
 PAGE_LIMIT=10
+ANONYMOUS=1
 [ -f paper.conf ] && . ./paper.conf
 fail=0
 say() { printf '%-28s %s\n' "$1" "$2"; }
@@ -56,9 +57,12 @@ if [ -f main.pdf ]; then
   [ -n "$ref" ] && [ "$ref" -eq $((PAGE_LIMIT+1)) ] && echo "  check by eye: main text must end on page $PAGE_LIMIT"
 fi
 
-# 7. anonymity
-a=$(grep -nE '/Users/|/home/|github\.com/[A-Za-z]' sections/*.tex main.tex | grep -vE '^[^:]+:[0-9]+:[[:space:]]*%' | grep -v anonymous)
-[ -n "$a" ] && { say "identifying paths/URLs:" ""; echo "$a"; fail=1; } || say "identifying paths/URLs:" 0
+# 7. anonymity (only for double-anonymous submissions: ANONYMOUS=1 in paper.conf)
+ANONYMOUS=${ANONYMOUS:-1}
+[ "$ANONYMOUS" = 1 ] && a=$(grep -nE '/Users/|/home/|github\.com/[A-Za-z]' sections/*.tex main.tex | grep -vE '^[^:]+:[0-9]+:[[:space:]]*%' | grep -v anonymous)
+if [ "$ANONYMOUS" = 1 ]; then
+  [ -n "$a" ] && { say "identifying paths/URLs:" ""; echo "$a"; fail=1; } || say "identifying paths/URLs:" 0
+else say "anonymity check:" "off (named course submission)"; fi
 
 [ $fail = 0 ] && echo "ALL CHECKS PASSED" || echo "SOME CHECKS FAILED"
 exit $fail
