@@ -11,8 +11,10 @@ Team: **Venu Kummari, Bhuvan Chilukuti, Gowtham Reddy** (IIT Guwahati). License:
 | [`paper.pdf`](paper.pdf) | the paper, ACM Primary Article Template (`sigconf`), 9 pages: motivation, technique, implementation, evaluation (4 RQs), discussion (incl. the generalized fuzzer), threats to validity, related work, data availability, use of generative AI, **signed statement of contributions** |
 | [`paper_source.zip`](paper_source.zip) | the LaTeX source of the paper for Overleaf (New Project -> Upload Project; compiles as is with pdfLaTeX + BibTeX) |
 | [`complete_project_document.pdf`](complete_project_document.pdf) | the complete project document (61 pages): every component, every result, every bug with its state, the generalized fuzzer, contributions, deliverables, reproduction, questions and answers |
-| [`slides/final_presentation.pdf`](slides/final_presentation.pdf) | final presentation (Beamer, 24 slides): architecture and techniques of the PostgreSQL fuzzer and of the generalized fuzzer, evaluation, how the tool found each bug; [speaker notes](slides/final_presentation_notes.pdf) (who says what); source `docs/beamer/` |
-| [`slides/class_talk.pdf`](slides/class_talk.pdf) | class talk (Beamer, 12 slides, about 7 minutes), same structure in short; [speaker notes](slides/class_talk_notes.pdf) |
+| [`slides/final_presentation.pdf`](slides/final_presentation.pdf), [`.pptx`](slides/final_presentation.pptx) | final presentation (Beamer, 24 slides) and its editable PowerPoint version (same design): architecture and techniques of the PostgreSQL fuzzer and of the generalized fuzzer, evaluation, how the tool found each bug; [speaker notes](slides/final_presentation_notes.pdf) |
+| [`slides/class_talk.pdf`](slides/class_talk.pdf), [`.pptx`](slides/class_talk.pptx) | class talk (Beamer, 12 slides, about 7 minutes) and its editable version; [speaker notes](slides/class_talk_notes.pdf) |
+| [`slides/slides_source.zip`](slides/slides_source.zip) | LaTeX (Beamer) source of both decks, for Overleaf |
+| [`classtalk/`](classtalk/README.md) | **short class talk (5–6 minutes, 9 slides)**: PDF, editable PowerPoint, speaker notes with timings, source |
 | [`progress/`](progress/) | progress meeting 1 (report, slides) and progress meeting 2 (report, slides, 48-page study guide), as presented on their dates |
 | [`LICENSE`](LICENSE) | MIT license of the repository |
 

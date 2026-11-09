@@ -1,0 +1,15 @@
+% architecture of the PostgreSQL fuzzer
+\begin{tikzpicture}[node distance=4mm and 5mm]
+\node[io] (g) {typed grammar (78 rules)\\schema, data profile};
+\node[box,right=of g] (s1) {\textbf{1 Derive}\\test case as\\derivation trees};
+\node[box,right=of s1] (s2) {\textbf{2 Rewrite}\\trees into\\oracle checks};
+\node[box,right=of s2] (s3) {\textbf{3 Execute}\\master (asserts),\\plan variants, 18.6};
+\node[box,right=of s3] (s4) {\textbf{4 Triage}\\classify, reduce,\\localize, dedup};
+\node[io,below=10mm of g] (c) {recent \pg commits};
+\node[box,right=of c] (l1) {\textbf{5a LLM}\\fragments, seeds,\\rewrites};
+\node[box,right=of l1] (l2) {\textbf{5b Gate}\\parse, reach, run,\\diff coverage};
+\node[io,below=10mm of s4] (r) {bug report\\+ patch};
+\draw[fl] (g)--(s1); \draw[fl] (s1)--(s2); \draw[fl] (s2)--(s3); \draw[fl] (s3)--(s4); \draw[fl] (s4)--(r);
+\draw[bk] (s3.north) -- ++(0,0.35) -| node[pos=0.25,above,font=\tiny]{feedback: corpus, weights, plan shapes} (s1.north);
+\draw[fl] (c)--(l1); \draw[fl] (l1)--(l2); \draw[fl] (l2.north) -- node[right,font=\tiny]{accepted grammar} (s2.south -| l2.north);
+\end{tikzpicture}
