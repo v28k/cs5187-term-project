@@ -1,0 +1,204 @@
+\section{Step 4: triage -- from a failure to a bug report}
+\label{sec:triage}
+
+A campaign produces failure directories (one per new signature). Most
+candidates are not reportable as they are: test cases are long, some are
+flaky, some are our own false positives. \texttt{python -m pgfuzz triage
+<config> <failure dir>} (\file{src/pgfuzz/triage/triage.py}) turns a candidate
+into either a verdict \emph{flaky} or a reduced reproducer with a draft report.
+
+\begin{center}
+\begin{tikzpicture}[font=\small, node distance=4mm,
+  b/.style={draw,rounded corners=2pt,fill=blue!4,align=center,minimum height=9mm,text width=21mm}]
+\node[b] (a) {reproduce $\times 3$};
+\node[b,right=of a] (b) {tree reduction};
+\node[b,right=of b] (c) {statement ddmin};
+\node[b,right=of c] (d) {token HDD (pairs)};
+\node[b,right=of d] (e) {observe + localize};
+\node[b,right=of e] (f) {report, upstream draft};
+\foreach \x/\y in {a/b,b/c,c/d,d/e,e/f} \draw[-{Stealth}] (\x)--(\y);
+\end{tikzpicture}
+\end{center}
+
+\subsection{Reproduce}
+
+The candidate is executed three times by the \emph{same executor and oracle}
+as the campaign, configured for its oracle: only the failing plan variant, or
+only its metamorphic check (with confirmation on). \texttt{same\_failure}
+decides whether a re-run shows \emph{the same} failure, not just any failure:
+\begin{itemize}
+  \item assertion: same file and same expression;
+  \item wrong result: same variant / oracle kind;
+  \item internal error, corruption, panic: same normalised message;
+  \item crash without assertion: any crash of the same statement.
+\end{itemize}
+0/3 $\Rightarrow$ verdict \emph{flaky}, nothing else is done (2 of our 18
+candidates). This criterion is also what every reduction step uses.
+
+\subsection{Reduction, three levels}
+\label{sec:reduce}
+
+\paragraph{1. Tree reduction} (\file{src/pgfuzz/triage/tree_reduce.py}) -- the
+fourth job of the derivation tree. The failure directory stores the trees of
+the test case (JSON, stable alternative ordinals). Moves, biggest expected gain
+first:
+\begin{enumerate}
+  \item drop a whole statement;
+  \item drop one element of a repetition (\texttt{\#rep});
+  \item replace a subtree by the \emph{smallest derivation of the same rule and
+    type}: the node is replaced by a \texttt{MINIMAL} marker and the engine
+    derives it with its minimal-depth alternatives.
+\end{enumerate}
+After each move the generator \emph{replays} the trees (re-binding names,
+aliases and types), so almost every candidate is valid SQL: the server's time
+goes to the question that matters (does the failure remain?), not to rejecting
+broken SQL. A candidate is only tried if it is smaller in tokens; after each
+success the search restarts from the biggest moves.
+
+\paragraph{2. Statement ddmin} (\texttt{reduce\_statements}): remove setup
+statements that are not needed (Zeller \& Hildebrandt's delta debugging),
+always keeping the culprit.
+
+\paragraph{3. Token HDD} (\texttt{TokenReducer}, \file{reduce.py}): hierarchical
+delta debugging over the \emph{parenthesis tree} of the culprit statement
+(Misherghi \& Su). Coarse passes first: remove a clause (\texttt{WHERE},
+\texttt{ORDER BY}, \dots), remove one list element, unwrap a parenthesised
+sub-expression or replace it by a small literal (\texttt{NULL}, \texttt{1},
+\texttt{TRUE}, \texttt{FALSE}, \texttt{0}, \texttt{''}); then single tokens.
+Results are cached by text; budget 500 tests or 15 minutes.
+
+\paragraph{Pairs.} For a metamorphic candidate (query $Q$ and rewrite $Q'$)
+both sides must stay equivalent while being reduced. \texttt{split\_pair}
+computes the common prefix and suffix of the two token lists and leaves a
+\texttt{HOLE} where they differ; the reducer edits the shared skeleton, and both
+sides are materialised by filling the hole with each side's middle. So every
+edit is applied to both sides at once and the hole is never removed.
+
+\begin{keybox}[Measured: tree reduction vs token reduction (BUG-01)]
+A real grammar test case failing BUG-01's assertion: 3 statements, 590 tokens.
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Reduction & Final culprit & Server runs & Time \\
+\midrule
+statements + tokens only (\texttt{--no-tree}) & 116 tokens & 406 & 33.7 s \\
+tree first, then statements + tokens & \textbf{79 tokens} & 555 & 39.6 s \\
+\bottomrule
+\end{tabular}
+\end{center}
+The tree stage alone: 590 $\rightarrow$ 136 tokens in 150 runs (196 replays).
+Token reduction gets stuck in local minima (removing any single token breaks
+the SQL); the tree can jump to a \emph{different, smaller} valid derivation.
+Evidence: \file{docs/evidence/tree_reduction/}. BUG-02's first candidate:
+4 statements / 107 tokens $\rightarrow$ 1 statement / 36 tokens in 307 runs
+(token level, before tree reduction existed).
+\end{keybox}
+
+\subsection{Observe and localize}
+\label{sec:localize}
+
+After reduction, triage runs the queries to show (both sides for a pair, or
+the query under default and failing settings) and records up to 30 result rows
+on the test server and, if configured, on the 18.6 reference.
+
+Then \file{src/pgfuzz/triage/localize.py} combines the two oracle families
+(plan section~0.3 ``plan oracle $\times$ rewrite oracle''): it re-runs the
+reduced queries under \emph{every} plan variant and reports, per variant, whether
+the answer changes and whether the two sides agree. Verdicts:
+\begin{description}
+  \item[planner] the disagreement disappears when some settings are switched
+    off: those code paths are the first suspects. A table
+    (\texttt{SUSPECTS}) maps each setting to source files, e.g.
+    \texttt{enable\_hashjoin} $\rightarrow$ \file{executor/nodeHashjoin.c,
+    optimizer/path/joinpath.c}; \texttt{enable\_eager\_aggregate}
+    $\rightarrow$ \file{optimizer/path/allpaths.c, optimizer/util/relnode.c}.
+  \item[not toggled by planner settings] no setting removes it: suspect an
+    always-applied rewrite, constant folding, a planner support function or
+    expression evaluation. \textbf{BUG-02 is localized this way}, and its true
+    cause is exactly a planner support function (\texttt{rangetypes.c}).
+  \item[sides agree by default] the reduction went wrong (a warning).
+\end{description}
+
+\subsection{Outputs}
+
+Per candidate, in \file{results/triage/<signature>/}:
+\begin{itemize}
+  \item \file{reduced.sql}: setup statements, then the culprit; for plan
+    variants the \texttt{SET} commands are written out; for metamorphic
+    candidates both queries, so the file is a stand-alone reproducer for
+    \texttt{psql};
+  \item \file{triage.json}: reproduction counts, sizes before/after, runs,
+    seconds, observed rows, localization, server versions;
+  \item \file{report.md}: a readable report;
+  \item \file{upstream_report.txt}: a draft for the \texttt{pgsql-bugs} form,
+    in the shape \pg developers expect (version and build, what happens, the
+    minimal script, actual output on master and on the release, the
+    localization, the top 12 backtrace frames, and two placeholders we must
+    fill by hand: \emph{expected behaviour with a justification from the SQL
+    standard or the documentation}, and the bisected commit).
+\end{itemize}
+The tool never writes the ``expected'' part: deciding that something is a bug
+is a human judgement.
+
+\paragraph{Bisection.} \file{scripts/bisect_pg.sh GOOD BAD reduced.sql MODE}
+runs \texttt{git bisect} on a full-history \pg clone, building each step into a
+scratch prefix. Modes: \texttt{crash} (backend crash or assertion),
+\texttt{error} (psql reports an ERROR), \texttt{output} (differs from an expected
+output), \texttt{differ} (the last two queries of \file{reduced.sql} return
+different rows -- for metamorphic and plan-variant candidates). Commits that do
+not build are skipped (exit 125).
+
+\section{The precision ledger (RQ2 and claim 2)}
+\label{sec:ledger}
+
+Every triaged candidate gets an entry in \file{triage/verdicts.yaml}: signature,
+oracle, verdict (\emph{real, duplicate, false\_positive, not\_a\_bug, flaky}),
+a note, \texttt{fixed: true} if the false-positive class has been fixed in the
+tool, and the upstream link. \texttt{python -m pgfuzz precision} computes
+(\file{src/pgfuzz/triage/precision.py}):
+\[
+\text{precision} = \frac{\text{real}}{\text{real} + \text{false positive} + \text{not a bug}},
+\qquad
+\text{after fixes} = \frac{\text{real}}{\text{decided} - \text{fixed}}.
+\]
+Duplicates count towards neither side; flaky entries are reported separately.
+
+\paragraph{The ledger today (18 candidates).}
+\begin{center}
+\small
+\input{precision_table.tex}
+\end{center}
+
+\begin{center}
+\scriptsize
+\begin{longtable}{p{0.16\linewidth}p{0.17\linewidth}p{0.12\linewidth}p{0.47\linewidth}}
+\toprule
+Signature & Oracle & Verdict & Note \\
+\midrule
+\endhead
+\rows{ledger_rows.tex}
+\bottomrule
+\end{longtable}
+\end{center}
+
+\paragraph{How to read it (be ready for this question).}
+\begin{itemize}
+  \item The 3 real ones: BUG-01 (assertion), BUG-02 (metamorphic expression
+    rewrite), and the re-injected benchmark bug \texttt{rb-dfcf6fa7} (internal
+    error), which counts as real because it is a real historical \pg bug, put
+    back on purpose.
+  \item 13 false positives / not-a-bug come from \textbf{6 classes}, all fixed
+    in the tool with a test: (1) \texttt{ARRAY(SELECT)} without
+    \texttt{ORDER BY} (5 plan-variant candidates); (2) clock-dependent seed
+    data across versions; (3) TLP-HAVING without \texttt{GROUP BY} (4);
+    (4) \texttt{DISTINCT} over numeric scale; (5) the shared-server PoC replay
+    (2, assertion + crash); (6) the intended \texttt{corr} change (not a bug).
+  \item Raw precision 0.19 is low \emph{on purpose}: we log every false
+    positive we ever produced, including during development. ``After fixes''
+    1.00 means every remaining decided report of a class we have not fixed was
+    real. The paper reports both and the per-oracle counts of the long
+    campaigns, which will be the honest number.
+  \item The 798 new-kind checks, the 532 RLS checks, the 58 CERT checks and the
+    1{,}991 metamorphic checks of the full-system smoke produced 0 new false
+    positives.
+\end{itemize}

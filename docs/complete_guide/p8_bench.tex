@@ -1,0 +1,169 @@
+\part{Evaluation}
+
+\section{The re-injected bug benchmark (RQ3)}
+\label{sec:bench}
+
+\subsection{Why we need it}
+
+Counting ``bugs found'' in a live system is noisy: in a week of fuzzing each
+arm may find zero or one new bug, which supports no comparison. Klees et al.
+(CCS 2018) recommend ground truth: a set of known bugs, and the time each arm
+needs to find each one. Magma ports real bugs into programs. We do the same
+for \pg by \textbf{reverting the fixes} of recent real bugs on one master
+build: a mutation-testing view of the fuzzer (L13: inject faults, measure
+detection), but with real faults that real developers wrote and fixed.
+
+\subsection{Selection}
+
+From master, 31 July -- 16 October 2026 (ending at our base commit
+\texttt{26bd08fb}), we took commits that (1) fix a bug in the planner,
+executor, or SQL-reachable functions; (2) add a regression test (our PoC);
+(3) revert cleanly together with the others on the base. 23 commits
+(\file{src/bench/reinjected/commits.txt}, \file{bugs.yaml}).
+\file{scripts/build_reinjected.sh} creates a worktree at the base, reverts the
+23 fixes, and builds with assertions (optionally with coverage).
+
+\subsection{Servers and verification}
+
+Three kinds of server (\file{scripts/rq3_servers.sh}): \textbf{fixed} (the
+base), \textbf{solo}$_i$ (base with only fix $i$ reverted, 23 builds), and
+\textbf{injected} (all 23 reverted; the campaign target).
+\texttt{pgfuzz bench verify} runs every PoC on all three and derives the
+symptom from the \emph{difference} between fixed and solo$_i$ (not from what the
+commit message says):
+
+\begin{center}
+\small
+\begin{longtable}{p{0.13\linewidth}p{0.6\linewidth}p{0.17\linewidth}}
+\toprule
+Fix commit & Title & Symptom \\
+\midrule
+\endhead
+\rows{bench_rows.tex}
+\bottomrule
+\end{longtable}
+\end{center}
+
+\paragraph{Result.} \textbf{20 of 23} have a symptom our oracles can see:
+8 wrong results, 5 internal errors, 4 assertion failures, 2 missing errors
+(the fixed server raises an error, the buggy one does not), 1 wrong error.
+3 change only plans, or need a user-defined operator, and are outside the
+denominator. All 20 show the same symptom with all 23 injected together, so
+the bugs do not mask each other. \textbf{Only 9 of 20} (assertions and
+internal errors) are visible to a crash-only fuzzer; the other 11 need a
+wrong-result or error oracle. This is the strongest argument for the oracle
+work.
+
+\paragraph{The first verification said 12/23.} Two of our mistakes: the PoC
+tables were named \texttt{i4}/\texttt{i8}, which our schema already uses for
+indexes, so \texttt{CREATE TABLE} failed (renamed to \texttt{rb\_*}); and
+masked float aggregates hid 0 vs NaN (masking now keeps the NaN/Infinity
+class). Two PoCs depended on statistics and needed \texttt{ANALYZE}.
+
+\subsection{Attribution}
+
+Crash, assertion and internal-error bugs carry a signature (assertion file and
+expression, or normalised message) that the campaign matches \emph{online}
+against the known-bug catalog (\file{bugs.yaml} doubles as it), so the time to
+first detection is exact. Wrong results are matched \emph{offline}: a mismatch
+does not say which bug caused it. \texttt{pgfuzz bench attribute} replays every
+failure of a campaign on the fixed server and on each solo server: reproduces
+on solo$_i$ but not on fixed $\Rightarrow$ bug $i$; reproduces on fixed
+$\Rightarrow$ native (a real bug of the base or a false positive, goes to
+triage). In smoke run~2 this assigned an internal error to \texttt{rb-dfcf6fa7},
+although \texttt{rb-8b29b8da} has the same message (``could not find pathkey
+item to sort''): online matching alone counted 2.
+
+\section{Experiment design}
+\label{sec:design}
+
+\subsection{Research questions}
+
+\begin{description}
+  \item[RQ1 (reach)] Does each step up the ladder (Random $\rightarrow$
+    Grammar $\rightarrow$ Grammar+Oracles $\rightarrow$ +LLM) increase
+    valid-statement rate, line and branch coverage of the backend, SQL
+    features, feature pairs, query shapes and plan shapes?
+  \item[RQ2 (bugs and precision)] Which bugs does each arm find, through which
+    oracle, and what is each oracle's precision (the ledger)?
+  \item[RQ3 (ground truth)] How many of the 20 observable re-injected bugs
+    does each arm find in 1 hour, and how fast?
+  \item[RQ4 (LLM)] What do the LLM fragments add (diff coverage of their
+    commits, coverage, features, bugs), what does the gate reject, and what
+    does it cost?
+\end{description}
+
+\subsection{Arms}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+Arm & Generator settings \\
+\midrule
+\texttt{random} & seeds from a small AST, 1--4 text mutations, 5\% fresh random; no feedback \\
+\texttt{grammar} & typed grammar, no metamorphic checks, no plan guidance \\
+\texttt{grammar\_mm} & + metamorphic checks on 50\% of queries, plan-shape guidance, bandit ($\eta=0.1$), data profile (30\%), RLS policies \\
+\texttt{grammar\_mm\_flat} & as \texttt{grammar\_mm} without the bandit (ablation, RQ1 only) \\
+\texttt{llm\_frag} & \texttt{grammar\_mm} + accepted LLM fragments (RQ4 ablation) \\
+\texttt{llm\_seeds} & \texttt{grammar\_mm} + LLM seeds (5\% of test cases) (RQ4 ablation) \\
+\texttt{grammar\_llm} & \texttt{grammar\_mm} + fragments + seeds (the full system) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+RQ1 runs all 7 on a gcov build of master; RQ3 runs \texttt{random},
+\texttt{grammar}, \texttt{grammar\_mm}, \texttt{grammar\_llm} on the injected
+server, with the cross-version executor (reference 18.6) for every arm.
+
+\paragraph{Fairness rules.}
+\begin{itemize}
+  \item Same executor, oracles (plan variants, cross-version), schema, server
+    build and budget for every arm; arms differ only in the generator (and in
+    what it can attach: metamorphic checks need trees).
+  \item Paired design: trial $k$ has the same seed in every arm.
+  \item 5 trials $\times$ 1 hour per arm (Klees et al. ask for $\geq$10 when
+    possible; we will add trials if time allows), 4 workers in parallel, one
+    server per worker.
+  \item \textbf{One commit for everything}: the coverage build, the benchmark
+    base and the end of the LLM mining window are all \texttt{26bd08fb}.
+  \item \textbf{No mixed coverage}: each coverage server gets its own
+    \texttt{GCOV\_PREFIX}, otherwise parallel trials would merge counters.
+  \item \textbf{No shared reference tables}: one database per worker on the
+    18.6 server.
+\end{itemize}
+
+\subsection{Metrics}
+
+Valid-statement rate (server accepted / all), parse-valid rate; line and
+branch coverage of \file{src/backend} (lcov every 300 s); SQL features
+(catalogue of 148, from the statement text), feature pairs, distinct query
+shapes (statement with literals and names abstracted), distinct plan shapes;
+metamorphic checks and plan-variant runs; unique bug candidates (by
+signature); known bugs reproduced and time to first detection; LLM tokens and
+cost. All are recorded on a timeline every 30 s, so we can plot growth curves.
+
+\subsection{Statistics}
+\label{sec:stats}
+
+\file{src/pgfuzz/eval/stats.py}, pure Python (no SciPy):
+\begin{itemize}
+  \item \textbf{medians and IQR} per arm (fuzzing results are skewed; means
+    mislead);
+  \item \textbf{95\% bootstrap CI} of the median (2{,}000 resamples, fixed seed
+    5187, so a report is reproducible);
+  \item \textbf{Mann--Whitney U}, two-sided; exact distribution without ties
+    and $n\leq 20$, normal approximation with tie and continuity
+    correction otherwise;
+  \item \textbf{Vargha--Delaney $\hat A_{12}$} with magnitude (negligible
+    $<0.56$, small, medium, large $\geq 0.71$, symmetric below 0.5).
+\end{itemize}
+With 5 trials per arm the smallest possible two-sided exact $p$ is
+$2/\binom{10}{5} = 0.0079$, so significance at 0.05 is reachable only with a
+clear separation; we report effect sizes for exactly this reason. With 1 trial
+(the smoke runs) $p = 1.0$ always: the smoke tables show a working pipeline,
+not evidence.
+
+\paragraph{RQ3 time-to-bug} is censored: a bug not found in 1 hour has time
+``$>$3600 s''. We report per bug the number of trials that found it and the
+median time over the trials that did, plus the Mann--Whitney test on the
+per-trial number of bugs found.

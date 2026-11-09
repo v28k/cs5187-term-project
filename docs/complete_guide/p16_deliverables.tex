@@ -1,0 +1,54 @@
+\part{Deliverables and reproduction}
+\label{part:deliverables}
+
+\section{What is submitted, against the course requirements}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}p{0.3\linewidth}X@{}}
+\toprule
+Course requirement & Where \\
+\midrule
+Proposal (2 pages) & submitted by the team leader on the proposal form (20 Sep 2026); the plan it describes is in \file{docs/progress_report_0.pdf} \\
+Progress meeting 1 & \file{completion/progress/} (report and slides) \\
+Progress meeting 2 & \file{completion/progress/} (report, slides and the 48-page study guide) \\
+Final presentation & \file{completion/slides/final_presentation.pdf} / \texttt{.pptx} with speaker notes; class talk \\
+Paper, ACM \texttt{sigconf} & \file{completion/paper.pdf}; Overleaf source \file{completion/paper_source.zip} (upload as a new Overleaf project and share it with the instructor) \\
+Signed statement of contributions & last section of the paper; Part~\ref{part:team} \\
+Public GitHub repository, permissive license & MIT (\file{LICENSE}) \\
+README: build and run, exact dependencies & \file{README.md}, \file{src/requirements-lock.txt} \\
+One-command reproduction of the headline result & \texttt{sudo bash scripts/reproduce.sh} (9 of 9 bugs in 150 s) \\
+Upstream reports and their state & \file{README.md}, Part~\ref{part:bugs} \\
+This complete document & \file{completion/complete_project_document.pdf} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Reproducing every result}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}p{0.32\linewidth}X@{}}
+\toprule
+Result & Command (from the repository root unless noted) \\
+\midrule
+Unit tests (151) & \texttt{cd src \&\& python -m pytest -q} \\
+Headline: all nine bugs found & \texttt{sudo bash scripts/reproduce.sh} \\
+One bug by its reproducer & \texttt{cd src \&\& python -m pgfuzz replay configs/local.yaml known\_bugs/pocs/<bug>.sql} \\
+Validity of the generator & \texttt{cd src \&\& python -m pgfuzz -q sample configs/local.yaml -n 300 --execute --seed 1} \\
+RQ1, RQ2, RQ4 campaigns & \texttt{cd src \&\& python -m pgfuzz run configs/rq1.yaml} (5 trials $\times$ 1 h per arm) \\
+RQ3 benchmark & \texttt{BASE=<sha> bash scripts/build\_reinjected.sh}, then \texttt{python -m pgfuzz run configs/rq3.yaml} \\
+Reports and statistics & \texttt{python -m pgfuzz report results/<experiment>} \\
+Precision ledger & \texttt{python -m pgfuzz precision ../triage/verdicts.yaml} \\
+Paper tables & \texttt{python3 paper/scripts/make\_tables.py} \\
+Paper & \texttt{cd paper \&\& make \&\& sh scripts/check.sh} \\
+Generalized fuzzer & branch \texttt{generalized}: Part~\ref{part:generalized}, section Commands \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Exact versions of the tested run: Ubuntu 24.04.5 LTS, Python 3.13.16, gcc 13.3.0,
+PostgreSQL master \texttt{26bd08fb} (assertions on) and 18.6, PyYAML 6.0.1,
+psycopg 3.3.6, matplotlib 3.11.2, numpy 2.5.3, scipy 1.18.1, pytest 9.1.1. The
+raw data of every campaign is in \file{runs/}, every triage verdict in
+\file{triage/verdicts.yaml}, every reproducer and patch in \file{docs/bughunt/}.

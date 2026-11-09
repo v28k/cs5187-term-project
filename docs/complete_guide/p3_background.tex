@@ -1,0 +1,136 @@
+\part{Background}
+
+\section{Concepts we rely on}
+\label{sec:background}
+
+\subsection{How \pg runs a query}
+
+A SQL string goes through five stages:
+\textbf{parser} (text $\rightarrow$ parse tree; syntax errors, SQLSTATE class 42601),
+\textbf{analyzer} (names, types, collations; semantic errors such as unknown
+column or operator, class 42),
+\textbf{rewriter} (views, rules, row-level security quals),
+\textbf{planner/optimizer} (chooses join order, join methods, scans,
+aggregation strategy; folds constants; calls \emph{support functions} that may
+simplify function calls; removes useless joins; pushes predicates down),
+\textbf{executor} (runs the plan tree node by node).
+Most wrong-result bugs we care about live in the planner: a transformation
+that is correct only under an assumption (``this column cannot be NULL'', ``this
+join cannot duplicate rows'') that does not hold.
+
+\paragraph{Planner settings (GUCs).} A session can switch planner methods off,
+for example \texttt{SET enable\_hashjoin = off}. These are hints, not
+semantics: every setting must give the same rows. This is what the
+plan-variant oracle exploits.
+
+\paragraph{Assertion builds.} \pg compiled with \texttt{--enable-cassert}
+checks internal invariants with \texttt{Assert()}. A failure aborts the
+backend and logs \texttt{TRAP: failed Assert("\dots"), File: "\dots", Line: \dots}.
+Release builds skip the checks, so the same root cause often shows up there
+as a silent wrong result -- exactly what BUG-01 did on 18.6.
+
+\paragraph{SQLSTATE classes.} \texttt{XX000} (internal error, ``should not
+happen'') is almost always a bug. 42xxx (syntax/semantic) and 22xxx (data,
+for example division by zero) are normal for fuzzed SQL.
+
+\paragraph{Three-valued logic.} A predicate is TRUE, FALSE or NULL (unknown).
+\texttt{WHERE} keeps only TRUE rows. \texttt{NOT NULL} is NULL. This is why
+TLP partitions into $p$, \texttt{NOT p} and \texttt{p IS NULL}, and why
+\texttt{a < b} equals \texttt{NOT (a >= b)} exactly (both are NULL when an
+input is NULL).
+
+\paragraph{Row-level security (RLS).} A table can have policies
+(\texttt{CREATE POLICY \dots{} USING (pred)}); a non-owner, non-superuser role
+sees only rows where the predicate is TRUE. Superusers bypass RLS.
+
+\paragraph{Cardinality estimation.} The planner estimates the number of rows
+each plan node returns (\texttt{EXPLAIN} shows ``rows=''). Bad estimates cause
+bad plans (performance bugs), not wrong results.
+
+\subsection{The test-oracle problem and how we answer it}
+
+A fuzzer needs an \emph{oracle} that decides whether an output is wrong. Crashes
+and assertion failures are their own oracle. Wrong results need one of:
+\begin{description}
+  \item[Differential testing.] Compare two implementations (RAGS, Slutz VLDB
+    1998). We compare one server with itself under other planner settings
+    (\emph{plan variants}) and with the last release (\emph{cross-version}).
+  \item[Metamorphic testing.] Transform the query into another query whose
+    result must be related in a known way (usually: equal multiset). Known
+    instances: \textbf{TLP} (Rigger \& Su, OOPSLA 2020):
+    $Q = Q_{p} \uplus Q_{\neg p} \uplus Q_{p\ \mathrm{IS\ NULL}}$;
+    \textbf{NoREC} (Rigger \& Su, ESEC/FSE 2020): \texttt{count(*) WHERE p}
+    equals the number of rows where $p$ is TRUE when $p$ is evaluated in the
+    select list (where the optimizer cannot use it);
+    \textbf{EET} (Jiang \& Su, OSDI 2024): equivalent expression
+    transformations; \textbf{PQS} (OSDI 2020): a chosen ``pivot'' row must be in
+    the result.
+\end{description}
+SQLancer implements TLP/NoREC/PQS on strings produced by its own small
+generators. Our contribution is doing these on \emph{typed derivation trees}
+of a much larger grammar, at any query level, plus RLS and CERT checks.
+
+\subsection{Fuzzing background}
+
+\begin{description}
+  \item[Mutation-based fuzzing] (AFL-style) mutates inputs blindly; for SQL
+    most mutants are syntax errors. Our random arm is this baseline.
+  \item[Grammar-based fuzzing] derives inputs from a grammar, so they are
+    syntactically valid. A \emph{typed} grammar also makes them type-correct.
+    A \textbf{derivation tree} records which alternative each rule chose; the
+    leaves read left to right are the SQL text.
+  \item[Coverage-guided / greybox] fuzzing keeps inputs that cover new code
+    (SQUIRREL, CCS 2020; SQLRight, USENIX Security 2022). We use cheaper
+    signals: new SQL features, new feature pairs, new plan shapes (Query Plan
+    Guidance, Ba \& Rigger, ICSE 2023) and new bug signatures.
+  \item[Directed fuzzing] (AFLGo, CCS 2017) steers toward chosen code. We
+    steer toward recent commits through the LLM and measure it by
+    \emph{diff coverage}: changed lines executed / changed executable lines.
+  \item[LLM-based fuzzing] (Fuzz4All, ICSE 2024) uses the model as the input
+    generator. We keep the LLM off the hot path: a few calls per commit,
+    then the grammar generates thousands of variations.
+  \item[Multi-armed bandit / multiplicative weights.] An online learning rule
+    that increases the weight of choices that paid off; we use it for grammar
+    alternatives.
+\end{description}
+
+\subsection{Reduction, benchmarks, statistics}
+
+\begin{description}
+  \item[Delta debugging] (ddmin, Zeller \& Hildebrandt, TSE 2002) removes
+    chunks of a failing input while the failure remains.
+  \item[Hierarchical delta debugging] (HDD, Misherghi \& Su, ICSE 2006) does
+    it level by level over a tree (we use the parenthesis tree of the SQL).
+  \item[Magma] (Hazimeh et al., 2020) is a ground-truth fuzzing benchmark of
+    real bugs ported into programs. Our RQ3 benchmark is the same idea built by
+    \emph{reverting} fixes (mutation testing, L13: inject faults, measure
+    detection).
+  \item[Evaluating fuzzers] (Klees et al., CCS 2018): repeated trials, same
+    budget, medians, statistical tests; one run proves nothing.
+  \item[Mann--Whitney U] is a non-parametric test of whether one arm's values
+    tend to be larger; \textbf{Vargha--Delaney $\hat A_{12}$} is the probability
+    that a random trial of arm B beats one of arm A (0.5 = no difference;
+    $\geq 0.71$ large). Arcuri \& Briand (ICSE 2011) recommend both for
+    randomized algorithms. A \textbf{bootstrap confidence interval} resamples
+    the trials with replacement to estimate the uncertainty of the median.
+  \item[gcov] counts executions per source line when \pg is built with
+    \texttt{--enable-coverage}.
+\end{description}
+
+\subsection{Course lectures used}
+
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+Lecture topic & Where it appears \\
+\midrule
+L2, L4, L5: hybrid analysis, soundness, precision/recall & commit mining directs a dynamic campaign; generator validity and oracle precision measured (Section~\ref{sec:ledger}) \\
+Hoare logic / assertions & each metamorphic rewrite is an assertion: original and rewritten query return the same multiset \\
+L3, L21--22: secure coding, information flow & RLS leak oracle: a restricted role must never see a row its policy hides \\
+L6--L8: AST, CFG, IR & derivation trees as ASTs; gcov line coverage over the CFG \\
+L13: coverage, mutation testing & coverage metrics; the re-injected bug benchmark \\
+L14--L16: black/grey-box and grammar fuzzing & the three arms; feature/plan-shape feedback; bandit weights \\
+L19--20: interval analysis & boundary literals from the observed interval of each column (min$\pm$1, type edges) \\
+L27--28: constraint-based analysis & data-aware literals chosen to give a predicate 10--90\% selectivity \\
+L29--30: type systems & typed grammar: generation is proof search for $\Gamma \vdash e : T$ \\
+\bottomrule
+\end{tabularx}
