@@ -125,7 +125,9 @@ Tool manual: [`src/README.md`](src/README.md). Never commit API keys.
 | `runs/memberA-rq3/`, `runs/memberB-rq1-llm/` | raw data of the RQ3 and RQ1/RQ2/RQ4 campaigns, reports, LLM ledger and driver |
 | `triage/verdicts.yaml` | verdict for every bug candidate (precision ledger; `pgfuzz precision`) |
 | `docs/bughunt/` | bug reports, reproducers, patches; `docs/evidence/` smoke and tool evidence |
-| `docs/final/`, `docs/class_talk/`, `docs/meeting/`, `docs/meeting2/` | final presentation, class talk, progress meetings 1 and 2 |
+| `docs/beamer/` | final presentation and class talk (Beamer; `make` builds slides and speaker notes) |
+| `docs/complete_guide/` | the complete project document (LaTeX) |
+| `docs/final/`, `docs/class_talk/`, `docs/meeting/`, `docs/meeting2/` | earlier slide versions and progress meetings 1 and 2 |
 | `scripts/` | `reproduce.sh`, server builds, campaign and benchmark scripts |
 | `completion/` | the submission package |
 
