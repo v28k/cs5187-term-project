@@ -46,7 +46,7 @@ python -m pgfuzz ledger                                                 # precis
   Four new bugs, two confirmed by committers (#19802, #19803, the latter fixed on master); #19768 and #19793 filed.
 * **RQ3** benchmark of 23 reverted fixes: the best arm found 2 of 20 observable bugs in 1 h; none of the 8 wrong-result bugs.
 * **RQ4** LLM extension: +5 SQL features, no coverage gain, 4 of 10 commits accepted.
-* **Deviation:** the LLM was Google Gemini Flash (free tier, no Claude key) through the tool's manual mode; fixes to the oracles after the campaigns were not re-measured.
+* **Deviation:** the LLM was Google Gemini Flash (free tier) through the tool's manual mode; fixes to the oracles after the campaigns were not re-measured.
 
 ## Layout
 
