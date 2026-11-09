@@ -2,6 +2,8 @@
 
 CS-5187 term project A3 (IIT Guwahati, 2026). Team: **Venu Kummari, Bhuvan Chilukuti, Gowtham Reddy**.
 The tool is called `pgfuzz` in the code and **Arbor** in the paper. License: [MIT](LICENSE).
+Course repository: <https://github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi>; working
+repository with the `generalized` branch: <https://github.com/v28k/cs5187-term-project>.
 
 Arbor generates SQL as typed derivation trees from a grammar of 78 rules, rewrites the trees into
 metamorphic checks (TLP, NoREC, typed expression rewrites, a row-level-security check, a

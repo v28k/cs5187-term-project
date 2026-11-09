@@ -200,6 +200,26 @@ const B = (t) => ({ text: t, options: { bold: true } });
   table(s, [["Arm", "Bugs found (of 20)"], ["Random", "0"], ["Grammar", "1"], ["Grammar + oracles", G("2")], ["+ LLM", G("2")]], 7.4, 1.9, [3.1, 2.23], { fs: 15, rowH: 0.5 });
   card(s, MX, 5.2, CW, 1.4, "Honest reading", ["One hour and 5 trials are short for bugs that need feature combinations; the oracle advantage shows in RQ2, not here"], { size: 14, accent: K.amber });
 }
+// 15a generalized fuzzer
+{
+  const s = slide("Beyond PostgreSQL: the generalized fuzzer", "Same core, four more engines, three more fixes filed.",
+    "After the PostgreSQL campaigns we generalized the fuzzer. Each engine runs in its own worker process; a dialect overlay of a few dozen lines drops or rewrites the parts of our PostgreSQL grammar the engine does not accept, and an overlay miner drafts it automatically from the failure rate of each grammar alternative. Instead of PostgreSQL's plan variants we observe which optimizer rules fire, from rule switches or from per-rule plan traces, and use that as feedback and as a coverage measure. Z3 synthesizes rows so that TLP partitions are not empty, normalizers learned from probes make cross-engine comparison precise, and engine test suites become seeds. Short campaigns found seven bugs: three were fixed upstream before we reported them, one is ready, and for three we filed an issue and a pull request with a fix and a regression test on 8 November. They are open and await review.");
+  table(s, [["Engine", "Valid queries", "Bug we fixed", "Issue / PR", "State"],
+    ["Turso", "93.3%", "percentile_disc with an expression argument", "#11594 / #11595", A("open")],
+    ["DuckDB", "96.3%", "min/max over a nested value from a subquery (2.0.0 regression)", "#28551 / #28552", A("open")],
+    ["DataFusion", "79.4%", "UPDATE/DELETE repeating an expression (__common_expr_1)", "#27235 / #27236", A("open")],
+    ["SQLite", "97.7%", "reference engine for Turso; no new bug", "-", "-"]], MX, 1.9, [1.6, 1.5, 5.0, 2.2, 1.83], { fs: 13, rowH: 0.48 });
+  card(s, MX, 4.6, 5.95, 2.0, "New techniques", ["dialect overlays + overlay miner (32% -> 44% valid, no manual line)", "optimizer-rule firing as feedback and coverage", "Z3 data synthesis, learned normalizers (28.7% -> 3.6% disagreements)"], { size: 13 });
+  card(s, 6.78, 4.6, 5.95, 2.0, "Autonomous loop", ["hunt: campaign, triage, reduction", "filing package with a regression test in the engine's own format", "branch generalized of github.com/v28k/cs5187-term-project"], { size: 13, accent: K.green });
+}
+// 15b team
+{
+  const s = slide("Who did what", "Everyone can explain every part; this is who led each part.",
+    "Venu designed and built the tool, wrote the paper and built the generalized fuzzer and its three fixes. Bhuvan ran the re-injected bug benchmark and the bug hunts on recent features, and wrote the patches for the NOT IN, IGNORE NULLS, statistics and MCV bugs. Gowtham built the servers, ran the RQ1, RQ2 and RQ4 campaigns and the LLM arm, reported the MERGE and parallel Append bugs and wrote the to_char fix. The commit history shows the same split, and the paper has a signed statement.");
+  card(s, MX, 1.9, 3.9, 4.6, "Venu Kummari", ["tool design and implementation: grammar, oracles, triage, LLM gate, benchmark", "paper", "BUG #19768, #19793", "generalized fuzzer + 3 filed fixes"], { size: 14 });
+  card(s, MX + 4.1, 1.9, 3.9, 4.6, "Bhuvan Chilukuti", ["RQ3 benchmark campaign", "bug hunts on recent features", "patches: NOT IN, IGNORE NULLS, statistics expression, MCV"], { size: 14, accent: K.green });
+  card(s, MX + 8.2, 1.9, 3.93, 4.6, "Gowtham Reddy", ["server builds, RQ1/RQ2/RQ4 campaigns", "LLM arm (Gemini, 10 commits)", "BUG #19802, #19803; to_char fix (#19771)"], { size: 14, accent: K.amber });
+}
 // 15 lessons
 {
   const s = slide("What we learned", "Three findings.",
@@ -233,6 +253,7 @@ const B = (t) => ({ text: t, options: { bold: true } });
   s.background = { color: K.ink };
   s.addText("Thank you. Questions?", { x: MX, y: 2.8, w: 12, h: 1, fontSize: 40, bold: true, color: K.white, fontFace: F, margin: 0 });
   s.addText("github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi", { x: MX, y: 3.9, w: 12, h: 0.5, fontSize: 20, color: "C9D8E6", fontFace: F, margin: 0 });
+  s.addText("generalized fuzzer: github.com/v28k/cs5187-term-project (branch generalized)", { x: MX, y: 4.5, w: 12, h: 0.5, fontSize: 16, color: "C9D8E6", fontFace: F, margin: 0 });
   NOTES.push([page, "Thank you", "Everything is in the repository: tool, tests, run data, triage ledger, reproducers and patches."]);
 }
 let md = "# Speaker notes: final presentation\n\nOne section per slide; slide numbers match final_presentation.pptx.\n\n";
