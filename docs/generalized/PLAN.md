@@ -160,10 +160,10 @@ soon as an engine reaches ≥95 % validity** and keep running in the background 
 
 | ID | Task | Status |
 |---|---|---|
-| P1 | rename package `pgfuzz` → `arbor` (keep a `pgfuzz` alias) if it costs < ½ day | todo |
-| P2 | README for the generalized tool: install, add-an-engine guide, one-command hunt | todo |
-| P3 | re-run the related-work search before writing (section 1.1) | todo |
-| P4 | free disk: remove PostgreSQL build trees not needed for evaluation (keep `install/base` and `REL_18_STABLE`) | todo |
+| P1 | rename package `pgfuzz` → `arbor` (keep a `pgfuzz` alias) if it costs < ½ day | future work (FUTURE_WORK.md section 6) |
+| P2 | README for the generalized tool: install, add-an-engine guide, one-command hunt | done (`src/README.md`: engines table, new commands, "Adding an engine") |
+| P3 | re-run the related-work search before writing (section 1.1) | future work (before writing the paper) |
+| P4 | free disk: remove PostgreSQL build trees not needed for evaluation (keep `install/base` and `REL_18_STABLE`) | future work (FUTURE_WORK.md section 6) |
 
 ## 5. Order of work (fast path to bugs, then contributions)
 

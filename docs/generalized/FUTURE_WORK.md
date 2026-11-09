@@ -51,6 +51,8 @@ L5 recent-commit context. The course project's LLM arm (`pgfuzz/llm/`, gate) is 
 `docs/generalized/paper/OUTLINE.md` has the structure, claims and the first numbers; venue,
 authorship and the AI statement are open decisions (PROGRESS.md).
 
-## 6. Hygiene (P1-P4)
+## 6. Hygiene (P1, P3, P4)
 
-Rename `pgfuzz` to `arbor` with an alias (P1); keep only the newest engine builds (P4).
+Rename `pgfuzz` to `arbor` with an alias (P1); re-run the related-work search before writing the
+paper (P3); keep only the newest engine builds (P4); make `selftest` engine-aware (its `timeout` and
+`terminate` checks are PostgreSQL-specific).
