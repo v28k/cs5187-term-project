@@ -58,19 +58,27 @@ Eight are new real bugs, fifteen are real bugs others reported first, forty-two 
 
 We reverted 23 recent PostgreSQL fixes. 20 are observable. The best arm found 2 of 20 in one hour, and no arm found a wrong-result benchmark bug. The internal error dfcf6fa7 is found by every grammar arm almost every time, and never by random. So the benchmark does not show an advantage of the oracles; the evidence for the oracles is the real wrong results in RQ2.
 
-## Slide 15: What we learned
+## Slide 15: Beyond PostgreSQL: the generalized fuzzer
+
+After the PostgreSQL campaigns we generalized the fuzzer. Each engine runs in its own worker process; a dialect overlay of a few dozen lines drops or rewrites the parts of our PostgreSQL grammar the engine does not accept, and an overlay miner drafts it automatically from the failure rate of each grammar alternative. Instead of PostgreSQL's plan variants we observe which optimizer rules fire, from rule switches or from per-rule plan traces, and use that as feedback and as a coverage measure. Z3 synthesizes rows so that TLP partitions are not empty, normalizers learned from probes make cross-engine comparison precise, and engine test suites become seeds. Short campaigns found seven bugs: three were fixed upstream before we reported them, one is ready, and for three we filed an issue and a pull request with a fix and a regression test on 8 November. They are open and await review.
+
+## Slide 16: Who did what
+
+Venu designed and built the tool, wrote the paper and built the generalized fuzzer and its three fixes. Bhuvan ran the re-injected bug benchmark and the bug hunts on recent features, and wrote the patches for the NOT IN, IGNORE NULLS, statistics and MCV bugs. Gowtham built the servers, ran the RQ1, RQ2 and RQ4 campaigns and the LLM arm, reported the MERGE and parallel Append bugs and wrote the to_char fix. The commit history shows the same split, and the paper has a signed statement.
+
+## Slide 17: What we learned
 
 First, typing pays: valid queries reach the planner. Second, oracles find bugs users cannot see, but a richer grammar also reaches the corners where two equivalent queries are not equivalent, so precision becomes the bottleneck. Third, an LLM is useful only behind a gate that tests its claims on the server, and even a tested rewrite is not a proven one.
 
-## Slide 16: Limitations
+## Slide 18: Limitations
 
 Five trials per arm is few, so several conclusions rest on effect sizes. The false-positive fixes after the campaigns were not re-measured. The LLM was a free-tier model on ten commits. The rediscovery replays reproducers as seeds, so it shows the oracles recognise each bug, not that generation alone finds it in a short run. One system, one schema, one commit.
 
-## Slide 17: Conclusion
+## Slide 19: Conclusion
 
 We built a typed, tree-based fuzzer with oracles for wrong results and an LLM extension behind a server-side gate. It found nine PostgreSQL bugs that we reported; six are fixed upstream, five of them with our patches, one more is confirmed, and a tenth report is ready. Everything is in the repository: the tool, 151 unit tests, all run data, the triage ledger and every reproducer.
 
-## Slide 18: Thank you
+## Slide 20: Thank you
 
 Everything is in the repository: tool, tests, run data, triage ledger, reproducers and patches.
 
