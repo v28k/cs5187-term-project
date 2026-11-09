@@ -1,0 +1,28 @@
+From 3e3f68161af57d209389e65cc60fb2d9fff559dd Mon Sep 17 00:00:00 2001
+From: Venu Kummari <v.kummari@iitg.ac.in>
+Date: Mon, 9 Nov 2026 11:05:36 +0000
+Subject: [PATCH] test: expect the fraction error for percentile_disc(x, 100)
+
+percentile_disc now rejects a fraction above 1.0 with SQLite's error
+instead of returning NULL.
+---
+ sqlite/conformance/turso-sqltests/within-group.sqltest | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/sqlite/conformance/turso-sqltests/within-group.sqltest b/sqlite/conformance/turso-sqltests/within-group.sqltest
+index 4a40b78f..181190b9 100644
+--- a/sqlite/conformance/turso-sqltests/within-group.sqltest
++++ b/sqlite/conformance/turso-sqltests/within-group.sqltest
+@@ -765,7 +765,8 @@ expect error {
+ test percentile_disc_rejects_percentage {
+     SELECT percentile_disc(x, 100) FROM (SELECT 1 AS x UNION ALL SELECT 2);
+ }
+-expect {
++expect error {
++    the fraction argument to percentile_disc\(\) is not between 0.0 and 1.0
+ }
+ 
+ test percentile_disc_accepts_fraction {
+-- 
+2.43.0
+

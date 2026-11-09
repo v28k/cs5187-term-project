@@ -71,3 +71,12 @@ Tests (8 Nov 2026): the two percentile sqltest files 23/23; full `sqlite-sqltest
 4 skipped, and `big-db` / `big-db-mvcc` failed only because the disk filled up during that run (re-run with free disk: both passed);
 `cargo test -p turso_core --lib percentile` 3 passed; `cargo fmt --check` and
 `cargo clippy --workspace --all-features --all-targets -- --deny=warnings` clean. JS backend not run locally.
+
+## CI after the second follow-up (PR head 05d4506b)
+
+The four SQL-test jobs failed on one existing test, `turso-sqltests/within-group.sqltest`
+`percentile_disc_rejects_percentage`: it expected `percentile_disc(x, 100)` to return nothing, the old behaviour the
+review asked to fix. SQLite 3.54.1 raises "the fraction argument to percentile_disc() is not between 0.0 and 1.0".
+Local run of all `turso-sqltests` (cli backend): 3630 passed, 1 failed (that test). Fix: one commit on top of
+05d4506b, "test: expect the fraction error for percentile_disc(x, 100)" (`followup-within-group-test.patch`, tree
+bb12e6a2881e1b4b72c5adac9a9d27874ed1a5a6); `within-group.sqltest` then passes 75/75.
