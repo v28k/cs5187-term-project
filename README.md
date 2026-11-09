@@ -9,6 +9,10 @@ row-level-security check, plan-variant and cross-version oracles), reduces every
 finding on its tree and tokens, and extends the grammar from recent PostgreSQL
 commits with an LLM behind a server-side validation gate.
 
+**Generalized fuzzer** (DuckDB, SQLite, Turso, DataFusion; beyond the course scope): branch
+[`generalized`](https://github.com/v28k/cs5187-term-project/tree/generalized), summary in
+[`docs/generalized/README.md`](docs/generalized/README.md).
+
 **Submission:** paper, slides, progress material and an index with run instructions and evidence are in
 [`submission/`](submission/README.md).
 

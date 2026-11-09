@@ -1,4 +1,8 @@
-# HANDOFF: everything a new person (or a new Claude session) needs to continue
+# HANDOFF: everything a new person needs to continue
+
+> **Update 6 Nov 2026:** the work continues in this repository (branch `generalized`), not in a new one;
+> `PLAN.md` v2 replaces the task list in section 5. PostgreSQL: 6 of the 9 reported bugs are now fixed
+> (#19803, #19771, statistics, NOT IN b7eee09, #19768 e405a46, IGNORE NULLS 69b20fd; 5 fixes by the team).
 
 Written 2 Nov 2026 at the end of a long working session. Read this file completely before
 doing anything. Then read `docs/generalized/PLAN.md`, `docs/RESULTS_ANALYSIS.md` and
@@ -19,6 +23,7 @@ doing anything. Then read `docs/generalized/PLAN.md`, `docs/RESULTS_ANALYSIS.md`
 - **Repository the professor sees:** https://github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi
   (not yet updated; see section 6, item P4).
 - **Course dates:** final presentation 12 Nov 2026; paper + repository due 13 Nov 2026.
+- **Owner's GitHub email: v.kummari@iitg.ac.in** (use it as the author of every patch prepared for his pull requests).
 - **New goal (from the professor):** turn the project into a high-level, target-independent
   fuzzer, find more bugs on other engines (GitHub issues/PRs, to build Venu's GitHub
   contribution record), and write a paper for an A* venue with a deadline around
@@ -27,9 +32,12 @@ doing anything. Then read `docs/generalized/PLAN.md`, `docs/RESULTS_ANALYSIS.md`
 ## 1. Rules the owner gave (follow them exactly)
 
 ### 1a. Who does what
-- **The owner (Venu) files every bug and opens every PR himself.** You must NOT open GitHub issues,
-  must NOT open pull requests, must NOT post on any mailing list, forum or issue tracker, and must NOT
-  comment on anyone's issues. This is the owner's contribution record, not yours.
+- **The fuzzer, the research and the repository are your work** (the person continuing this project).
+  **Everything about bugs that is visible to the outside world belongs to the owner (Venu):** filing bug
+  reports, GitHub issues, pull requests, comments or replies on issues/PRs/mailing lists/forums, emails to
+  maintainers, security reports, and any public post about a bug. You must NOT do any of these, not even
+  a comment or a "+1". Your bug work stays inside your repository (finding, validating, root-causing,
+  fixing, writing the filing package) and in your messages to the owner.
 - You prepare everything so the owner can file in minutes (section 1d), push it, and tell him.
 - **PostgreSQL bug hunting is finished.** Do not hunt PostgreSQL any more; PostgreSQL stays as one
   target in the evaluation only (its results already exist).
@@ -37,15 +45,16 @@ doing anything. Then read `docs/generalized/PLAN.md`, `docs/RESULTS_ANALYSIS.md`
   Keep it reviewable: small commits, clear messages, a progress log (section 1c).
 
 ### 1b. Repository and commits
-1. Create a **new public repository on your own GitHub account** named `generalized-sql-fuzzer`
+1. Create a **new public repository on your own GitHub account** (it is your work) named `generalized-sql-fuzzer`
    (or similar), containing the full history of branch `generalized` of
    https://github.com/v28k/cs5187-term-project:
    `git clone -b generalized https://github.com/v28k/cs5187-term-project && cd cs5187-term-project &&
    git remote rename origin upstream && gh repo create <you>/generalized-sql-fuzzer --public --source . --push`
    (or create it on the web and `git remote add origin ... && git push -u origin generalized`).
    Make `generalized` its default branch. Send the owner the URL.
-2. Commit with the owner's identity, because it is his work:
-   `git -c user.name=v28k -c user.email=samruddhi.sonawane6116@gmail.com commit -m "..."`
+2. Commit with **your own** git identity (any name/email you normally use). The only place where the
+   owner's identity is required is the author of patches meant for his pull requests (section 1d):
+   `Venu Kummari <v.kummari@iitg.ac.in>` (his GitHub email).
 3. **Never mention Claude, Anthropic or "AI" in commit messages or in files** (no Co-Authored-By trailers,
    no "generated with" lines). Normal technical commit messages only.
 4. **Commit and push as soon as a task or a meaningful part of it is done** (at least every hour of work):
@@ -72,9 +81,10 @@ Keep the task table in `docs/generalized/PLAN.md` current (status column).
    - `issue.md`: the **exact text** for the GitHub issue (title + body in the project's issue template);
    - `repro.sql` (and a script if needed);
    - if a fix exists: `fix.patch` (made with `git format-patch` against the project's main, author
-     `Venu Kummari <venu2805k@gmail.com>`), the test file, and `pr.md` with the exact PR title and body;
+     `Venu Kummari <v.kummari@iitg.ac.in>`), the test file, and `pr.md` with the exact PR title and body;
    - `steps.md`: what the owner must do, in order (fork, apply patch, branch name, commands to run the tests).
-3. Tell the owner in your reply (and in PROGRESS.md) that a package is ready. **Do not file it yourself.**
+3. List the package in PROGRESS.md under "Bug packages ready" (path, one line, confidence) and continue
+   working; the owner checks the repository and files it. **Do not file it yourself.**
 
 ### 1e. How to work
 - Make improvements and improvisations wherever they help the fuzzer or the paper; you do not need
@@ -83,24 +93,34 @@ Keep the task table in `docs/generalized/PLAN.md` current (status column).
   bugs/candidates, precision).
 - Long jobs run in the background; wait on files/conditions; when asked to stop, stop background jobs
   **and** orphaned workers (section 7).
-- Ask the owner only for decisions that are really his (filing, venue, paper authorship/AI statement,
-  permissions such as `cargo build`).
+- **Never stop to ask the owner anything.** Decisions that are not engineering ones (target venue,
+  paper authorship, AI-use statement, anonymous mirror URL, which bugs get filed and when) are left
+  **blank / as clearly marked placeholders** (e.g. `VENUE: TBD`, `\todo{owner}`) and listed under
+  "Open decisions" in `docs/generalized/PROGRESS.md`; the owner reviews the repository and fills them in.
+  Keep working on everything else meanwhile.
+- If an action is blocked (e.g. a permission for `cargo build`, a network host), note it under
+  "Blocked" in PROGRESS.md, use a workaround if there is a sound one, and continue with other tasks.
 
-## 2. Bugs: status on 2 Nov 2026 (keep this table current)
+## 2. Bugs: status on 6 Nov 2026 (keep this table current; facts verified against commits and archives)
 
 | # | Bug | Upstream | Status | Found by |
 |---|---|---|---|---|
-| 1 | JSON_TABLE does not assign collations (wrong result 17/18, assertion master) | BUG #19768 https://www.postgresql.org/message-id/19768-3633daa830be95db@postgresql.org | reported, patch sent, no reply | grammar fuzzer |
-| 2 | range `@>` NULL element folded to true/false (wrong result 17, 18, master) | BUG #19793 https://www.postgresql.org/message-id/19793-16d3a1bf33dff0fb@postgresql.org | reported, patch sent | `(SELECT e)` rewrite oracle |
-| 3 | MERGE into partitioned table: "SubPlan found with no parent plan" | BUG #19802 | confirmed by committer (Tender Wang), patch posted | grammar campaign |
-| 4 | Parallel Append assertion | BUG #19803 | **fixed on master abda2a2c** (David Rowley) | LLM-fragment arm + TLP |
-| 5 | to_char(NaN) breaks NORMALIZE (assertion) | BUG #19771 | **fixed in 776df8a6, authored by Gowtham** | grammar campaign |
-| 6 | AUDIT-F1: NOT IN anti-join ignores implicit cast (wrong result 19/master) | https://www.postgresql.org/message-id/PN0P287MB090375874C6D5433282EC9DFA7642@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM | reported, patch | audit + TLP |
-| 7 | AUDIT-F2: IGNORE NULLS frame scan never returns (ignores timeout and cancel) | https://www.postgresql.org/message-id/PN0P287MB09038F3BD9921EBACF5646F6A7632@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM | developer (Ishii) replied | audit; hang oracle |
-| 8 | C-01: dependencies.c assertion, duplicate statistics expression | https://postgr.es/m/PN0P287MB0903563C70D8E5B81912E855A7602@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM | **fixed in b0392c26 (author Bhuvan, reviewed David Rowley, backpatched to 14)** | differential fuzzers |
-| 9 | pg_restore_extended_stats accepts non-finite MCV freqs | pgsql-hackers patch | patch submitted | CERT oracle |
-| 10 | **E-01**: corr()/regr_r2()/regr_slope() of constant input NULL serially, 1 with partial aggregation (regression from 64982876, master and REL_19) | **BUG #19826** (filed 2 Nov by Venu, patch sent) | waiting | plan-variant oracle |
-| 11 | **E-02**: "plan should not reference subplan's variable" with Memoize + correlated ALL/ANY sublink (regression from f8da64e6, 2 Nov) | filed 2 Nov by Venu, Cc Richard Guo; **bug number not yet recorded** | waiting | internal-error oracle on master 633dee1b |
+| 1 | BUG #19768: JSON_TABLE row/text comparisons in context item or PASSING give wrong results or spurious collation (wrong result 17.11/18.6, assertion on master) | https://www.postgresql.org/message-id/19768-3633daa830be95db@postgresql.org | **accepted upstream (6 Nov 2026)**; patch sent | grammar fuzzer |
+| 2 | BUG #19793: range containment with empty/unbounded constant range returns true/false for NULL element (17, 18.6, master; 16 ok) | https://www.postgresql.org/message-id/19793-16d3a1bf33dff0fb@postgresql.org | reported, patch sent, no reply yet | `(SELECT e)` rewrite oracle |
+| 3 | BUG #19802: MERGE into partitioned table, "SubPlan found with no parent plan" | report https://www.postgresql.org/message-id/19802-ef50a8f1a4b5deee@postgresql.org, thread https://www.postgresql.org/message-id/CAOZ9b%2Bq-u2HGK-0SR7ohjCsQ8TALoYXHESjSwniNx-EVKMheCA%40mail.gmail.com | confirmed by Tender Wang, patch posted, not committed | grammar fuzzer |
+| 4 | BUG #19803: Assertion `!parallel_aware \|\| pathnode->path.parallel_safe` in create_append_path | https://postgr.es/m/19803-1fcc1df108c54ab6@postgresql.org | **fixed in abda2a2c** (author David Rowley; Reported-by/Tested-by Gowtham Reddy; backpatched to 14) | LLM-fragment arm (assertion during a metamorphic check) |
+| 5 | BUG #19771: to_char(): NUL byte in result for formats with a trailing decimal point | https://www.postgresql.org/message-id/19771-4f173b891525020c@postgresql.org | **fixed in 776df8a6** (author Gowtham Reddy, committed by Tom Lane, backpatched to 19) | cross-version differential fuzzer |
+| 6 | NOT IN results with implicit casts returning NULL after anti-join optimization (wrong result 19/master) | https://www.postgresql.org/message-id/PN0P287MB090375874C6D5433282EC9DFA7642@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM | **accepted upstream (6 Nov 2026)**; patch sent | code audit + differential checks |
+| 7 | first_value()/nth_value() with IGNORE NULLS loop forever (ignores statement_timeout and cancel) | https://www.postgresql.org/message-id/PN0P287MB09038F3BD9921EBACF5646F6A7632@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM | confirmed (Tatsuo Ishii), not fixed | audit, timeout watchdog (now also the fuzzer's hang oracle) |
+| 8 | Assertion failure in dependencies_clauselist_selectivity with two clauses on the same statistics expression | https://www.postgresql.org/message-id/PN0P287MB0903563C70D8E5B81912E855A7602@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM | **fixed in b0392c26** (author Bhuvan Chilukuti, reviewed by David Rowley, backpatched to 14) | extended-statistics clause fuzzer |
+| 9 | BUG #19766: Assert in shm_toc_insert (EXPLAIN ANALYZE of a SubPlan shared by Parallel Append children) | original report https://www.postgresql.org/message-id/19766-c3d105a4e0ec5487@postgresql.org; our reply with an inheritance reproducer https://www.postgresql.org/message-id/PN0P287MB0903F87E7EAE9766FDEFED95A7992@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM | found independently, reproducer added to the existing report; no reply | grammar fuzzer |
+| 10 | E-01 = BUG #19826: corr()/regr_r2()/regr_slope() of constant input differ under partial aggregation (regression from 649828769, master and REL_19) | BUG #19826 | Tom Lane reviewed v1 (asked for the NaN forcing of 7774249d0 and better comments); v2 prepared in `docs/bughunt/new/` | plan-variant oracle |
+| 11 | E-02: "plan should not reference subplan's variable" with Memoize + correlated ALL/ANY sublink (regression from f8da64e6) | pgsql-bugs, number not recorded yet | filed 2 Nov, patch sent | internal-error oracle |
+| — | Extended-statistics: pg_restore_extended_stats accepts non-finite MCV freqs | pgsql-hackers patch | patch submitted | CERT oracle |
+
+Counts (6 Nov 2026), the 9 bugs in rows 1–9: 3 fixed (#19803, #19771, C-01; two of the fixes
+authored by the team), 4 accepted/confirmed but not committed yet (#19768, #19802, NOT IN, IGNORE NULLS),
+2 without a reply (#19793, #19766). Plus E-01 (#19826, under review) and E-02.
 
 Also: duplicates found by our oracles but reported first by others: #19800, #19772, #19784.
 Known upstream infra bug that hits our servers: #17731 (crash recovery "could not create file … File exists").
@@ -108,7 +128,7 @@ Known upstream infra bug that hits our servers: #17731 (crash recovery "could no
 Counts used everywhere: 9 original reported, 4 answered, 2 confirmed, **3 fixed (2 by our team)**;
 plus E-01 and E-02 filed on 2 Nov (11 reports in total).
 
-**To do for bugs (PostgreSQL ones are the owner's; only record what he tells you):** ask the owner for E-02's bug number and record it (E-02 md, RESULTS_ANALYSIS,
+**To do for bugs (PostgreSQL ones are the owner's; only record what he tells you):** E-02's bug number is unknown (leave it as a placeholder) and record it (E-02 md, RESULTS_ANALYSIS,
 slides, paper); watch the threads of #19826 and E-02 and help answer reviewer questions;
 the Teams post (owner has the text) still needs links for #19803, #19771, #19802, C-01, MCV thread.
 
@@ -158,7 +178,7 @@ the Teams post (owner has the text) still needs links for #19803, #19771, #19802
 
 Plan: `docs/generalized/PLAN.md` (targets, tasks G1–G10, paper claims). Summary of tasks:
 
-Tasks G1–G11 with acceptance criteria, improvisation ideas, timeline and the paper's claims are in
+Tasks G1–G11 with acceptance criteria, improvisation ideas and the paper's claims are in
 PLAN.md; follow it and keep its Status column current. Bug campaigns produce filing packages only
 (section 1d); the owner files them.
 
@@ -208,11 +228,11 @@ First measurement (300 test cases, 992 statements) — **validity is still poor*
    `random()`, `USING SAMPLE`, threads (row order), and DuckDB's documented semantic differences.
 4. Unit tests for the DuckDB executor (spawn a worker, crash detection with a deliberate abort is hard;
    at least: error mapping, digest, variants, checks) — keep `pytest` green.
-5. DataFusion (G4): **building `datafusion-cli` from `main` with cargo was blocked by the session's
-   permission classifier** (it runs external build scripts). Ask the owner whether to allow
-   `cargo build` (clone exists at `~/pgfuzz/src/datafusion` on the old machine; on a new machine
-   `git clone --depth 1 https://github.com/apache/datafusion`), or use the `datafusion` pip package
-   (release 55) to start. DataFusion bugs: https://github.com/apache/datafusion/issues; PRs welcome.
+5. DataFusion (G4): building `datafusion-cli` from `main` with cargo was blocked in the previous
+   session (it runs external build scripts). Try it in your session
+   (`git clone --depth 1 https://github.com/apache/datafusion && cd datafusion && cargo build -p datafusion-cli`);
+   if it is still blocked, note it in PROGRESS.md and start with the `datafusion` pip package (release 55).
+   DataFusion bugs: https://github.com/apache/datafusion/issues (filing is the owner's).
 6. Then G5/G6/G8/G10 as in PLAN.md. For the paper: new framing "typed derivation trees + oracles that
    transfer across SQL engines + engine-gated LLM grammar extension"; RQs across ≥3 engines; compare with
    SQLancer (supports PostgreSQL, DuckDB, SQLite, DataFusion) under the same budget.
@@ -253,7 +273,19 @@ First measurement (300 test cases, 992 statements) — **validity is still poor*
 
 1. Clone and create your public repo as in section 1b.
 2. Read this file, `docs/generalized/PLAN.md`, `docs/RESULTS_ANALYSIS.md`.
-3. `cd src && pip install -r requirements.txt && pip install --pre -U duckdb && python -m pytest -q` (151 pass).
-4. Continue at section 5 "Next steps", step 1 (dialect overlay), and push after each step.
-5. Create your public repository (section 1b), start `docs/generalized/PROGRESS.md`, push.
-6. Ask the owner for: E-02 bug number; permission for `cargo build` (DataFusion main); paper decisions.
+3. `cd src && pip install -r requirements.txt && pip install --pre -U duckdb apsw pyturso datafusion z3-solver && python -m pytest -q` (192 pass).
+4. Continue from section 9 (state at wrap-up) and docs/generalized/FUTURE_WORK.md; push after each step.
+5. Create your public repository (section 1b), continue `docs/generalized/PROGRESS.md`, push.
+6. Do not wait for answers: open decisions go into PROGRESS.md (placeholders), work continues.
+
+## 9. State at wrap-up (8 Nov 2026, latest; supersedes the "where it stopped" notes above)
+
+The owner wrapped the project up on 8 Nov (exams). Every PLAN task has code, a script or a first
+version; PLAN.md's Status column is current; long runs and improvements are listed in
+`docs/generalized/FUTURE_WORK.md`. Tests: `cd src && python -m pytest -q` (192 passed, 1 skipped).
+
+New commands: `hunt`, `package`, `import-tests`, `ledger`, `sample --mine-overlay`. New scripts:
+`scripts/coverage/`, `scripts/baselines/`, `scripts/bench/`, `scripts/eval/`. Filed bugs and
+their links: `docs/bughunt/filed.yaml` (the owner filed them; never comment or push on them).
+
+To continue: read FUTURE_WORK.md section 1, run `DRY=1 scripts/eval/run_all.sh`, then the runs.
