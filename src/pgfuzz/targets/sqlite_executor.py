@@ -81,6 +81,7 @@ def _test_control_function(module_path: str) -> Any | None:
 class SQLiteDriver(Driver):
     name = "sqlite"
     sqlstate = _SQLSTATE
+    state_tables_sql = "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
     error_aborts_transaction = False
     type_oids = {"REAL": 701, "FLOAT": 701, "DOUBLE": 701, "NUMERIC": 1700, "DECIMAL": 1700}
 

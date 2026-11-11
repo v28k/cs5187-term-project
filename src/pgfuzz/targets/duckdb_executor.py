@@ -32,6 +32,8 @@ _EST = re.compile(r"~\s*[\d,.]+\s*(rows|row)?", re.I)
 
 class DuckDBDriver(Driver):
     name = "duckdb"
+    state_tables_sql = ("SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE' "
+                        "AND table_schema = 'main'")
     sqlstate = _SQLSTATE
 
     def connect(self, setup: list[str]) -> str:

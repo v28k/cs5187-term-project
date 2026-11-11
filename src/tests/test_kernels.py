@@ -35,3 +35,14 @@ def test_mine_and_compose(tmp_path):
         assert pairs and st["seeds"] == len(pairs)
         stmts, checks = parse_seed(pairs[0].read_text())
         assert checks and checks[0]["kind"].startswith("kernel:")
+
+
+def test_graft_keeps_the_result():
+    import random
+
+    lab = K.Lab(CFG)
+    a = "SELECT a1.c0 AS c0 FROM t0 AS a1 WHERE a1.c0 IS NOT NULL"
+    for kind in K.GRAFTS:
+        g = K.graft(a, "SELECT 1 AS z", kind, random.Random(1))
+        assert g is not None and "kb" in g and lab.rows([], g) == lab.rows([], a), kind
+    assert K.graft("SELECT 1", "SELECT 2", "graft_scalar", random.Random(1)) is None

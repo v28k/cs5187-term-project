@@ -28,6 +28,7 @@ _INTERNAL_MSGS = ("panicked", "Internal error", "internal error", "assertion", "
 class TursoDriver(Driver):
     name = "turso"
     sqlstate = _SQLSTATE
+    state_tables_sql = "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
     error_aborts_transaction = False
     type_oids = {"REAL": 701, "FLOAT": 701, "DOUBLE": 701, "NUMERIC": 1700, "DECIMAL": 1700}
 

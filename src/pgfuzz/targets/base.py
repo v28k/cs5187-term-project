@@ -99,6 +99,25 @@ class Driver:
         """Normalised plan text (no costs, no row estimates)."""
         raise NotImplementedError
 
+    #: query listing the user tables (one name per row); None switches the state-restoration oracle off
+    state_tables_sql: str | None = None
+
+    def state_fingerprint(self) -> str | None:
+        """Cheap summary of the database contents (tables and their row counts), taken between
+        test cases. After a test case is rolled back it must equal the value before it (the
+        state-restoration oracle); an engine that keeps a change breaks every later comparison."""
+        if not self.state_tables_sql:
+            return None
+        names = sorted(str(r[0]) for r in (self.execute(self.state_tables_sql, True, 100000)[0] or []))
+        parts = []
+        for n in names:
+            try:
+                rows = self.execute(f'SELECT count(*) FROM "{n}"', True, 10)[0]
+                parts.append(f"{n}={rows[0][0] if rows else '?'}")
+            except Exception as e:      # an unreadable table is a state change too
+                parts.append(f"{n}=error:{type(e).__name__}")
+        return " ".join(parts)
+
     def rules_off_spec(self, rules: list[str]) -> Any:
         """Variant spec that switches off all ``rules`` at once (group testing)."""
         return {"rules_off": list(rules)}
@@ -202,6 +221,8 @@ def _worker(conn: Any, driver_path: str, driver_params: dict[str, Any], setup: l
             elif op == "reset_variant":
                 drv.reset_variant()
                 conn.send(("ok", None, None))
+            elif op == "state":
+                conn.send(("ok", drv.state_fingerprint(), None))
             elif op == "explain":
                 conn.send(("ok", drv.explain(msg[1]), None))
             elif op == "fired":
@@ -225,7 +246,8 @@ class WorkerExecutor(Executor):
                  setup_sql: list[str] | str | None = None, statement_timeout_ms: int = 5000,
                  differential: bool | dict[str, Any] = False, metamorphic: bool | dict[str, Any] = False,
                  max_rows: int = 10000, seed: int = 0, start_timeout_s: float = 120,
-                 rule_feedback: bool | dict[str, Any] = False, normalize: list[str] | None = None) -> None:
+                 rule_feedback: bool | dict[str, Any] = False, normalize: list[str] | None = None,
+                 state_check: bool = True) -> None:
         self.driver_path = driver
         self.driver_params = dict(driver_params or {})
         self.setup_sql = _load_sql(setup_sql)
@@ -245,6 +267,8 @@ class WorkerExecutor(Executor):
         from pgfuzz.eval.normalize import make as _make_normalizer
 
         self.normalize = _make_normalizer(normalize)   # cross-engine value normalizers (digests only)
+        self.state_check = bool(state_check)
+        self._state_base: Any = None
         rf = rule_feedback if isinstance(rule_feedback, dict) else ({} if rule_feedback else None)
         self.rf_enabled = rf is not None
         self.rf_prob = float((rf or {}).get("prob", 0.3))
@@ -482,8 +506,38 @@ class WorkerExecutor(Executor):
             restarted = True
         else:
             self._op("end")
+            self._check_state(testcase, results)
         return ExecResult(results, wall_ms=_ms(t0), server_log=[], server_restarted=restarted,
                           extra={f"{self.name}_version": self.version})
+
+    def _check_state(self, testcase: TestCase, results: list[StatementResult]) -> None:
+        """State-restoration oracle: a rolled-back test case must leave the database as it was.
+        Only test cases with a statement that can write are checked. A violation is reported as
+        a failed check on the last successful statement, and the worker is restarted so that
+        the leaked state cannot corrupt later comparisons."""
+        if not self.state_check or all(diff.StmtView.of(s).kind in ("SELECT", "VALUES", "TABLE", "EXPLAIN")
+                                       for s in testcase.statements):
+            return
+        if self._state_base is None:                 # first use: the baseline of a fresh worker
+            self._spawn()
+            r = self._op("state")
+            self._state_base = r["rows"] if r["status"] == "ok" else False
+            if not self._state_base:
+                self.state_check = False              # the driver has no fingerprint
+            return                                    # (this one test case goes unchecked)
+        r = self._op("state")
+        if r["status"] != "ok" or r["rows"] == self._state_base:
+            return
+        self.diff_stats["state_leaks"] = self.diff_stats.get("state_leaks", 0) + 1
+        before, after = set(str(self._state_base).split()), set(str(r["rows"]).split())
+        change = f"before: {' '.join(sorted(before - after))}; after ROLLBACK: {' '.join(sorted(after - before))}"
+        ok = [st for st in results if st.status is StatementStatus.OK]
+        if ok:
+            ok[-1].checks = (ok[-1].checks or []) + [{
+                "kind": "state_restore", "status": "ok", "confirmed": True, "lhs_hash": "before", "rhs_hash": "after",
+                "lhs_rows": len(before - after), "rhs_rows": len(after - before),
+                "lhs_sql": "-- database state before the test case", "rhs_sql": f"-- {change}"}]
+        self._spawn()
 
     def _probe_rules(self, sql: str, st: StatementResult) -> None:
         """Fill ``st.plan_shape`` and ``st.rules`` (rule-firing probe). A plan seen before gets
