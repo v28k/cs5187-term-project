@@ -40,6 +40,22 @@ Filing order suggested in each `steps.md`: issue first, then the PR. Ready to fi
 
 ## Session log
 
+## 2026-11-11: branch `generalised-improved` (new techniques, hunt on newest code)
+- New branch `generalised-improved`; hand-over for the next session: `docs/generalized/NEXT.md`.
+- Literature check (web search): SQL Server rule-testing framework (SIGMOD 2009) covers rules and rule pairs but reads
+  rule patterns from the optimizer; ARG (ASE 2025) abstracts single rules from rewriter source. No prior work found that
+  learns a rule's trigger by reduction or composes triggers with a built-in oracle.
+- Rule kernels (`pgfuzz kernels`): mining by tree reduction under "the rule still fires" (median 260 -> 57 tokens on
+  SQLite), 6 composition templates with a composition oracle, 3 identity grafts. 1,239 composed seeds on SQLite, DuckDB,
+  DataFusion: no violation at default settings.
+- State-restoration oracle (tables and row counts must be unchanged after ROLLBACK). Found Turso T-06 on 0.8.3
+  (runtime error ends the transaction; later INSERT commits). Also T-07 (correlated subquery in HAVING reads NULL).
+  Both verified **fixed on Turso main 0c9fe0dd9** (tursodb built from source): recorded in `latestbugs/`, not filable.
+- 1 h hunt on the pip releases: ~890 Turso differences were follow-on noise of T-06 plus T-05; a DuckDB plan-variant
+  difference was flaky (GROUP BY on VARIANCE). Decision: hunt only on newest builds (`configs/turso_main.yaml`,
+  `scripts/build_turso_main.sh`).
+- Tests: 197 passed, 1 skipped.
+
 ## 2026-11-08 (wrap-up): every remaining task has code or a script; long runs moved to future work
 - Owner's decision: wrap the project up tonight (end-semester exams); no long campaigns, no result-chasing; what is
   left is written down in `docs/generalized/FUTURE_WORK.md`.
