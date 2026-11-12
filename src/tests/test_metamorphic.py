@@ -222,3 +222,20 @@ def test_cert_violation_is_a_performance_candidate():
     assert cls.outcome is Outcome.PERFORMANCE and cls.details["oracle"] == "cert" and cls.is_bug_candidate
     ok = oracle.classify(_result([{"kind": "cert", "status": "ok", "lhs_estimate": 10.0, "rhs_estimate": 4.0}]))
     assert ok.outcome is Outcome.OK
+
+
+def test_no_tlp_on_a_select_whose_qualify_has_a_window():
+    """A window function in QUALIFY sees the rows WHERE leaves, so partitioning WHERE changes it
+    (false positive found on DuckDB: QUALIFY count(*) OVER () = 3 inside an EXISTS)."""
+    from pgfuzz.grammar.engine import Node
+    from pgfuzz.grammar.rewrite import Rewriter, _Tree
+
+    win = Node("win", kids=[])
+    core_q = Node("select_core", kids=[Node("@items", kids=[]), Node("where_clause", kids=[]),
+                                        Node("qualify_clause", kids=[win])])
+    core_i = Node("select_core", kids=[Node("@items", kids=[Node("win", kids=[])])])
+    core_plain = Node("select_core", kids=[Node("@items", kids=[]), Node("where_clause", kids=[])])
+    t = _Tree.__new__(_Tree)                                   # navigation only, no tokens needed
+    rw = Rewriter.__new__(Rewriter)
+    assert rw._has_window(t, core_q) and rw._has_window(t, core_i)
+    assert not rw._has_window(t, core_plain)

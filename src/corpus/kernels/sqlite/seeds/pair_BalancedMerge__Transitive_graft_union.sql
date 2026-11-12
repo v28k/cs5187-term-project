@@ -1,3 +1,3 @@
 -- composition of rule kernels BalancedMerge x Transitive (sqlite), template graft_union
-SELECT TRUE AS c0, '{"k": 2, "a": [0]}' AS c1, a1.c0 AS c2 FROM (((tp AS a1 INNER JOIN v0 AS a2 ON (a1.c0 = a2.c0)) JOIN (SELECT * FROM t0 UNION ALL SELECT * FROM t0 WHERE (SELECT count(*) FROM (SELECT 5 UNION ALL SELECT 4 UNION ALL SELECT 6 UNION ALL SELECT 10 ORDER BY 1) AS kb) < 0) AS a3 ON (a1.c0 = a3.c0)) JOIN t0 AS a4 ON ((a1.c1 = a4.c1) AND FALSE));
--- pgfuzz:check kernel:graft_union SELECT TRUE AS c0, '{"k": 2, "a": [0]}' AS c1, a1.c0 AS c2 FROM (((tp AS a1 INNER JOIN v0 AS a2 ON (a1.c0 = a2.c0)) JOIN t0 AS a3 ON (a1.c0 = a3.c0)) JOIN t0 AS a4 ON ((a1.c1 = a4.c1) AND FALSE))
+SELECT a2.c2 AS c0, a3.c1 AS c1, a1.c1 AS c2, 10 AS c3 FROM (ti AS a1 INNER JOIN ((SELECT * FROM t1 UNION ALL SELECT * FROM t1 WHERE (SELECT count(*) FROM (SELECT NULL UNION SELECT 1 UNION SELECT 2 UNION SELECT NULL) AS kb) < 0) AS a2 JOIN t0 AS a3 ON ((a2.c0 = a3.c0) AND FALSE)) ON (a1.c0 = a3.c0));
+-- pgfuzz:check kernel:graft_union SELECT a2.c2 AS c0, a3.c1 AS c1, a1.c1 AS c2, 10 AS c3 FROM (ti AS a1 INNER JOIN (t1 AS a2 JOIN t0 AS a3 ON ((a2.c0 = a3.c0) AND FALSE)) ON (a1.c0 = a3.c0))

@@ -1,12 +1,3 @@
 -- composition of rule kernels ExistsToJoin x OmitOrderBy (sqlite), template graft_union
-CREATE TABLE t2(a INTEGER, b INTEGER);
-INSERT INTO t2 VALUES (1, 100);
-INSERT INTO t2 VALUES (2, 200);
-INSERT INTO t2 VALUES (3, 300);
-CREATE TABLE names(name TEXT COLLATE NOCASE);
-INSERT INTO names VALUES ('alice');
-INSERT INTO names VALUES ('Bob');
-INSERT INTO names VALUES ('CHARLIE');
-INSERT INTO names VALUES ('dave');
-SELECT '{"k": -1, "a": [1, 2, 3]}' AS c0, '2024-01-01 00:00:00' AS c1 FROM (SELECT * FROM t0 UNION ALL SELECT * FROM t0 WHERE (SELECT count(*) FROM (WITH cte AS (SELECT name FROM names ORDER BY name) SELECT name FROM cte ORDER BY name COLLATE BINARY) AS kb) < 0) AS a1 WHERE (EXISTS (SELECT a1.c1 AS c0, a2.c0 AS c1, a1.c1 AS c2 FROM t1 AS a2));
+SELECT '{"k": -1, "a": [1, 2, 3]}' AS c0, '2024-01-01 00:00:00' AS c1 FROM t0 AS a1 WHERE (EXISTS (SELECT a1.c1 AS c0, a2.c0 AS c1, a1.c1 AS c2 FROM (SELECT * FROM t1 UNION ALL SELECT * FROM t1 WHERE (SELECT count(*) FROM (SELECT FALSE AS c0, '{}' AS c1 FROM (SELECT '2024-12-31' AS c0, CAST('ß' AS TEXT) AS c1, 100 AS c2 FROM t2 AS a1 ORDER BY 2) AS a2 ORDER BY 2) AS kb) < 0) AS a2));
 -- pgfuzz:check kernel:graft_union SELECT '{"k": -1, "a": [1, 2, 3]}' AS c0, '2024-01-01 00:00:00' AS c1 FROM t0 AS a1 WHERE (EXISTS (SELECT a1.c1 AS c0, a2.c0 AS c1, a1.c1 AS c2 FROM t1 AS a2))

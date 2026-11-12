@@ -1,3 +1,0 @@
--- composition of rule kernels BloomFilter x OrderByIdxJoin (sqlite), template scalar_filter
-SELECT count(*) FROM (SELECT '2000-01-01 00:00:00' AS c0, FALSE AS c1 FROM (t1 AS a1 LEFT JOIN v0 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c0, a1.c0) AS ka WHERE (SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT TRUE AS c0, CAST('a' AS TEXT) AS c1 UNION ALL SELECT ('2000-01-01 00:00:00' IN (SELECT '1970-01-01 00:00:00' AS c0)) AS c0, CAST('%' AS TEXT) AS c1 FROM rc AS a1) AS kb) >= 0;
--- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT '2000-01-01 00:00:00' AS c0, FALSE AS c1 FROM (t1 AS a1 LEFT JOIN v0 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c0, a1.c0) AS ka

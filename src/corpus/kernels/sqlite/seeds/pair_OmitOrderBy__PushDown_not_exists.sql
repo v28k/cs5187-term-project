@@ -1,12 +1,3 @@
 -- composition of rule kernels OmitOrderBy x PushDown (sqlite), template not_exists
-CREATE TABLE t2(a INTEGER, b INTEGER);
-INSERT INTO t2 VALUES (1, 100);
-INSERT INTO t2 VALUES (2, 200);
-INSERT INTO t2 VALUES (3, 300);
-CREATE TABLE names(name TEXT COLLATE NOCASE);
-INSERT INTO names VALUES ('alice');
-INSERT INTO names VALUES ('Bob');
-INSERT INTO names VALUES ('CHARLIE');
-INSERT INTO names VALUES ('dave');
-SELECT count(*) FROM (WITH cte AS (SELECT name FROM names ORDER BY name) SELECT name FROM cte ORDER BY name COLLATE BINARY) AS ka WHERE NOT EXISTS (SELECT 1 FROM (SELECT CAST('A' AS TEXT) AS c0 FROM v0 AS a1 WHERE (NOT (((SELECT MIN (a2.c0) FROM t3 AS a2) - 54) > (-8)))) AS kb);
--- pgfuzz:check kernel:not_exists SELECT CASE WHEN (SELECT count(*) FROM (SELECT CAST('A' AS TEXT) AS c0 FROM v0 AS a1 WHERE (NOT (((SELECT MIN (a2.c0) FROM t3 AS a2) - 54) > (-8)))) AS kb) = 0 THEN (SELECT count(*) FROM (WITH cte AS (SELECT name FROM names ORDER BY name) SELECT name FROM cte ORDER BY name COLLATE BINARY) AS ka) ELSE 0 END
+SELECT count(*) FROM (SELECT CAST('abc' AS TEXT) AS c0, 500 AS c1, '2024-02-29' AS c2 UNION SELECT a1.c2 AS c0, a1.c1 AS c1, '2024-12-31' AS c2 FROM (SELECT '1970-01-01' AS c0, 21 AS c1, CAST('{"k": 1}' AS TEXT) AS c2 ORDER BY 2, 3) AS a1 GROUP BY a1.c1, a1.c2) AS ka WHERE NOT EXISTS (SELECT 1 FROM (SELECT CAST('A' AS TEXT) AS c0 FROM v0 AS a1 WHERE (NOT (((SELECT MIN (a2.c0) FROM t3 AS a2) - 54) > (-8)))) AS kb);
+-- pgfuzz:check kernel:not_exists SELECT CASE WHEN (SELECT count(*) FROM (SELECT CAST('A' AS TEXT) AS c0 FROM v0 AS a1 WHERE (NOT (((SELECT MIN (a2.c0) FROM t3 AS a2) - 54) > (-8)))) AS kb) = 0 THEN (SELECT count(*) FROM (SELECT CAST('abc' AS TEXT) AS c0, 500 AS c1, '2024-02-29' AS c2 UNION SELECT a1.c2 AS c0, a1.c1 AS c1, '2024-12-31' AS c2 FROM (SELECT '1970-01-01' AS c0, 21 AS c1, CAST('{"k": 1}' AS TEXT) AS c2 ORDER BY 2, 3) AS a1 GROUP BY a1.c1, a1.c2) AS ka) ELSE 0 END

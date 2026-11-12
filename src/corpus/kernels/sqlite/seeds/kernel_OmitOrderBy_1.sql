@@ -1,4 +1,2 @@
 -- rule kernel: OmitOrderBy (sqlite)
-CREATE TABLE sd(a INT, b INT);
-INSERT INTO sd VALUES(1,3),(1,1),(1,2),(2,2),(2,1),(2,3);
-WITH cte AS (SELECT b FROM sd ORDER BY b) SELECT * FROM cte ORDER BY b;
+SELECT FALSE AS c0, '{}' AS c1 FROM (SELECT '2024-12-31' AS c0, CAST('ß' AS TEXT) AS c1, 100 AS c2 FROM t2 AS a1 ORDER BY 2) AS a2 ORDER BY 2;

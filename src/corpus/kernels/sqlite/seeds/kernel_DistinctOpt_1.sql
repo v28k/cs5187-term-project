@@ -1,4 +1,2 @@
 -- rule kernel: DistinctOpt (sqlite)
-CREATE TABLE t (a,b,c,d);
-INSERT INTO t VALUES (1,2,3,4),(2,3,4,5);
-SELECT DISTINCT c FROM t;
+SELECT DISTINCT a1.n AS c0 FROM (v0 AS a1 LEFT JOIN ti AS a2 ON (a1.c0 = a2.c0)) UNION ALL SELECT CAST(0 AS INTEGER) AS c0;

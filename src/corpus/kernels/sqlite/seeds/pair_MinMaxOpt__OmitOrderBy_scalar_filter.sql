@@ -1,5 +1,3 @@
 -- composition of rule kernels MinMaxOpt x OmitOrderBy (sqlite), template scalar_filter
-CREATE TABLE sd(a INT, b INT);
-INSERT INTO sd VALUES(1,3),(1,1),(1,2),(2,2),(2,1),(2,3);
-SELECT count(*) FROM (WITH cte AS (SELECT b FROM sd ORDER BY b) SELECT * FROM cte ORDER BY b) AS ka WHERE (SELECT count(*) FROM (SELECT '{"k": 0, "a": [3, 4, 5]}' AS c0, (- (SELECT MIN (a2.c0) FROM ti AS a2)) AS c1, CAST(10.0 AS NUMERIC) AS c2, 0 AS c3 FROM t0 AS a1) AS kb) >= 0;
--- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (WITH cte AS (SELECT b FROM sd ORDER BY b) SELECT * FROM cte ORDER BY b) AS ka
+SELECT count(*) FROM (SELECT JSON_GROUP_ARRAY (CASE WHEN TRUE THEN (SELECT MIN (10) FROM t2 AS a2) ELSE a1.c0 END ORDER BY CASE WHEN TRUE THEN (SELECT MIN (10) FROM t2 AS a2) ELSE a1.c0 END) AS c0 FROM t4 AS a1 GROUP BY a1.c0) AS ka WHERE (SELECT count(*) FROM (SELECT FALSE AS c0, '{}' AS c1 FROM (SELECT '2024-12-31' AS c0, CAST('ß' AS TEXT) AS c1, 100 AS c2 FROM t2 AS a1 ORDER BY 2) AS a2 ORDER BY 2) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT JSON_GROUP_ARRAY (CASE WHEN TRUE THEN (SELECT MIN (10) FROM t2 AS a2) ELSE a1.c0 END ORDER BY CASE WHEN TRUE THEN (SELECT MIN (10) FROM t2 AS a2) ELSE a1.c0 END) AS c0 FROM t4 AS a1 GROUP BY a1.c0) AS ka
