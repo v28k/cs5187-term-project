@@ -4,11 +4,11 @@ One folder per bug that is **validated on the engine's newest development code a
 file**. Each folder has `issue.md` (the exact title and text to paste), `repro.sql`, the expected
 and actual output, and the versions it was checked on. You file; nothing here was filed by the tool.
 
-## Ready to file
+## Ready to file / filed
 
 | Id | Engine | Bug | Checked on | Folder |
 |---|---|---|---|---|
-| T-08 | Turso | An aggregate in `IN (SELECT ...)` (e.g. `max(x) IN (SELECT 1)`) in a query that also has a window function is rejected with "misuse of aggregate function max()"; with `median()` or `percentile_disc()` the process panics. SQLite returns the result. Fix and regression test included. | `main` 38b7d9de1 (12 Nov 2026) | [`T-08-turso-window-aggregate-in-subquery/`](T-08-turso-window-aggregate-in-subquery/issue.md) |
+| T-08 | Turso | An aggregate in `IN (SELECT ...)` (e.g. `max(x) IN (SELECT 1)`) in a query that also has a window function is rejected with "misuse of aggregate function max()"; with `median()` or `percentile_disc()` the process panics. SQLite returns the result. Fix and regression test included. | `main` 38b7d9de1 (12 Nov 2026) | **filed**: issue [#11796](https://github.com/tursodatabase/turso/issues/11796), PR [#11797](https://github.com/tursodatabase/turso/pull/11797) |
 
 ## Found, but already fixed upstream (do not file)
 
