@@ -59,8 +59,19 @@ class Lab:
         self.last_error: tuple[str, str] | None = None
         try:
             d.begin()
+            done: list[str] = []
             for s in setup:
-                d.execute(s, False, 0)
+                try:
+                    d.execute(s, False, 0)
+                    done.append(s)
+                except Exception:
+                    # A failing setup statement is left out. Where an error aborts the
+                    # transaction (DuckDB), rebuild it from the statements that succeeded.
+                    if getattr(d, "error_aborts_transaction", True):
+                        d.end()
+                        d.begin()
+                        for t in done:
+                            d.execute(t, False, 0)
             return fn()
         except BaseException as e:           # engine errors of every kind: this probe just says "no"
             if isinstance(e, (KeyboardInterrupt, SystemExit)):
@@ -68,11 +79,13 @@ class Lab:
             self.last_error = (str(d.error_name(e) or type(e).__name__), str(e)[:300])
             return None
         finally:
-            try:
-                d.reset_variant()
-                d.end()
-            except Exception:
-                pass
+            # Roll back first: on an aborted transaction (DuckDB) resetting settings fails, and a
+            # skipped ROLLBACK would leave every later probe in the aborted transaction.
+            for step in (d.end, d.reset_variant):
+                try:
+                    step()
+                except Exception:
+                    pass
 
     def fired(self, setup: list[str], query: str, rules: list[str] | None = None) -> set[str] | None:
         got = self._in_case(setup, lambda: self.driver.fired(query, rules))
@@ -83,6 +96,19 @@ class Lab:
         if got is None or got[0] is None:
             return None
         return sorted((tuple(map(repr, r)) for r in got[0]))
+
+
+def cap_memory(gb: float | None) -> None:
+    """Probes run in this process, and engine tests include deliberately huge queries: cap the
+    address space, so an allocation failure is an engine error (the probe says "no") instead of
+    the kernel killing the process."""
+    if not gb:
+        return
+    import resource
+
+    lim = int(gb * 2**30)
+    _soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+    resource.setrlimit(resource.RLIMIT_AS, (lim if hard == resource.RLIM_INFINITY else min(lim, hard), hard))
 
 
 def _generator(config: str, name: str | None, seed: int):
@@ -110,10 +136,11 @@ def _split(sqls: list[str]) -> list[tuple[list[str], str]]:
 
 
 def mine(config: str, n: int = 300, seed: int = 1, per_rule: int = 2, budget: int = 80, name: str | None = None,
-         log: Callable[[str], None] = print) -> dict[str, Any]:
+         log: Callable[[str], None] = print, mem_limit_gb: float | None = None) -> dict[str, Any]:
     """Generate ``n`` test cases; keep up to ``per_rule`` kernels for every rule that fires."""
     from pgfuzz.triage.tree_reduce import TreeReducer, load_trees, size
 
+    cap_memory(mem_limit_gb)
     lab, gen = Lab(config, name), _generator(config, name, seed)
     spell = getattr(gen, "_dialectize", lambda sqls: list(sqls))    # replayed trees are in the base dialect
     kernels: dict[str, list[dict[str, Any]]] = {}
@@ -165,6 +192,69 @@ def mine(config: str, n: int = 300, seed: int = 1, per_rule: int = 2, budget: in
     return {"engine": lab.engine, "version": lab.version, "rules": lab.rules, "probed_queries": probes,
             "fires": dict(sorted(fires.items())), "never_fired": sorted(set(lab.rules) - set(fires)),
             "kernels": kernels}
+
+
+def mine_suite(config: str, seed_files: list[str | Path], mined: dict[str, Any], per_rule: int = 2,
+               budget: int = 300, name: str | None = None, max_queries: int = 20000,
+               mem_limit_gb: float | None = 3.0, log: Callable[[str], None] = print) -> dict[str, Any]:
+    """Kernels for rules the grammar never fired, taken from an engine's own tests.
+
+    ``seed_files`` are imported test files (``pgfuzz import-tests``: one file per test, setup and
+    queries in order). Every deterministic query is probed; a query that fires a rule without a
+    kernel in ``mined`` is reduced on its tokens with the predicate "the rule still fires and the
+    query still runs", and the result is added to ``mined["kernels"]`` (marked ``source: suite``).
+    The test's setup statements are kept as they are (they create the tables the query reads)."""
+    from pgfuzz.triage.reduce import TokenReducer
+    from pgfuzz.triage.sqltok import lex, render
+
+    cap_memory(mem_limit_gb)
+    lab = Lab(config, name)
+    kernels: dict[str, list[dict[str, Any]]] = mined.setdefault("kernels", {})
+    seen = {k["query"] for ks in kernels.values() for k in ks}
+    grammar_fired = set(mined.get("fires", {}))
+    stats = {"files": 0, "queries": 0, "probed": 0, "new_rules": 0}
+    suite_fires: dict[str, int] = {}
+    for f in seed_files:
+        stmts = [x.strip() for x in Path(f).read_text(encoding="utf-8", errors="replace").split(";\n")]
+        stmts = [x for x in (re.sub(r"^--[^\n]*\n", "", x).strip() for x in stmts) if x]
+        stats["files"] += 1
+        for setup, q in _split(stmts):
+            if stats["queries"] >= max_queries:
+                break
+            stats["queries"] += 1
+            fired = lab.fired(setup, q)
+            if not fired:
+                continue
+            stats["probed"] += 1
+            for r in fired:
+                suite_fires[r] = suite_fires.get(r, 0) + 1
+            for r in sorted(fired):
+                if len(kernels.get(r, [])) >= per_rule:
+                    continue
+
+                def interesting(toks: list[Any], r: str = r, setup: list[str] = setup) -> bool:
+                    sql = render(toks)
+                    return r in (lab.fired(setup, sql, [r]) or ()) and lab.rows(setup, sql) is not None
+
+                toks = lex(q)
+                if not interesting(toks):
+                    continue
+                red = render(TokenReducer(interesting, budget=budget, time_budget_s=120).reduce(toks))
+                if _one_line(red) in seen:
+                    continue
+                seen.add(_one_line(red))
+                kernels.setdefault(r, []).append({
+                    "rule": r, "setup": [_one_line(s) for s in setup], "query": _one_line(red),
+                    "tokens": len(lex(red)), "tokens_before": len(toks), "fired": sorted(lab.fired(setup, red) or {r}),
+                    "reduced_on_tree": False, "source": "suite", "test_file": str(f)})
+                if r not in grammar_fired:
+                    stats["new_rules"] += 1
+                log(f"suite kernel {r}{'' if r in grammar_fired else ' (never fired by the grammar)'}: "
+                    f"{len(toks)} -> {kernels[r][-1]['tokens']} tokens: {kernels[r][-1]['query'][:100]}")
+    mined["suite_fires"] = dict(sorted(suite_fires.items()))
+    mined["suite_stats"] = stats
+    mined["never_fired_after_suite"] = sorted(set(mined.get("rules", lab.rules)) - grammar_fired - set(suite_fires))
+    return mined
 
 
 # name -> (composition, expected), both over derived tables (A) AS ka and (B) AS kb

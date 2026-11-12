@@ -1,0 +1,5 @@
+-- composition of rule kernels ExistsToJoin x OrderByIdxJoin (sqlite), template scalar_filter
+CREATE TABLE t(id INTEGER PRIMARY KEY, f TEXT UNIQUE);
+INSERT INTO t VALUES (1, 'a'), (2, 'b');
+SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 20) SELECT CAST('c4ca4238a0b923820dcc509a6f75849b' AS TEXT) AS c0, CAST('{"k": 1}' AS TEXT) AS c1 FROM rc AS a1 WHERE (EXISTS (SELECT CAST(5e-324 AS REAL) AS c0, '{"k": 2, "a": [0]}' AS c1 FROM tp AS a2))) AS ka WHERE (SELECT count(*) FROM (SELECT a.id, c.id FROM t a JOIN t c ORDER BY 1, 2) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 20) SELECT CAST('c4ca4238a0b923820dcc509a6f75849b' AS TEXT) AS c0, CAST('{"k": 1}' AS TEXT) AS c1 FROM rc AS a1 WHERE (EXISTS (SELECT CAST(5e-324 AS REAL) AS c0, '{"k": 2, "a": [0]}' AS c1 FROM tp AS a2))) AS ka

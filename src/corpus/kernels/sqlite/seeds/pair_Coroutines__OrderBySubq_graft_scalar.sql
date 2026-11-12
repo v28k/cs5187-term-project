@@ -1,0 +1,3 @@
+-- composition of rule kernels Coroutines x OrderBySubq (sqlite), template graft_scalar
+WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT FALSE AS c0, CAST('ß' AS TEXT) AS c1 UNION ALL SELECT TRUE AS c0, CAST('x%' AS TEXT) AS c1 FROM (SELECT * FROM rc WHERE (SELECT count(*) FROM (SELECT TRUE AS c0, TRUE AS c1 FROM (SELECT CAST(42.5 AS NUMERIC) AS c0 UNION SELECT CAST(1.5 AS NUMERIC) AS c0) AS a1 GROUP BY a1.c0) AS kb) >= 0) AS a1;
+-- pgfuzz:check kernel:graft_scalar WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT FALSE AS c0, CAST('ß' AS TEXT) AS c1 UNION ALL SELECT TRUE AS c0, CAST('x%' AS TEXT) AS c1 FROM rc AS a1

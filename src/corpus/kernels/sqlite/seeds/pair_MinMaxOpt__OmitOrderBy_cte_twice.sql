@@ -1,0 +1,5 @@
+-- composition of rule kernels MinMaxOpt x OmitOrderBy (sqlite), template cte_twice
+CREATE TABLE sd(a INT, b INT);
+INSERT INTO sd VALUES(1,3),(1,1),(1,2),(2,2),(2,1),(2,3);
+WITH ka AS (WITH cte AS (SELECT b FROM sd ORDER BY b) SELECT * FROM cte ORDER BY b), kb AS (SELECT JSON_GROUP_ARRAY (CASE WHEN TRUE THEN (SELECT MIN (10) FROM t2 AS a2) ELSE a1.c0 END ORDER BY CASE WHEN TRUE THEN (SELECT MIN (10) FROM t2 AS a2) ELSE a1.c0 END) AS c0 FROM t4 AS a1 GROUP BY a1.c0) SELECT (SELECT count(*) FROM ka) + (SELECT count(*) FROM kb) + (SELECT count(*) FROM ka);
+-- pgfuzz:check kernel:cte_twice SELECT 2 * (SELECT count(*) FROM (WITH cte AS (SELECT b FROM sd ORDER BY b) SELECT * FROM cte ORDER BY b) AS ka) + (SELECT count(*) FROM (SELECT JSON_GROUP_ARRAY (CASE WHEN TRUE THEN (SELECT MIN (10) FROM t2 AS a2) ELSE a1.c0 END ORDER BY CASE WHEN TRUE THEN (SELECT MIN (10) FROM t2 AS a2) ELSE a1.c0 END) AS c0 FROM t4 AS a1 GROUP BY a1.c0) AS kb)

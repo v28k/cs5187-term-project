@@ -1,0 +1,2 @@
+-- rule kernel: BalancedMerge (sqlite)
+SELECT 5 UNION ALL SELECT 4 UNION ALL SELECT 6 UNION ALL SELECT 10 ORDER BY 1;

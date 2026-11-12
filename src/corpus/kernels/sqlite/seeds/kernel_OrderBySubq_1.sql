@@ -1,0 +1,4 @@
+-- rule kernel: OrderBySubq (sqlite)
+CREATE TABLE t (x INT);
+INSERT INTO t VALUES (1);
+WITH t AS (SELECT 1 UNION SELECT 2) SELECT * FROM t ORDER BY 1;

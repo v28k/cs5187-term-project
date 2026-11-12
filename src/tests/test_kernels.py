@@ -46,3 +46,16 @@ def test_graft_keeps_the_result():
         g = K.graft(a, "SELECT 1 AS z", kind, random.Random(1))
         assert g is not None and "kb" in g and lab.rows([], g) == lab.rows([], a), kind
     assert K.graft("SELECT 1", "SELECT 2", "graft_scalar", random.Random(1)) is None
+
+
+def test_mine_suite_finds_a_rule_the_grammar_never_fired(tmp_path):
+    f = tmp_path / "t.sql"
+    f.write_text("-- imported from test\nCREATE TABLE s(a INT);\nINSERT INTO s VALUES (1), (2);\n"
+                 "SELECT 5 UNION ALL SELECT 4 UNION ALL SELECT 6 UNION ALL SELECT 10 ORDER BY 1;\n")
+    mined = {"kernels": {}, "fires": {}, "rules": K.Lab(CFG).rules}
+    out = K.mine_suite(CFG, [f], mined, per_rule=1, budget=60, mem_limit_gb=None, log=lambda _m: None)
+    assert out["suite_stats"]["probed"] == 1
+    assert "BalancedMerge" in out["kernels"]
+    k = out["kernels"]["BalancedMerge"][0]
+    assert k["source"] == "suite" and k["tokens"] <= k["tokens_before"]
+    assert "BalancedMerge" in K.Lab(CFG).fired(k["setup"], k["query"], ["BalancedMerge"])

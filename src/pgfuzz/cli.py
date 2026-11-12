@@ -518,8 +518,15 @@ def cmd_kernels(a: argparse.Namespace) -> int:
     if a.from_json:
         mined = json.loads(Path(a.from_json).read_text(encoding="utf-8"))
     else:
-        mined = K.mine(a.config, n=a.n, seed=a.seed, per_rule=a.per_rule, budget=a.budget, name=a.name)
+        mined = K.mine(a.config, n=a.n, seed=a.seed, per_rule=a.per_rule, budget=a.budget, name=a.name,
+                       mem_limit_gb=a.mem_gb)
         K.save(mined, out / "kernels.json")
+    if a.from_suite:
+        files = sorted(Path(a.from_suite).rglob("*.sql")) if Path(a.from_suite).is_dir() else [Path(a.from_suite)]
+        mined = K.mine_suite(a.config, files, mined, per_rule=a.per_rule, name=a.name, max_queries=a.suite_queries,
+                             mem_limit_gb=a.mem_gb)
+        K.save(mined, out / "kernels.json")
+        print(json.dumps({"suite": mined["suite_stats"], "never_fired_after_suite": mined["never_fired_after_suite"]}))
     st = K.compose(a.config, mined, out / "seeds", per_pair=a.per_pair, seed=a.seed, name=a.name)
     (out / "compose.json").write_text(json.dumps(st, indent=1), encoding="utf-8")
     nk = sum(len(v) for v in mined["kernels"].values())
@@ -701,6 +708,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--budget", type=int, default=80, help="reduction runs per kernel")
     p.add_argument("--per-pair", type=int, default=2, help="composition templates per rule pair")
     p.add_argument("--from-json", help="compose from an existing kernels.json instead of mining")
+    p.add_argument("--from-suite", help="also mine kernels for rules without one from imported engine tests "
+                   "(a directory of .sql files written by 'pgfuzz import-tests')")
+    p.add_argument("--suite-queries", type=int, default=20000, help="max suite queries to probe")
+    p.add_argument("--mem-gb", type=float, default=3.0, help="address-space cap of the mining process (0: none)")
     p.add_argument("--out", required=True)
     p.set_defaults(fn=cmd_kernels)
 

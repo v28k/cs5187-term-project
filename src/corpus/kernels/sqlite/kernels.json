@@ -1,0 +1,491 @@
+{
+ "engine": "sqlite",
+ "version": "3.54.1",
+ "rules": [
+  "BalancedMerge",
+  "BloomFilter",
+  "Coroutines",
+  "CountOfView",
+  "CoverIdxScan",
+  "DistinctOpt",
+  "ExistsToJoin",
+  "FlttnUnionAll",
+  "GroupByOrder",
+  "HavingToWhere",
+  "IndexedExpr",
+  "JoinMiss",
+  "MinMaxOpt",
+  "NullUnusedCols",
+  "OmitNoopJoin",
+  "OmitOrderBy",
+  "OnePass",
+  "OrderByIdxJoin",
+  "OrderBySubq",
+  "PropagateConst",
+  "PushDown",
+  "QueryFlattener",
+  "SeekScan",
+  "SimplifyJoin",
+  "SkipScan",
+  "StarQuery",
+  "Stat4",
+  "Transitive",
+  "UnionLimit",
+  "WindowFunc"
+ ],
+ "probed_queries": 448,
+ "fires": {
+  "BloomFilter": 142,
+  "Coroutines": 238,
+  "CountOfView": 2,
+  "CoverIdxScan": 77,
+  "DistinctOpt": 2,
+  "ExistsToJoin": 7,
+  "FlttnUnionAll": 2,
+  "GroupByOrder": 2,
+  "HavingToWhere": 2,
+  "IndexedExpr": 2,
+  "JoinMiss": 2,
+  "MinMaxOpt": 109,
+  "NullUnusedCols": 2,
+  "OmitNoopJoin": 3,
+  "OmitOrderBy": 3,
+  "OnePass": 2,
+  "OrderByIdxJoin": 3,
+  "OrderBySubq": 3,
+  "PropagateConst": 2,
+  "PushDown": 22,
+  "QueryFlattener": 61,
+  "SeekScan": 2,
+  "SimplifyJoin": 19,
+  "SkipScan": 2,
+  "StarQuery": 2,
+  "Stat4": 2,
+  "Transitive": 3,
+  "UnionLimit": 2,
+  "WindowFunc": 2
+ },
+ "never_fired": [
+  "BalancedMerge"
+ ],
+ "kernels": {
+  "BloomFilter": [
+   {
+    "rule": "BloomFilter",
+    "setup": [],
+    "query": "WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT TRUE AS c0, CAST('a' AS TEXT) AS c1 UNION ALL SELECT ('2000-01-01 00:00:00' IN (SELECT '1970-01-01 00:00:00' AS c0)) AS c0, CAST('%' AS TEXT) AS c1 FROM rc AS a1",
+    "tokens": 70,
+    "tokens_before": 260,
+    "fired": [
+     "BloomFilter",
+     "Coroutines"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "BloomFilter",
+    "setup": [],
+    "query": "SELECT '{\"k\": 2, \"a\": [0]}' AS c0 FROM tp AS a1 WHERE ((a1.c1, CASE WHEN FALSE THEN TRUE ELSE (CAST(1 AS INTEGER) IN (SELECT CAST(100 AS INTEGER) AS c0)) END) <> (a1.c1, TRUE)) GROUP BY a1.c0, a1.c1",
+    "tokens": 61,
+    "tokens_before": 289,
+    "fired": [
+     "BloomFilter"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "Coroutines": [
+   {
+    "rule": "Coroutines",
+    "setup": [],
+    "query": "WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT FALSE AS c0, CAST('\u00df' AS TEXT) AS c1 UNION ALL SELECT TRUE AS c0, CAST('x%' AS TEXT) AS c1 FROM rc AS a1",
+    "tokens": 61,
+    "tokens_before": 260,
+    "fired": [
+     "Coroutines"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "Coroutines",
+    "setup": [],
+    "query": "SELECT '{\"k\": -1, \"a\": [1, 2, 3]}' AS c0 FROM tl AS a1 WHERE ((NULLIF (((SELECT JSON_GROUP_ARRAY (a2.c0 ORDER BY a2.c0) FROM v0 AS a2) ->> 'a'), a1.c1), FALSE) <> (a1.c1, TRUE)) GROUP BY a1.c0",
+    "tokens": 57,
+    "tokens_before": 289,
+    "fired": [
+     "Coroutines"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "CoverIdxScan": [
+   {
+    "rule": "CoverIdxScan",
+    "setup": [],
+    "query": "WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT FALSE AS c0, CAST('abc' AS TEXT) AS c1 FROM t0 AS a1 UNION ALL SELECT FALSE AS c0, CAST('NaN' AS TEXT) AS c1",
+    "tokens": 61,
+    "tokens_before": 260,
+    "fired": [
+     "CoverIdxScan"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "CoverIdxScan",
+    "setup": [],
+    "query": "SELECT '{\"k\": 1, \"a\": [1, 2]}' AS c0 FROM tp AS a1 WHERE ((a1.c1, TRUE) <> (CASE WHEN FALSE THEN a1.c1 ELSE CONCAT_WS ('-', FALSE, (SELECT SUM (CAST(5e-324 AS REAL)) FROM t3 AS a2)) END, TRUE)) GROUP BY a1.c0, a1.c1",
+    "tokens": 64,
+    "tokens_before": 289,
+    "fired": [
+     "CoverIdxScan"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "QueryFlattener": [
+   {
+    "rule": "QueryFlattener",
+    "setup": [],
+    "query": "WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT a2.c1 AS c0, CAST('abc' AS TEXT) AS c1 FROM (SELECT CAST(1.5 AS NUMERIC) AS c0, FALSE AS c1, '{\"k\": 1, \"a\": [1, 2]}' AS c2 FROM t0 AS a1) AS a2 UNION ALL SELECT TRUE AS c0, CAST('abc' AS TEXT) AS c1",
+    "tokens": 85,
+    "tokens_before": 260,
+    "fired": [
+     "CoverIdxScan",
+     "QueryFlattener"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "QueryFlattener",
+    "setup": [],
+    "query": "SELECT '1999-12-31 23:59:59.999' AS c0, CAST(1.5 AS NUMERIC) AS c1, CAST(1000 AS INTEGER) AS c2 FROM (SELECT TRUE AS c0, 11 AS c1 FROM t0 AS a1) AS a2",
+    "tokens": 39,
+    "tokens_before": 72,
+    "fired": [
+     "CoverIdxScan",
+     "QueryFlattener"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "MinMaxOpt": [
+   {
+    "rule": "MinMaxOpt",
+    "setup": [],
+    "query": "SELECT JSON_GROUP_ARRAY (CASE WHEN TRUE THEN (SELECT MIN (10) FROM t2 AS a2) ELSE a1.c0 END ORDER BY CASE WHEN TRUE THEN (SELECT MIN (10) FROM t2 AS a2) ELSE a1.c0 END) AS c0 FROM t4 AS a1 GROUP BY a1.c0",
+    "tokens": 57,
+    "tokens_before": 289,
+    "fired": [
+     "MinMaxOpt"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "MinMaxOpt",
+    "setup": [],
+    "query": "SELECT '{\"k\": 0, \"a\": [3, 4, 5]}' AS c0, (- (SELECT MIN (a2.c0) FROM ti AS a2)) AS c1, CAST(10.0 AS NUMERIC) AS c2, 0 AS c3 FROM t0 AS a1",
+    "tokens": 40,
+    "tokens_before": 212,
+    "fired": [
+     "CoverIdxScan",
+     "MinMaxOpt"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "SimplifyJoin": [
+   {
+    "rule": "SimplifyJoin",
+    "setup": [],
+    "query": "SELECT a1.n AS c0 FROM (v0 AS a1 LEFT JOIN ti AS a2 ON ((a1.c0 = a2.c0) AND TRUE)) WHERE (a2.c1 <= CAST('%' AS TEXT)) UNION ALL SELECT CAST(1000 AS INTEGER) AS c0",
+    "tokens": 55,
+    "tokens_before": 95,
+    "fired": [
+     "BloomFilter",
+     "Coroutines",
+     "SimplifyJoin"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "SimplifyJoin",
+    "setup": [],
+    "query": "SELECT a1.c0 AS c0, CAST(0.5 AS REAL) AS c1, a2.c0 AS c2, '1970-01-01' AS c3 FROM (tp AS a1 FULL JOIN t4 AS a2 ON (a1.c0 = a2.c1)) WHERE (a2.c0 > 100)",
+    "tokens": 54,
+    "tokens_before": 500,
+    "fired": [
+     "SimplifyJoin"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "PushDown": [
+   {
+    "rule": "PushDown",
+    "setup": [],
+    "query": "SELECT CAST('A' AS TEXT) AS c0 FROM v0 AS a1 WHERE (NOT (((SELECT MIN (a2.c0) FROM t3 AS a2) - 54) > (-8)))",
+    "tokens": 41,
+    "tokens_before": 135,
+    "fired": [
+     "Coroutines",
+     "MinMaxOpt",
+     "PushDown"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "PushDown",
+    "setup": [],
+    "query": "SELECT CAST(' ' AS TEXT) AS c0, a1.n AS c1, CAST(42.5 AS NUMERIC) AS c2, a1.c0 AS c3 FROM v0 AS a1 WHERE ((UNICODE (CAST(' ' AS TEXT)) + 0) < a1.c0)",
+    "tokens": 54,
+    "tokens_before": 163,
+    "fired": [
+     "Coroutines",
+     "PushDown"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "ExistsToJoin": [
+   {
+    "rule": "ExistsToJoin",
+    "setup": [],
+    "query": "WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 20) SELECT CAST('c4ca4238a0b923820dcc509a6f75849b' AS TEXT) AS c0, CAST('{\"k\": 1}' AS TEXT) AS c1 FROM rc AS a1 WHERE (EXISTS (SELECT CAST(5e-324 AS REAL) AS c0, '{\"k\": 2, \"a\": [0]}' AS c1 FROM tp AS a2))",
+    "tokens": 74,
+    "tokens_before": 163,
+    "fired": [
+     "Coroutines",
+     "ExistsToJoin"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "ExistsToJoin",
+    "setup": [],
+    "query": "SELECT '{\"k\": -1, \"a\": [1, 2, 3]}' AS c0, '2024-01-01 00:00:00' AS c1 FROM t0 AS a1 WHERE (EXISTS (SELECT a1.c1 AS c0, a2.c0 AS c1, a1.c1 AS c2 FROM t1 AS a2))",
+    "tokens": 40,
+    "tokens_before": 184,
+    "fired": [
+     "ExistsToJoin"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "OrderByIdxJoin": [
+   {
+    "rule": "OrderByIdxJoin",
+    "setup": [],
+    "query": "SELECT '2000-01-01 00:00:00' AS c0, FALSE AS c1 FROM (t1 AS a1 LEFT JOIN v0 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c0, a1.c0",
+    "tokens": 38,
+    "tokens_before": 97,
+    "fired": [
+     "OrderByIdxJoin"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "OrderByIdxJoin",
+    "setup": [
+     "CREATE TABLE t(id INTEGER PRIMARY KEY, f TEXT UNIQUE)",
+     "INSERT INTO t VALUES (1, 'a'), (2, 'b')"
+    ],
+    "query": "SELECT a.id, c.id FROM t a JOIN t c ORDER BY 1, 2",
+    "tokens": 19,
+    "tokens_before": 60,
+    "fired": [
+     "OrderByIdxJoin"
+    ],
+    "reduced_on_tree": false,
+    "source": "suite",
+    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_unnest-exists.sql"
+   }
+  ],
+  "OrderBySubq": [
+   {
+    "rule": "OrderBySubq",
+    "setup": [],
+    "query": "SELECT TRUE AS c0, TRUE AS c1 FROM (SELECT CAST(42.5 AS NUMERIC) AS c0 UNION SELECT CAST(1.5 AS NUMERIC) AS c0) AS a1 GROUP BY a1.c0",
+    "tokens": 37,
+    "tokens_before": 180,
+    "fired": [
+     "Coroutines",
+     "OrderBySubq"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "OrderBySubq",
+    "setup": [
+     "CREATE TABLE t (x INT)",
+     "INSERT INTO t VALUES (1)"
+    ],
+    "query": "WITH t AS (SELECT 1 UNION SELECT 2) SELECT * FROM t ORDER BY 1",
+    "tokens": 17,
+    "tokens_before": 19,
+    "fired": [
+     "Coroutines",
+     "OrderBySubq"
+    ],
+    "reduced_on_tree": false,
+    "source": "suite",
+    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_cte.sql"
+   }
+  ],
+  "Transitive": [
+   {
+    "rule": "Transitive",
+    "setup": [],
+    "query": "SELECT TRUE AS c0, '{\"k\": 2, \"a\": [0]}' AS c1, a1.c0 AS c2 FROM (((tp AS a1 INNER JOIN v0 AS a2 ON (a1.c0 = a2.c0)) JOIN t0 AS a3 ON (a1.c0 = a3.c0)) JOIN t0 AS a4 ON ((a1.c1 = a4.c1) AND FALSE))",
+    "tokens": 71,
+    "tokens_before": 206,
+    "fired": [
+     "BloomFilter",
+     "Coroutines",
+     "Transitive"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "Transitive",
+    "setup": [
+     "CREATE TABLE t(id INTEGER PRIMARY KEY, f TEXT UNIQUE)",
+     "INSERT INTO t VALUES (1, 'a'), (2, 'b')"
+    ],
+    "query": "SELECT c.id FROM t a JOIN t b ON a.f = b.f JOIN t c WHERE EXISTS (SELECT 1 FROM t d WHERE f = a.f AND f = c.f)",
+    "tokens": 42,
+    "tokens_before": 59,
+    "fired": [
+     "ExistsToJoin",
+     "Transitive"
+    ],
+    "reduced_on_tree": false,
+    "source": "suite",
+    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_unnest-exists.sql"
+   }
+  ],
+  "OmitNoopJoin": [
+   {
+    "rule": "OmitNoopJoin",
+    "setup": [],
+    "query": "WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT a1.c1 AS c0 FROM (t0 AS a1 LEFT JOIN t1 AS a2 ON ((a1.c0 = a2.c0) AND FALSE)) UNION SELECT CAST('[1,10)' AS TEXT) AS c0",
+    "tokens": 70,
+    "tokens_before": 208,
+    "fired": [
+     "OmitNoopJoin"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "OmitOrderBy": [
+   {
+    "rule": "OmitOrderBy",
+    "setup": [],
+    "query": "SELECT '1999-12-31' AS c0, a1.c1 AS c1 FROM (SELECT CAST(1.0 AS REAL) AS c0, 500 AS c1 ORDER BY 2 DESC) AS a1 ORDER BY 2 DESC",
+    "tokens": 36,
+    "tokens_before": 52,
+    "fired": [
+     "Coroutines",
+     "OmitOrderBy"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "OmitOrderBy",
+    "setup": [
+     "CREATE TABLE sd(a INT, b INT)",
+     "INSERT INTO sd VALUES(1,3),(1,1),(1,2),(2,2),(2,1),(2,3)"
+    ],
+    "query": "WITH cte AS (SELECT b FROM sd ORDER BY b) SELECT * FROM cte ORDER BY b",
+    "tokens": 19,
+    "tokens_before": 29,
+    "fired": [
+     "OmitOrderBy",
+     "QueryFlattener"
+    ],
+    "reduced_on_tree": false,
+    "source": "suite",
+    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_subquery_cte_materialization_adversarial.sql"
+   }
+  ],
+  "GroupByOrder": [
+   {
+    "rule": "GroupByOrder",
+    "setup": [],
+    "query": "WITH t(g, x) AS ( SELECT 1, 9007199254740994 ) SELECT NULL FROM t GROUP BY g ORDER BY g",
+    "tokens": 24,
+    "tokens_before": 48,
+    "fired": [
+     "Coroutines",
+     "GroupByOrder"
+    ],
+    "reduced_on_tree": false,
+    "source": "suite",
+    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_agg-functions_avg-large-integers.sql"
+   },
+   {
+    "rule": "GroupByOrder",
+    "setup": [],
+    "query": "WITH t(g, x) AS ( SELECT 1, '9007199254740994abc' ) SELECT NULL FROM t GROUP BY g ORDER BY g",
+    "tokens": 24,
+    "tokens_before": 55,
+    "fired": [
+     "Coroutines",
+     "GroupByOrder"
+    ],
+    "reduced_on_tree": false,
+    "source": "suite",
+    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_agg-functions_avg-text-types.sql"
+   }
+  ],
+  "BalancedMerge": [
+   {
+    "rule": "BalancedMerge",
+    "setup": [],
+    "query": "SELECT NULL UNION SELECT 1 UNION SELECT 2 UNION SELECT NULL",
+    "tokens": 11,
+    "tokens_before": 17,
+    "fired": [
+     "BalancedMerge"
+    ],
+    "reduced_on_tree": false,
+    "source": "suite",
+    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_compound-select-orderby.sql"
+   },
+   {
+    "rule": "BalancedMerge",
+    "setup": [],
+    "query": "SELECT 5 UNION ALL SELECT 4 UNION ALL SELECT 6 UNION ALL SELECT 10 ORDER BY 1",
+    "tokens": 17,
+    "tokens_before": 43,
+    "fired": [
+     "BalancedMerge"
+    ],
+    "reduced_on_tree": false,
+    "source": "suite",
+    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_compound-select-orderby.sql"
+   }
+  ]
+ },
+ "suite_fires": {
+  "BalancedMerge": 3,
+  "BloomFilter": 25,
+  "Coroutines": 143,
+  "ExistsToJoin": 5,
+  "GroupByOrder": 12,
+  "MinMaxOpt": 7,
+  "OmitOrderBy": 7,
+  "OrderByIdxJoin": 2,
+  "OrderBySubq": 7,
+  "PushDown": 1,
+  "QueryFlattener": 34,
+  "SimplifyJoin": 1,
+  "Transitive": 1
+ },
+ "suite_stats": {
+  "files": 369,
+  "queries": 6000,
+  "probed": 202,
+  "new_rules": 2
+ },
+ "never_fired_after_suite": []
+}

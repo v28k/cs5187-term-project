@@ -1,0 +1,3 @@
+-- composition of rule kernels GroupByOrder x PushDown (sqlite), template graft_exists
+SELECT CAST(' ' AS TEXT) AS c0, a1.n AS c1, CAST(42.5 AS NUMERIC) AS c2, a1.c0 AS c3 FROM (SELECT * FROM v0 WHERE EXISTS (SELECT 1 FROM (WITH t(g, x) AS ( SELECT 1, 9007199254740994 ) SELECT NULL FROM t GROUP BY g ORDER BY g) AS kb) OR NOT EXISTS (SELECT 1 FROM (WITH t(g, x) AS ( SELECT 1, 9007199254740994 ) SELECT NULL FROM t GROUP BY g ORDER BY g) AS kb)) AS a1 WHERE ((UNICODE (CAST(' ' AS TEXT)) + 0) < a1.c0);
+-- pgfuzz:check kernel:graft_exists SELECT CAST(' ' AS TEXT) AS c0, a1.n AS c1, CAST(42.5 AS NUMERIC) AS c2, a1.c0 AS c3 FROM v0 AS a1 WHERE ((UNICODE (CAST(' ' AS TEXT)) + 0) < a1.c0)

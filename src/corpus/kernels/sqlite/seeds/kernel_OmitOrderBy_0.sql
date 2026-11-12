@@ -1,0 +1,2 @@
+-- rule kernel: OmitOrderBy (sqlite)
+SELECT '1999-12-31' AS c0, a1.c1 AS c1 FROM (SELECT CAST(1.0 AS REAL) AS c0, 500 AS c1 ORDER BY 2 DESC) AS a1 ORDER BY 2 DESC;
