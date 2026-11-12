@@ -34,11 +34,30 @@ Status after re-checking each bug on the engine's newest development code built 
 | T-05 percentile with expression argument | Turso | yes (9b71df9ab) | yes (`fix.patch`, new .sqltest; full sqlite-sqltests corpus 12700 passed) | `docs/bughunt/turso/T-05-percentile-expression-argument/` |
 | T-02 window fn over DATE() twice in ORDER BY (panic) | Turso | **no: fixed upstream by merge 8f1f6ee83 "register ORDER BY window functions only for terms that are kept" (16 Oct 2026), found by bisect** | not needed | `docs/bughunt/turso/T-02-window-arg-call-order-by-twice/` (do not file) |
 | T-01 FULL JOIN on INTEGER PRIMARY KEY rejected | Turso | **no: fixed upstream by 44fe44520 "core: implement SQLite-style right and full joins" (merge 2b9184f8d, 7 Oct 2026; parent still fails, merge works)** | not needed | `docs/bughunt/turso/T-01-full-join-rowid-equality/` (do not file) |
+| T-08 aggregate in `IN (SELECT ...)` with a window function (misuse error; panic for median) | Turso | yes (38b7d9de1, 12 Nov 2026) | yes (patch, new .sqltest; window/agg/subquery corpora 1399 passed, sqlite-sqltests 12726 passed except the 2 big-db disk tests, turso+shared 3661 passed) | `latestbugs/T-08-turso-window-aggregate-in-subquery/` (**ready to file**) |
 
 Filing order suggested in each `steps.md`: issue first, then the PR. Ready to file: D-01, DF-01, DF-02, T-05
 (DataFusion: one PR at a time on a first contribution).
 
 ## Session log
+
+## 2026-11-12: T-08 (Turso), BUG #19826 v4, hunt on newest code
+
+- BUG #19826 (PostgreSQL, main branch package): reviewed Tom Lane's v3 on master b0496e3
+  (243/243 regression tests); v4 fixes the commonX/commonY entries of the old direct
+  `float8_regr_combine()` test (its other numbers are real states of `regr_test`) and adds
+  overflow tests. The owner sent the reply with v4 (`docs/bughunt/new/` on `main`).
+- Turso lead from the 11 Nov hunt (panic "aggregate called in scalar context", failure
+  3308362ffef6) reduced by hand: an aggregate in `IN (SELECT ...)` in a query with a window
+  function. Built-in aggregates are wrongly rejected as misuse, extension aggregates panic.
+  Still on main 38b7d9de1. Cause in `core/translate/window.rs` (`rewrite_terminal_expr` passes
+  `contains_aggregates = false` for subquery expressions); fixed, test added, corpora pass.
+  Open PR #11597 only changes the panic into the wrong error. Package: `latestbugs/T-08-*`.
+- `TursoDriver` now reports the version of the pyturso it actually loads (0.9.0rc5 from
+  `/root/arbor/pyturso-main`, was misreported as the pip 0.8.3).
+- Hunt on newest builds (`results/hunt_main`) crashed when a Rust build filled the disk;
+  restarted. Build Turso with `CARGO_INCREMENTAL=0` and delete `target/release` after the
+  wheel is built: the session's disk allowance is small.
 
 ## 2026-11-11: branch `generalised-improved` (new techniques, hunt on newest code)
 - New branch `generalised-improved`; hand-over for the next session: `docs/generalized/NEXT.md`.

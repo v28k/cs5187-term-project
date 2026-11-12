@@ -49,9 +49,14 @@ class TursoDriver(Driver):
         self.cur.execute("SELECT sqlite_version()")
         sv = self.cur.fetchall()[0][0]
         try:
-            from importlib.metadata import version
+            from importlib.metadata import distributions, version
 
-            return f"pyturso {version('pyturso')} (sqlite_version {sv})"
+            ver = version("pyturso")
+            if path:
+                ds = [d for d in distributions(path=[str(path)]) if d.metadata["Name"] == "pyturso"]
+                if ds:
+                    ver = ds[0].version
+            return f"pyturso {ver} (sqlite_version {sv})"
         except Exception:
             return f"turso (sqlite_version {sv})"
 

@@ -1,0 +1,32 @@
+Checked 12 Nov 2026.
+
+Turso main 38b7d9de1 (12 Nov 2026), debug build of tursodb, `tursodb -q -m list :memory: < repro.sql`:
+
+  max(x) IN (SELECT 1), count(*) OVER ()          -> × misuse of aggregate function max()
+  sum(x) NOT IN (SELECT 4), row_number() OVER ()  -> × misuse of aggregate function sum()
+  max(x) IN (SELECT 3) ... ORDER BY sum(x) OVER () -> × misuse of aggregate function max()
+  median(x) IN (SELECT 2), count(*) OVER ()       -> thread 'main' panicked at core/ext/function.rs:91:18:
+                                                     internal error: entered unreachable code: aggregate called in scalar context
+
+Same on Turso main 0c9fe0dd9 (11 Nov 2026) and on pyturso 0.8.3 (pip), where the fuzzer found it.
+
+SQLite 3.45.1 (same statements; SQLite has no median()):
+
+  0|1
+  0|1
+  1
+
+Without the window function, or with GROUP BY, Turso gives the right answer:
+  SELECT max(x) IN (SELECT 3) FROM t;                                      -> 1
+  SELECT x % 2, max(x) IN (SELECT 3), count(*) OVER () FROM t GROUP BY x % 2; -> 1|1|1
+
+With the patch in this folder (38b7d9de1 + patch):
+  0|1
+  0|1
+  1
+  1|1
+  new test window/aggregate-in-subquery-operand.sqltest: 6 passed
+  sqlite-sqltests/window, agg-functions, subquery: 1399 passed
+  all of sqlite-sqltests (cli backend): 12726 passed, 2 failed (big-db and big-db-mvcc:
+    they write a 2.2 GB database and the test machine had 2.3 GB free; unrelated)
+  turso-sqltests + testing/shared-sqltests: 3661 passed

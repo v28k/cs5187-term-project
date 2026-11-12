@@ -6,7 +6,9 @@ and actual output, and the versions it was checked on. You file; nothing here wa
 
 ## Ready to file
 
-None yet (11 Nov 2026). Campaigns against the engines' newest code are running.
+| Id | Engine | Bug | Checked on | Folder |
+|---|---|---|---|---|
+| T-08 | Turso | An aggregate in `IN (SELECT ...)` (e.g. `max(x) IN (SELECT 1)`) in a query that also has a window function is rejected with "misuse of aggregate function max()"; with `median()` or `percentile_disc()` the process panics. SQLite returns the result. Fix and regression test included. | `main` 38b7d9de1 (12 Nov 2026) | [`T-08-turso-window-aggregate-in-subquery/`](T-08-turso-window-aggregate-in-subquery/issue.md) |
 
 ## Found, but already fixed upstream (do not file)
 
