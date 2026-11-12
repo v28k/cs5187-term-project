@@ -41,6 +41,10 @@ Filing order suggested in each `steps.md`: issue first, then the PR. Ready to fi
 
 ## Session log
 
+## 2026-11-13: branches merged
+
+- `generalised-improved` merged into `generalized` (merge commit, history kept) and deleted; work continues on `generalized`. T-08 filed by the owner: Turso #11796 / PR #11797.
+
 ## 2026-11-12: T-08 (Turso), BUG #19826 v4, hunt on newest code
 
 Later the same day:

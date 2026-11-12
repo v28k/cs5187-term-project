@@ -1,7 +1,7 @@
-# Hand-over for the next session (branch `generalised-improved`, 11 Nov 2026)
+# Hand-over for the next session (branch `generalized`, updated 13 Nov 2026)
 
 Read `CLAUDE.md` first (commit identity v28k, no AI mentions in commits or files, the owner files
-all bugs). Work on branch `generalised-improved`. Tests: `cd src && python -m pytest -q` (197 pass).
+all bugs). Work on branch `generalized` (`generalised-improved` was merged into it on 13 Nov and deleted). Tests: `cd src && python -m pytest -q` (205 pass).
 
 ## What this branch adds over `generalized`
 

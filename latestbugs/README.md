@@ -1,4 +1,4 @@
-# Latest bugs (branch `generalised-improved`)
+# Latest bugs (branch `generalized`)
 
 One folder per bug that is **validated on the engine's newest development code and ready to
 file**. Each folder has `issue.md` (the exact title and text to paste), `repro.sql`, the expected
