@@ -257,6 +257,38 @@ def mine_suite(config: str, seed_files: list[str | Path], mined: dict[str, Any],
     return mined
 
 
+def transfer(mined: dict[str, Any], config: str, name: str | None = None,
+             mem_limit_gb: float | None = 3.0) -> dict[str, Any]:
+    """Kernel transfer: run the kernels mined on one engine on another engine (``config``) and
+    record which of its rules fire. The result maps each source rule to the target rules its
+    kernels trigger, i.e. a measured correspondence between two optimizers' rules, and lists the
+    target rules reached only through transferred kernels. A kernel whose SQL the target rejects
+    counts as not transferable (dialect gap)."""
+    cap_memory(mem_limit_gb)
+    lab = Lab(config, name)
+    out: dict[str, Any] = {"source": mined.get("engine"), "target": lab.engine, "target_version": lab.version,
+                           "kernels": 0, "ran": 0, "fired_any": 0, "errors": {}, "mapping": {}}
+    reached: set[str] = set()
+    for rule, ks in sorted(mined.get("kernels", {}).items()):
+        for k in ks:
+            out["kernels"] += 1
+            if lab.rows(k.get("setup", []), k["query"]) is None:
+                err = (lab.last_error or ("?", ""))[0]
+                out["errors"][err] = out["errors"].get(err, 0) + 1
+                continue
+            out["ran"] += 1
+            fired = lab.fired(k.get("setup", []), k["query"]) or set()
+            if fired:
+                out["fired_any"] += 1
+            reached |= fired
+            m = out["mapping"].setdefault(rule, {})
+            for r in fired:
+                m[r] = m.get(r, 0) + 1
+    out["target_rules_reached"] = sorted(reached)
+    out["target_rules"] = lab.rules
+    return out
+
+
 # name -> (composition, expected), both over derived tables (A) AS ka and (B) AS kb
 TEMPLATES: dict[str, tuple[str, str]] = {
     "product": ("SELECT count(*) FROM ({A}) AS ka CROSS JOIN ({B}) AS kb",

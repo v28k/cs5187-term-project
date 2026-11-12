@@ -94,12 +94,25 @@ class DuckDBDriver(Driver):
             v[f"no_{r}"] = {"rules_off": [r]}
         return v
 
+    def _disabled(self) -> str:
+        try:
+            v = self.db.execute("SELECT current_setting('disabled_optimizers')").fetchone()[0]
+        except self._duckdb.Error:
+            return ""
+        return str(v or "")
+
     def apply_variant(self, spec: Any) -> None:
         self._applied = spec
+        # A test case may itself have run SET disabled_optimizers (the grammar can generate it).
+        # Switching a rule off must add to that setting, not replace it: replacing it switches
+        # the test case's own rules back on, and then every rule looks as if it fired.
+        self._prev_disabled = self._disabled()
         for s in spec.get("sql", []):
             self.db.execute(s)
         if spec.get("rules_off"):
-            self.db.execute("SET disabled_optimizers = '" + ",".join(spec["rules_off"]) + "'")
+            have = [r.strip() for r in self._prev_disabled.split(",") if r.strip()]
+            rules = have + [r for r in spec["rules_off"] if r not in have]
+            self.db.execute("SET disabled_optimizers = '" + ",".join(rules) + "'")
 
     def variant_sql(self, spec: Any) -> list[str]:
         out = list(spec.get("sql", []))
@@ -109,12 +122,15 @@ class DuckDBDriver(Driver):
 
     def reset_variant(self) -> None:
         spec = getattr(self, "_applied", None)
+        prev = getattr(self, "_prev_disabled", "")
+        restore = f"SET disabled_optimizers = '{prev}'" if prev else "RESET disabled_optimizers"
         if spec is not None and not spec.get("sql"):
-            self.db.execute("RESET disabled_optimizers")    # only a rule was switched off
+            self.db.execute(restore)    # only a rule was switched off
         else:
-            for s in ("PRAGMA enable_optimizer", "RESET disabled_optimizers", f"SET threads = {self.threads}"):
+            for s in ("PRAGMA enable_optimizer", restore, f"SET threads = {self.threads}"):
                 self.db.execute(s)
         self._applied = None
+        self._prev_disabled = ""
 
     def explain(self, sql: str) -> str:
         rows = self.db.execute("EXPLAIN " + sql).fetchall()

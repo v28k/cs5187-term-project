@@ -59,3 +59,21 @@ def test_mine_suite_finds_a_rule_the_grammar_never_fired(tmp_path):
     k = out["kernels"]["BalancedMerge"][0]
     assert k["source"] == "suite" and k["tokens"] <= k["tokens_before"]
     assert "BalancedMerge" in K.Lab(CFG).fired(k["setup"], k["query"], ["BalancedMerge"])
+
+
+def test_transfer_maps_source_rules_to_target_rules():
+    mined = {"engine": "other", "kernels": {
+        "src_rule": [{"setup": [], "query": "SELECT 5 UNION ALL SELECT 4 UNION ALL SELECT 6 UNION ALL SELECT 10 ORDER BY 1"}],
+        "bad": [{"setup": [], "query": "SELEC nonsense"}]}}
+    tr = K.transfer(mined, CFG, mem_limit_gb=None)
+    assert tr["kernels"] == 2 and tr["ran"] == 1 and sum(tr["errors"].values()) == 1
+    assert "BalancedMerge" in tr["mapping"]["src_rule"] and "BalancedMerge" in tr["target_rules_reached"]
+
+
+def test_duckdb_rule_probe_adds_to_a_test_cases_own_disabled_optimizers():
+    pytest.importorskip("duckdb")
+    lab = K.Lab("configs/duckdb.yaml")
+    q = "SELECT ' '::text AS c0 FROM t3 AS a1 GROUP BY a1.c2"
+    fired = lab.fired(["SET disabled_optimizers = 'join_order'"], q)
+    assert fired is not None and len(fired) < 10          # not "every rule fires"
+    assert "join_order" not in fired                       # already off in the test case

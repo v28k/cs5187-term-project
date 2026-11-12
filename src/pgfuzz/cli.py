@@ -515,6 +515,14 @@ def cmd_kernels(a: argparse.Namespace) -> int:
 
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
+    if a.transfer_from:
+        src = json.loads(Path(a.transfer_from).read_text(encoding="utf-8"))
+        tr = K.transfer(src, a.config, name=a.name, mem_limit_gb=a.mem_gb)
+        (out / "transfer.json").write_text(json.dumps(tr, indent=1), encoding="utf-8")
+        print(json.dumps({k: tr[k] for k in ("source", "target", "kernels", "ran", "fired_any", "errors")}
+                         | {"target_rules_reached": len(tr["target_rules_reached"]),
+                            "target_rules": len(tr["target_rules"])}, indent=1))
+        return 0
     if a.from_json:
         mined = json.loads(Path(a.from_json).read_text(encoding="utf-8"))
     else:
@@ -712,6 +720,8 @@ def main(argv: list[str] | None = None) -> int:
                    "(a directory of .sql files written by 'pgfuzz import-tests')")
     p.add_argument("--suite-queries", type=int, default=20000, help="max suite queries to probe")
     p.add_argument("--mem-gb", type=float, default=3.0, help="address-space cap of the mining process (0: none)")
+    p.add_argument("--transfer-from", help="kernels.json mined on another engine: run its kernels on this "
+                   "config's engine and map source rules to the rules they fire here (writes transfer.json)")
     p.add_argument("--out", required=True)
     p.set_defaults(fn=cmd_kernels)
 
