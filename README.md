@@ -16,8 +16,8 @@ grammar from recent PostgreSQL commits with an LLM behind a server-side validati
 * **Generalized fuzzer** (DuckDB, SQLite, Turso, DataFusion): branch
   [`generalized`](https://github.com/v28k/cs5187-term-project/tree/generalized), summary in
   [`docs/generalized/README.md`](docs/generalized/README.md).
-* **Further techniques after the course paper** (branch
-  [`generalised-improved`](https://github.com/v28k/cs5187-term-project/tree/generalised-improved)):
+* **Further techniques after the course paper** (same branch
+  [`generalized`](https://github.com/v28k/cs5187-term-project/tree/generalized)):
   optimizer-rule *kernels* (minimal queries that trigger one rule, learned by reduction, also from
   the engines' own test suites), a composition oracle over pairs of kernels, identity grafts, a
   state-restoration oracle for rolled-back test cases, and cross-engine kernel transfer. In 15-minute
@@ -51,18 +51,17 @@ patch was reviewed and revised by Tom Lane, v3, and our v4 with the tests he ask
 12 Nov; all versions in `docs/bughunt/new/`), a Memoize/sublink error (`docs/bughunt/new/E-02-*`), and an independent
 reproducer for BUG #19766. Reproducers and patches: [`docs/bughunt/`](docs/bughunt/).
 
-Generalized fuzzer (branch `generalized`; new techniques on `generalised-improved`), each filed on
-8 Nov 2026 with a fix and a regression test:
+Generalized fuzzer (branch `generalized`), each filed with a fix and a regression test:
 
 | Engine | Bug | Issue | Pull request | State |
 |---|---|---|---|---|
 | Turso | `percentile_disc`/`percentile_cont` with an expression argument | [#11594](https://github.com/tursodatabase/turso/issues/11594) | [#11595](https://github.com/tursodatabase/turso/pull/11595) | **open** (in review; test for a case found by a reviewer added 12 Nov) |
 | DuckDB | `min`/`max` over a nested value computed by a subquery (2.0.0 regression) | [#28551](https://github.com/duckdb/duckdb/issues/28551) | [#28552](https://github.com/duckdb/duckdb/pull/28552) | **approved**: auto-merge enabled by a DuckDB maintainer, marked for the 2.0 backport |
 | DataFusion | `UPDATE`/`DELETE` that repeat an expression fail on `__common_expr_1` | [#27235](https://github.com/apache/datafusion/issues/27235) | [#27236](https://github.com/apache/datafusion/pull/27236) | **open** (validated by a contributor, awaiting a committer) |
+| Turso | aggregate in `IN (SELECT ...)` next to a window function: wrong "misuse" error, or a panic (still on Turso's newest code, 12 Nov) | [#11796](https://github.com/tursodatabase/turso/issues/11796) | [#11797](https://github.com/tursodatabase/turso/pull/11797) | **open** (filed 13 Nov) |
 
-A fourth one, a Turso bug that still occurs on Turso's newest code (an aggregate in `IN (SELECT ...)`
-next to a window function), has a fix and a test ready to file: `latestbugs/T-08-*` on branch
-`generalised-improved`.
+A fifth one, a DataFusion internal error with a scalar subquery inside `VALUES` (DF-02), was filed on
+13 Nov with a fix (`docs/bughunt/datafusion/DF-02-*` on branch `generalized`).
 
 ## One-command reproduction
 
