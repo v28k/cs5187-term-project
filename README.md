@@ -21,8 +21,9 @@ grammar from recent PostgreSQL commits with an LLM behind a server-side validati
   optimizer-rule *kernels* (minimal queries that trigger one rule, learned by reduction, also from
   the engines' own test suites), a composition oracle over pairs of kernels, identity grafts, a
   state-restoration oracle for rolled-back test cases, and cross-engine kernel transfer. In 15-minute
-  campaigns, kernel seeds raised the optimizer-rule pairs reached on DuckDB from 307 to 386 and on
-  SQLite from 86 to 182 (`docs/generalized/results/` on that branch).
+  campaigns, kernel seeds raised the optimizer-rule pairs reached on DuckDB from 307 to 386 (also per
+  test case) and on SQLite from 86 to 182 (there mostly because kernels run faster);
+  `docs/generalized/results/` on that branch.
 
 ## Headline result
 
