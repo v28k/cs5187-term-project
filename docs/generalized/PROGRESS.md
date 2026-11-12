@@ -80,6 +80,12 @@ Later the same day:
   pairs 86 -> 182, rules 17 -> 21, but twice the test cases (per 1000 test cases 4.9 vs 5.3:
   the SQLite gain is throughput; DuckDB per 1000: 21.7 vs 25.9). One TLP false positive (QUALIFY with
   a window function) fixed. `docs/generalized/results/rq8_kernels_2026-11-12.md`.
+- DataFusion kernels (grammar only): 25 of 47 rules fire, 23 with kernels (45), 253 pairs, 220
+  co-fire, 678 seeds, 0 violations. Campaign: rule pairs 241 -> 276, per 1000 test cases 14.6 ->
+  19.2 (A12 1.00, p 0.10). Its 631 plan-variant differences: 564 are GROUP BY CUBE/ROLLUP split
+  groups (fixed on main by #24422), 66 are floating-point aggregates under UNION (filter added:
+  `eval/differential.py`), 1 is `array_has_all` with an all-NULL batch (fixed on main). All three
+  are now known bugs / excluded, so DataFusion 55 campaigns stop flooding. No filable bug.
 
 - BUG #19826 (PostgreSQL, main branch package): reviewed Tom Lane's v3 on master b0496e3
   (243/243 regression tests); v4 fixes the commonX/commonY entries of the old direct

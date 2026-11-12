@@ -106,7 +106,30 @@ def eligible(sql: str) -> bool:
             return False
     if not _aggs_ordered_by_argument(sql):
         return False
+    if ws & _FLOAT_AGGS and _dedups(v, w):
+        # A floating-point aggregate differs in its last bits with the order in which rows are
+        # added (batch size, partitions, parallel workers); removing duplicates or grouping over
+        # such values then keeps a different number of rows under each plan. Not a bug.
+        return False
     return True
+
+
+# Aggregates whose value is a floating-point sum of the inputs, so it depends on input order.
+_FLOAT_AGGS = frozenset({
+    "AVG", "STDDEV", "STDDEV_POP", "STDDEV_SAMP", "STDEV", "VARIANCE", "VAR", "VAR_POP", "VAR_SAMP",
+    "CORR", "COVAR", "COVAR_POP", "COVAR_SAMP", "REGR_SLOPE", "REGR_INTERCEPT", "REGR_R2", "REGR_AVGX",
+    "REGR_AVGY", "REGR_SXX", "REGR_SYY", "REGR_SXY", "KURTOSIS", "KURTOSIS_POP", "SKEWNESS", "ENTROPY",
+    "PERCENTILE_CONT", "QUANTILE_CONT", "MEDIAN", "FAVG", "FSUM", "SUMKAHAN", "KAHAN_SUM", "GEOMEAN",
+    "GEOMETRIC_MEAN", "PRODUCT"})
+
+
+def _dedups(v: "StmtView", w: list[str]) -> bool:
+    """Does the query remove duplicate rows (where a float aggregate could decide what is a duplicate)?"""
+    if "INTERSECT" in v.wordset or "EXCEPT" in v.wordset:
+        return True
+    if any(x == "DISTINCT" and not (i and w[i - 1] in ("IS", "NOT")) for i, x in enumerate(w)):
+        return True                                   # SELECT DISTINCT / agg(DISTINCT ...), not IS DISTINCT FROM
+    return any(x == "UNION" and (i + 1 >= len(w) or w[i + 1] != "ALL") for i, x in enumerate(w))
 
 
 _ORDERED_AGG = re.compile(r"\b(" + "|".join(sorted(_ORDER_SENSITIVE_AGGS, key=len, reverse=True)) + r")\s*\(", re.I)
