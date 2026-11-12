@@ -16,6 +16,13 @@ grammar from recent PostgreSQL commits with an LLM behind a server-side validati
 * **Generalized fuzzer** (DuckDB, SQLite, Turso, DataFusion): branch
   [`generalized`](https://github.com/v28k/cs5187-term-project/tree/generalized), summary in
   [`docs/generalized/README.md`](docs/generalized/README.md).
+* **Further techniques after the course paper** (branch
+  [`generalised-improved`](https://github.com/v28k/cs5187-term-project/tree/generalised-improved)):
+  optimizer-rule *kernels* (minimal queries that trigger one rule, learned by reduction, also from
+  the engines' own test suites), a composition oracle over pairs of kernels, identity grafts, a
+  state-restoration oracle for rolled-back test cases, and cross-engine kernel transfer. In 15-minute
+  campaigns, kernel seeds raised the optimizer-rule pairs reached on DuckDB from 307 to 386 and on
+  SQLite from 86 to 182 (`docs/generalized/results/` on that branch).
 
 ## Headline result
 
