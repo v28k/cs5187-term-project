@@ -28,7 +28,7 @@ export PGFUZZ_ROOT=$HOME/pgfuzz        # put this in ~/.bashrc
 If you run as root (cloud boxes), create the user `pg` once (`useradd -m pg`):
 the scripts then start every server as `pg`, because `initdb` refuses root.
 
-| Phase | What | Machine time | Your time |
+| Phase | What | Machine time | Hands-on time |
 |---|---|---|---|
 | 0 | builds + reference server | ~60 min | 5 min |
 | 1 | LLM arm: mine commits, extend grammar (RQ4 ledger), on the coverage servers | 1–2 h | 10 min |
@@ -54,8 +54,8 @@ cd src && pip install -r requirements.txt && python3 -m pytest -q        # expec
 ```
 
 **Check:** `build_reinjected.sh` ends with `installed into .../install/reinjected
-(... = 26bd08fb... + 23 reverts)`. If a revert does not apply, send me the
-output (your clone may be too shallow: `git -C ~/pgfuzz/src/postgres-master fetch --deepen 2000`).
+(... = 26bd08fb... + 23 reverts)`. If a revert does not apply, the clone may be too
+shallow (`git -C ~/pgfuzz/src/postgres-master fetch --deepen 2000`).
 
 ## Phase 1: LLM arm (RQ4 data, and the fragments the LLM arms use)
 
@@ -86,7 +86,7 @@ alone to 150 test cases; any difference rejects it (and is worth a look: it can
 also be a bug).
 
 **Screenshot:** the `llm report` table (acceptance rate, repair rounds,
-rejections by stage, tokens, cost). **Send me:** `results/llm/ledger.jsonl`.
+rejections by stage, tokens, cost); the ledger is `results/llm/ledger.jsonl`.
 
 ## Phase 2: RQ3, re-injected bugs (~5.5 h)
 
@@ -104,8 +104,7 @@ python3 -m pgfuzz report ../results/rq3
 to `symptom` everywhere (this is the table in `bench/reinjected/verify.json`).
 
 **Screenshot:** the `verify` table; `bench attribute` table; the RQ3 section of
-`results/rq3/report/report.md`. **Send me:** the whole `results/rq3/report/`
-folder and `results/rq3/attribution.json`.
+`results/rq3/report/report.md`; the bug attribution is `results/rq3/attribution.json`.
 
 ## Phase 3: RQ1, RQ2, RQ4 (~9 h)
 
@@ -123,7 +122,7 @@ Each worker writes its own gcov counters (`$PGFUZZ_ROOT/gcov/wN`), so parallel
 trials do not mix coverage.
 
 **Screenshot:** the summary table and the coverage-over-time plot in
-`results/rq1/report/`. **Send me:** the `results/rq1/report/` folder.
+`results/rq1/report/`.
 
 ## Phase 4: triage and precision (RQ2)
 
@@ -138,16 +137,15 @@ Triage reproduces each candidate, reduces it on its derivation tree and then on
 its tokens, localizes wrong results (which planner setting, if any, removes the
 disagreement, and which source files that points to), and writes `report.md`,
 `reduced.sql` and a draft `upstream_report.txt` (pgsql-bugs shape) per
-candidate under `results/triage/`. **Send me** that folder; I will write the
-verdicts (real / false positive / duplicate) into `triage/verdicts.yaml` and
-draft upstream reports for anything real. Anything that still crashes on
-current master after reduction is a new bug: tell me immediately.
+candidate under `results/triage/`. The verdict for each candidate (real / false positive /
+duplicate) goes into `triage/verdicts.yaml`; anything that still crashes on current master after
+reduction is a new bug and gets an upstream report.
 
 ## Phase 5: paper numbers
 
 `results/*/report/*.tex` are LaTeX tables that drop into the paper
 (`table_summary.tex`, `table_comparison.tex`, `table_rq3.tex`); the PNG plots go
-to `paper/figs/`. I fill the remaining placeholders in the paper from these.
+to `paper/figs/`; `paper/scripts/make_tables.py` turns them into the paper's tables.
 
 ---
 

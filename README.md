@@ -116,7 +116,7 @@ cd ../paper && make && sh scripts/check.sh            # build and check the pape
 ```
 
 Step-by-step instructions for every experiment with expected outputs:
-[`docs/TEAM_RUNBOOK.md`](docs/TEAM_RUNBOOK.md) and [`docs/EXECUTION_PLAN.md`](docs/EXECUTION_PLAN.md).
+[`docs/EXECUTION_PLAN.md`](docs/EXECUTION_PLAN.md).
 Tool manual: [`src/README.md`](src/README.md). Never commit API keys.
 
 ## Results in one page (details: [`docs/RESULTS_ANALYSIS.md`](docs/RESULTS_ANALYSIS.md), paper section 4)
@@ -144,7 +144,7 @@ Tool manual: [`src/README.md`](src/README.md). Never commit API keys.
 | `docs/progress_meetings/` | progress meetings 1 and 2: reports, slides, study guide |
 | `docs/complete_guide/` | the complete project document (LaTeX) |
 | `docs/generalized/` | pointer to the generalized fuzzer (branch `generalized`) |
-| `docs/EXECUTION_PLAN.md`, `docs/TEAM_RUNBOOK.md`, `docs/RESULTS_ANALYSIS.md` | campaign commands, step-by-step runbook, analysis of the results |
+| `docs/EXECUTION_PLAN.md`, `docs/RESULTS_ANALYSIS.md` | commands for every campaign with expected outputs, analysis of the results |
 | `scripts/` | `reproduce.sh`, server builds, campaign and benchmark scripts |
 | `completion/` | the submission package |
 

@@ -1,4 +1,4 @@
-# Member B notes: deviations from TEAM_RUNBOOK.md
+# Member B notes: deviations from the execution plan
 
 ## Machine
 WSL2 Ubuntu 22.04 on Windows 11, `.wslconfig` memory=12GB, 24 cores (processor

@@ -149,11 +149,3 @@ restarts (no assertion or signal in any server log). The restarts came from work
 earlier, stopped run that kept fuzzing the same servers: their DDL held locks, statements waited past
 the hang oracle's limit, and the oracle restarted the server. Lesson for the harness: stop all worker
 processes before re-using servers.
-
-## Things to do before submission (open)
-
-1. Collect upstream status links (BUG numbers above) into the paper's data section.
-2. Verify at the end (user decision): the 5 RLS candidates, the `corr` parallel case, and re-run the BUG-01/02 reproducers.
-3. Google Drive link for the 110 MB archive of B (`LINKS.md` still TODO) and A's archive.
-4. Paper: fill RQ1-RQ4, abstract, intro, conclusion, data availability; cut to the page limit.
-5. Update guide, slides and PPTX with the final numbers and screenshots (member screenshots are in `runs/*/screenshots/`).
