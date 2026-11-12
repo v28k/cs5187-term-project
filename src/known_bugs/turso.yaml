@@ -10,12 +10,12 @@ bugs:
       message_regex: "window\\.rs:(3428|3564)"
   - id: turso-T05
     title: "percentile_disc/percentile_cont with an expression as the value argument: NULL or bogus error"
-    source: "docs/bughunt/turso/T-05-percentile-expression-argument/ (not filed)"
-    affected: "pyturso 0.8.3, main 9b71df9ab"
-    fixed_in: "open (fix prepared: docs/bughunt/turso/T-05-percentile-expression-argument/fix.patch)"
+    source: "tursodatabase/turso#11594, PR #11595 (filed 8 Nov 2026)"
+    affected: "pyturso 0.8.3, main 9b71df9ab, main 38b7d9de1"
+    fixed_in: "open (PR #11595)"
     match:
       outcome: wrong_result
-      offline: true
+      sql_regex: "(?i)\\b(percentile_disc|percentile_cont|percentile|median)\\s*\\("
   - id: turso-T06
     title: "runtime error inside BEGIN ends the transaction: later statements commit, ROLLBACK fails"
     source: "latestbugs/README.md (not filed: fixed on main)"
@@ -31,3 +31,11 @@ bugs:
     fixed_in: "open (fix prepared: latestbugs/T-08-turso-window-aggregate-in-subquery/0001-*.patch)"
     match:
       message_regex: "aggregate called in scalar context"
+  - id: turso-5545
+    title: "bare column next to min()/max() is read from another row than the min/max row"
+    source: "tursodatabase/turso#5545 (open; PRs #10530, #10544)"
+    affected: "pyturso 0.8.3, main 38b7d9de1"
+    fixed_in: "open upstream"
+    match:
+      outcome: wrong_result
+      sql_regex: "(?is)^\\s*SELECT\\b(?!.*\\bGROUP\\s+BY\\b).*\\b(MIN|MAX)\\s*\\("

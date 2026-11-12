@@ -19,6 +19,7 @@ YAML format::
           message_regex: "..."
           assert_regex: "..."          # matched against 'file: expr'
           frame_regex: "..."           # matched against any normalized frame
+          sql_regex: "..."             # matched against the culprit statement (the SQL that failed)
           offline: true                # never matched online; attributed afterwards (wrong results)
         poc: pocs/pg-bug-18xxx.sql     # optional, replayed by 'pgfuzz replay'
 """
@@ -47,9 +48,10 @@ class KnownBug:
     message_re: re.Pattern[str] | None = None
     assert_re: re.Pattern[str] | None = None
     frame_re: re.Pattern[str] | None = None
+    sql_re: re.Pattern[str] | None = None
     raw: dict[str, Any] = field(default_factory=dict)
 
-    def matches(self, cls: Classification) -> bool:
+    def matches(self, cls: Classification, sql: str | None = None) -> bool:
         if self.raw.get("match", {}).get("offline"):   # attributed after the campaign (pgfuzz.bench)
             return False
         if self.outcome and cls.outcome.value != self.outcome:
@@ -62,6 +64,8 @@ class KnownBug:
             a = cls.details.get("assertion")
             if not a or not self.assert_re.search(f"{a['file']}: {a['expr']}"):
                 return False
+        if self.sql_re and not (sql and self.sql_re.search(sql)):
+            return False
         if self.frame_re:
             frames = normalize_frames(cls.details.get("backtrace") or [], n=50)
             if not any(self.frame_re.search(f) for f in frames):
@@ -107,12 +111,18 @@ class KnownBugCatalog:
                     message_re=re.compile(m["message_regex"]) if m.get("message_regex") else None,
                     assert_re=re.compile(m["assert_regex"]) if m.get("assert_regex") else None,
                     frame_re=re.compile(m["frame_regex"]) if m.get("frame_regex") else None,
+                    sql_re=re.compile(m["sql_regex"]) if m.get("sql_regex") else None,
                     raw=e,
                 )
             )
         return cls(bugs, path.parent)
 
-    def match(self, cls: Classification) -> list[str]:
+    def match(self, cls: Classification, testcase: Any = None) -> list[str]:
+        """``testcase`` (optional) supplies the culprit statement for ``sql_regex``."""
         if not cls.is_bug_candidate:
             return []
-        return [b.id for b in self.bugs if b.matches(cls)]
+        sql = None
+        stmts = getattr(testcase, "statements", None)
+        if stmts and cls.culprit is not None and 0 <= cls.culprit < len(stmts):
+            sql = stmts[cls.culprit]
+        return [b.id for b in self.bugs if b.matches(cls, sql)]

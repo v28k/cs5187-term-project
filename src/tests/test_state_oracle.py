@@ -61,3 +61,36 @@ try:
                 raise
 except Exception:                                # apsw missing: the tests above are skipped
     pass
+
+
+def test_localize_skips_non_postgres_executor():
+    from pgfuzz.triage.localize import localize
+
+    class Other:
+        pass
+
+    out = localize(Other(), [], {"q": "SELECT 1"})
+    assert "skipped" in out
+
+
+def test_known_bug_sql_regex_matches_culprit_statement(tmp_path):
+    from types import SimpleNamespace
+
+    from pgfuzz.eval.known_bugs import KnownBugCatalog
+    from pgfuzz.eval.oracle import Classification, Outcome
+
+    p = tmp_path / "kb.yaml"
+    p.write_text(
+        "bugs:\n"
+        "  - id: b1\n"
+        "    match:\n"
+        "      outcome: wrong_result\n"
+        "      sql_regex: '(?i)percentile_disc\\s*\\('\n"
+    )
+    cat = KnownBugCatalog.load(p)
+    cls = Classification(Outcome.WRONG_RESULT, [], culprit=1)
+    tc = SimpleNamespace(statements=["CREATE TABLE t(a INT)", "SELECT percentile_disc(a, 1) FROM t"])
+    assert cat.match(cls, tc) == ["b1"]
+    tc.statements[1] = "SELECT max(a) FROM t"
+    assert cat.match(cls, tc) == []
+    assert cat.match(cls) == []          # no SQL: an sql_regex entry cannot match

@@ -26,3 +26,13 @@ they no longer reproduce. They count as findings of the fuzzer, not as reports.
 |---|---|
 | ~890 Turso-vs-SQLite result differences in one campaign | follow-on noise: T-06 left rows behind in Turso, so later comparisons differed; plus the already-filed percentile bug (T-05). The state-restoration oracle now reports the first leak and resets the engine. |
 | DuckDB: 4 rows by default, 5 rows with `projection_pullup` or `join_order` disabled | flaky (0 of 3 reproductions): the query groups by a `VARIANCE` result, a floating-point value that depends on parallel execution order |
+| Turso: `SELECT max(c0), c0 FROM t` returns `c0` of another row than the max row (SQLite: the max row) | known upstream: issue #5545, PRs #10530 and #10544 (open) |
+| Turso: `SELECT (SELECT max(t.c0)), count(*) OVER () FROM t` returns one row per input row; SQLite raises "misuse of aggregate" | same family as open issues #11480 and #9089 (aggregate of an outer column computed in the wrong query) |
+| DuckDB nightly 2.1.0.dev (31 Oct): "BoundReferenceExpression should not be used here yet!" for an aggregate or window function whose argument holds a lambda, inside another lambda | already reported: duckdb#27720 (open) |
+| DuckDB nightly: "Unrecognized expression type in logical operator visitor" for a window function that reads a lambda parameter, e.g. `list_transform([3], lambda x: sum(x) OVER ())` | already reported: duckdb#27983 (open) |
+| DataFusion 55.0.0: `WHERE round(x, 2) = 10` on `DECIMAL(38,10)` fails with "Invalid comparison operation: Decimal128(38, 2) == Decimal128(38, 10)" (also an internal error in the CASE lookup table) | fixed on `main` by PR #23232 (24 Aug, after the 55.0.0 release): literal arguments are now passed at their coerced type, so `round` reports the same scale at planning and at run time |
+| DataFusion 55.0.0: `SELECT TRUE UNION SELECT (c1 = 'a') IS NOT TRUE FROM tp` (nullable `c1`): "Physical input schema should be the same ..." (nullability) | fixed on `main` by PR #24244 (issue #24096, 24 Aug) |
+| DataFusion 55.0.0: window `ORDER BY` an interval constant: "Cannot run range queries on datatype: Interval(MonthDayNano)" | already reported: datafusion#24915 (open) |
+| DataFusion 55.0.0: `substr(s, cardinality(...))` rejected because the length is `UInt64` | the signature accepts only signed integers by design; the misleading "Internal error" wording is tracked in #20501 / #19004 |
+| DataFusion: `UPDATE`/`DELETE` with `__common_expr_N`, and a scalar subquery in `VALUES` | our own DF-01 (filed, #27235) and DF-02 (ready to file) |
+

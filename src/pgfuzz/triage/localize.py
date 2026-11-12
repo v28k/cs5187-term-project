@@ -90,6 +90,10 @@ def localize(ex: Any, setup: list[str], queries: dict[str, str], reference: Any 
     (metamorphic: ``lhs``/``rhs``; cross-version: the query on both servers)."""
     variants = variants if variants is not None else diff.DEFAULT_VARIANTS
     base = getattr(ex, "test", ex)
+    if not hasattr(base, "_connect"):
+        # Plan variants are PostgreSQL settings; other engines are localized by
+        # their own oracles (rule ablation, cross-engine reference).
+        return {"skipped": f"plan-variant localization needs a PostgreSQL executor, not {type(base).__name__}"}
     if not base._alive():
         base._connect(wait=True)
     known = {r[0] for r in base.conn.execute("SELECT name FROM pg_settings").fetchall()}
