@@ -3,9 +3,9 @@
 
 \section{PostgreSQL: nine bugs reported upstream}
 
-State on 9 November 2026. ``Merged'' means the fix is committed to the \pg
+State on 12 November 2026. ``Merged'' means the fix is committed to the \pg
 repository; ``acknowledged'' means a committer confirmed the bug. The course
-asks for a bug accepted by upstream maintainers: six of ours are fixed upstream,
+asks for a bug accepted by upstream maintainers: seven of ours are fixed upstream,
 five of them with the patch we wrote.
 
 \begin{center}
@@ -20,7 +20,7 @@ Two clauses on the same statistics expression: assertion in \texttt{dependencies
 \texttt{JSON\_TABLE} never assigns collations: wrong result in 17/18, assertion on master & BUG \#19768 & grammar fuzzer (assertion), cross-version check (wrong result) & \textbf{merged}: our patch (Venu), committed by Amit Langote, back-patched to 17 \\
 \texttt{NOT IN} anti-join ignores an implicit cast that can produce NULL: wrong result on master & pgsql-bugs & audit and differential checks; TLP & \textbf{merged}: our patch (Bhuvan), committed by Richard Guo \\
 \texttt{first\_value}/\texttt{nth\_value} with \texttt{IGNORE NULLS} loop forever and ignore cancel & pgsql-bugs & timeout watchdog, now the hang oracle & \textbf{merged}: our patch (Bhuvan), committed by Tatsuo Ishii \\
-\texttt{MERGE} into a partitioned table: ``SubPlan found with no parent plan'' & BUG \#19802 & grammar arm, internal-error oracle & \textbf{acknowledged}: confirmed by Tender Wang, patch posted \\
+\texttt{MERGE} into a partitioned table: ``SubPlan found with no parent plan'' & BUG \#19802 & grammar arm, internal-error oracle & \textbf{merged}: \texttt{7a5559a6} (Tender Wang, committed by Dean Rasheed), back-patched to 15 \\
 \texttt{range @> elem} folded to true/false for a NULL element (17, 18, master) & BUG \#19793 & \texttt{(SELECT e)} expression rewrite & \textbf{open}: reported with a patch (Venu) \\
 \texttt{pg\_restore\_extended\_stats} accepts non-finite MCV frequencies & pgsql-hackers & CERT estimate oracle, code reading & \textbf{open}: patch submitted (Bhuvan) \\
 \bottomrule
@@ -42,8 +42,7 @@ Links (also in \file{README.md}):
 
 \paragraph{Further reports.} BUG \#19826 (\texttt{corr()}, \texttt{regr\_r2()},
 \texttt{regr\_slope()} of a constant input differ under partial aggregation, a
-regression from commit \texttt{649828769}); Tom Lane reviewed our first patch,
-and the second version is in \file{docs/bughunt/new/}. A Memoize plus correlated
+regression from commit \texttt{649828769}); Tom Lane reviewed our patch and revised it (v3); our v4 with the tests he asked for was sent on 12 November and awaits commit; all versions are in \file{docs/bughunt/new/}. A Memoize plus correlated
 \texttt{ALL}/\texttt{ANY} sublink error (``plan should not reference subplan's
 variable'', a regression from \texttt{f8da64e6}), filed with a patch. For BUG
 \#19766 (an assertion in \texttt{shm\_toc\_insert}, reported by someone else) we

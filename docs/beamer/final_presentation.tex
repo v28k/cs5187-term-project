@@ -13,7 +13,7 @@
 \maketitle
 \note{VENU. We built a dynamic-analysis tool, a fuzzer, for PostgreSQL that looks for wrong
 results, not only crashes, and then generalized it to four more SQL engines. We will spend most
-of the time on how the tool works and how it found its bugs: nine PostgreSQL bugs reported, six
+of the time on how the tool works and how it found its bugs: nine PostgreSQL bugs reported, seven
 fixed upstream, five with our patches; three more fixes filed to DuckDB, Turso and DataFusion.}
 
 \begin{frame}{The problem: bugs that do not crash}
@@ -234,7 +234,7 @@ assertion (statistics) & extended-statistics clause generator & random statistic
 assertion / wrong result & grammar fuzzer, then cross-version & assertion on master; 18.6 gave a silently wrong answer & \ok{fixed, our patch} \#19768 \\
 wrong result (anti-join) & cross-version + TLP & master returned a row that 18.6 and the partition sum did not & \ok{fixed, our patch} \\
 hang & hang oracle & query outlived the timeout and ignored cancel & \ok{fixed, our patch} \\
-internal error & internal-error oracle (\texttt{XX000}) & grammar arm, \texttt{MERGE} on partitioned tables & \wa{confirmed} \#19802 \\
+internal error & internal-error oracle (\texttt{XX000}) & grammar arm, \texttt{MERGE} on partitioned tables & \ok{fixed} \#19802 \\
 wrong result (constant folding) & expression rewrite $e\rightarrow(\mathrm{SELECT}\ e)$ & the sub-select blocked a planner simplification; results differed & \wa{open} \#19793 \\
 bad estimate & CERT oracle & a restriction raised the row estimate (1000 $\rightarrow 10^{100}$) & \wa{open} (patch) \\
 \bottomrule
@@ -263,7 +263,7 @@ tool in one 150-second run.}
 \small
 \begin{itemize}
   \item Example: the cross-version oracle flagged a difference; reduction left one function call; localization: ``version''; the root cause: the string terminator was copied into the output; our patch was committed.
-  \item \textbf{Result: 9 reported, 6 fixed upstream (5 with our patches), 1 confirmed.}
+  \item \textbf{Result: 9 reported, 7 fixed upstream (5 with our patches), 2 under review with our patches.}
   \item One command reproduces the headline: \texttt{sudo bash scripts/reproduce.sh} $\Rightarrow$ ``Known bugs reproduced: 9 of 9''.
 \end{itemize}
 \end{frame}
@@ -332,9 +332,10 @@ rules. The hunt loop runs the whole pipeline without us and drafts the package w
 Engine & Bug type & How it was found & State \\
 \midrule
 Turso & wrong result / spurious error & Turso-vs-SQLite differential oracle; reduced to one aggregate call; root cause: arguments read from non-consecutive registers & \wa{filed with fix} \#11594 / PR \#11595 \\
-DuckDB & internal error (2.0.0 regression) & internal-error oracle on the nightly build; a regression since 2.0.0; root cause: the binder copies an expression that cannot be copied & \wa{filed with fix} \#28551 / PR \#28552 \\
+DuckDB & internal error (2.0.0 regression) & internal-error oracle on the nightly build; a regression since 2.0.0; root cause: the binder copies an expression that cannot be copied & \ok{approved by a maintainer} \#28551 / PR \#28552 \\
 DataFusion & internal error in DML & internal-error oracle; root cause: common-subexpression elimination leaks a plan-only column into DML planning & \wa{filed with fix} \#27235 / PR \#27236 \\
 DataFusion & internal error (planning order) & internal-error oracle & fix ready \\
+Turso & panic / spurious error & worker caught a Rust panic; reduced to an aggregate in \texttt{IN (SELECT ...)} next to a window function; still on the newest \texttt{main} & fix ready \\
 Turso, DuckDB & panic, rejected join, bind error & worker caught a Rust panic / error; bisection on \texttt{main} & fixed upstream before we filed \\
 \bottomrule
 \end{tabularx}
@@ -393,7 +394,7 @@ bisection. The three filed pull requests are open and awaiting review.}
 \begin{frame}{Conclusion}
 \begin{columns}[T]
 \column{0.24\textwidth}\centering{\Huge\textbf{9}}\\\small \pg bugs reported
-\column{0.24\textwidth}\centering{\Huge\ok{6}}\\\small fixed upstream (5 our patches)
+\column{0.24\textwidth}\centering{\Huge\ok{7}}\\\small fixed upstream (5 our patches)
 \column{0.24\textwidth}\centering{\Huge\textbf{3}}\\\small more fixes filed (DuckDB, Turso, DataFusion)
 \column{0.24\textwidth}\centering{\Huge\textbf{36.7\%}}\\\small backend lines (random 22.2\%)
 \end{columns}

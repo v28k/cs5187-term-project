@@ -31,9 +31,9 @@ Team: **Venu Kummari, Bhuvan Chilukuti, Gowtham Reddy** (IIT Guwahati). License:
 | `README.md` with build + run instructions and exact dependencies | [`../README.md`](../README.md), [`../src/requirements-lock.txt`](../src/requirements-lock.txt) |
 | One-command reproduction of the headline result | `sudo bash scripts/reproduce.sh` -> "Known bugs reproduced: 9 of 9" (tested 9 Nov 2026) |
 | Bug reports / PRs / patches filed upstream, with their state | table below and [`../README.md`](../README.md); reproducers and patches in [`../docs/bughunt/`](../docs/bughunt/) |
-| A bug accepted by upstream maintainers | **six PostgreSQL bugs fixed upstream, five of them with our patches** |
+| A bug accepted by upstream maintainers | **seven PostgreSQL bugs fixed upstream, five of them with our patches**; DuckDB fix approved by a maintainer |
 
-## Upstream reports and their state (9 Nov 2026)
+## Upstream reports and their state (12 Nov 2026)
 
 PostgreSQL (nine bugs found by the tool and reported):
 
@@ -45,17 +45,23 @@ PostgreSQL (nine bugs found by the tool and reported):
 | `JSON_TABLE` assigns no collations | [BUG #19768](https://www.postgresql.org/message-id/19768-3633daa830be95db@postgresql.org) | **merged**: our patch (Amit Langote), back-patched to 17 |
 | `NOT IN` anti-join ignores an implicit cast | [pgsql-bugs](https://www.postgresql.org/message-id/PN0P287MB090375874C6D5433282EC9DFA7642@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM) | **merged**: our patch (Richard Guo) |
 | `IGNORE NULLS` frame never returns | [pgsql-bugs](https://www.postgresql.org/message-id/PN0P287MB09038F3BD9921EBACF5646F6A7632@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM) | **merged**: our patch (Tatsuo Ishii) |
-| `MERGE`: SubPlan with no parent | [BUG #19802](https://www.postgresql.org/message-id/19802-ef50a8f1a4b5deee@postgresql.org) | **acknowledged**: confirmed by Tender Wang, patch posted |
+| `MERGE`: SubPlan with no parent | [BUG #19802](https://www.postgresql.org/message-id/19802-ef50a8f1a4b5deee@postgresql.org) | **merged**: `7a5559a6` (Tender Wang, committed by Dean Rasheed), back-patched to 15 |
 | `range @> NULL` folded to a constant | [BUG #19793](https://www.postgresql.org/message-id/19793-16d3a1bf33dff0fb@postgresql.org) | **open**: reported with a patch |
 | non-finite imported MCV frequencies | pgsql-hackers ([patch](../docs/bughunt/bhuvan/patches/0001-Reject-non-finite-MCV-frequencies-in-pg_restore_exte.patch)) | **open**: patch submitted |
+
+Also reported: BUG #19826 (`corr()`/`regr_*()` under partial aggregation). Tom Lane reviewed our patch and revised it (v3); our v4 with the tests he asked for was sent on 12 Nov 2026 and awaits commit.
 
 Generalized fuzzer (branch `generalized` of <https://github.com/v28k/cs5187-term-project>), filed 8 Nov 2026 with a fix and a regression test each:
 
 | Engine | Bug | Issue / PR | State |
 |---|---|---|---|
-| Turso | `percentile_disc`/`percentile_cont` with an expression argument | [#11594](https://github.com/tursodatabase/turso/issues/11594) / [#11595](https://github.com/tursodatabase/turso/pull/11595) | **open** (awaiting review) |
-| DuckDB | `min`/`max` over a nested value computed by a subquery | [#28551](https://github.com/duckdb/duckdb/issues/28551) / [#28552](https://github.com/duckdb/duckdb/pull/28552) | **open** (awaiting review) |
-| DataFusion | `UPDATE`/`DELETE` repeating an expression (`__common_expr_1`) | [#27235](https://github.com/apache/datafusion/issues/27235) / [#27236](https://github.com/apache/datafusion/pull/27236) | **open** (awaiting review) |
+| Turso | `percentile_disc`/`percentile_cont` with an expression argument | [#11594](https://github.com/tursodatabase/turso/issues/11594) / [#11595](https://github.com/tursodatabase/turso/pull/11595) | **open** (in review) |
+| DuckDB | `min`/`max` over a nested value computed by a subquery | [#28551](https://github.com/duckdb/duckdb/issues/28551) / [#28552](https://github.com/duckdb/duckdb/pull/28552) | **approved** (auto-merge enabled by a maintainer, 2.0 backport) |
+| DataFusion | `UPDATE`/`DELETE` repeating an expression (`__common_expr_1`) | [#27235](https://github.com/apache/datafusion/issues/27235) / [#27236](https://github.com/apache/datafusion/pull/27236) | **open** (validated by a contributor) |
+
+Updated 12 Nov 2026: BUG #19802 fixed upstream (now seven fixed), DuckDB fix approved, BUG #19826 v4 sent.
+The paper, the final presentation, the short class talk and the complete project document were rebuilt
+with these states. `slides/class_talk.*` (the earlier 7-minute class talk) is kept as presented.
 
 ## Steps only the team can do before 13 Nov 2026, 23:59 IST
 

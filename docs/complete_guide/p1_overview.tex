@@ -33,8 +33,8 @@ RQ4 what the LLM adds and costs.
   \item The fuzzer is complete and tested on real \pg master servers: about
     10{,}500 lines of Python, a 78-rule typed grammar, 151 unit tests passing,
     MIT license.
-  \item \textbf{Nine \pg bugs reported upstream: six are fixed upstream, five of
-    them with our patches; one more is confirmed} (Part~\ref{part:bugs}). One
+  \item \textbf{Nine \pg bugs reported upstream: seven are fixed upstream, five of
+    them with our patches} (Part~\ref{part:bugs}). One
     command (\file{scripts/reproduce.sh}) shows the fuzzer finding all nine in a
     150-second run.
   \item The four research questions are answered by final campaigns
@@ -81,7 +81,7 @@ Grammar validity now & 99.5--99.7\% of statements run without error on master \\
 Throughput (one worker) & $\approx$17--23 grammar test cases per second with all oracles on (3{,}166 in 180 s full system; 5{,}516 in 240 s plain grammar) \\
 Plan variants & 18 planner configurations (Section~\ref{sec:variants}) \\
 Metamorphic check kinds & 12 (TLP-WHERE, TLP-HAVING, TLP-aggregate, NoREC, expression, predicate, NOT NULL, ORDER BY drop, CTE, table fence, RLS, CERT) \\
-Bugs reported upstream & \textbf{9}: \textbf{6 fixed upstream} (\#19803, \#19771, statistics expression, \#19768, NOT IN, IGNORE NULLS), \textbf{5 with our patches}; \#19802 confirmed; \#19793 and MCV open (Part~\ref{part:bugs}) \\
+Bugs reported upstream & \textbf{9}: \textbf{7 fixed upstream} (\#19803, \#19802, \#19771, statistics expression, \#19768, NOT IN, IGNORE NULLS), \textbf{5 with our patches}; \#19793 and MCV open (Part~\ref{part:bugs}) \\
 Rediscovery & all 9 found in one 150-second run (\file{scripts/reproduce.sh}) \\
 Benchmark & 23 reverted fixes (31 Jul--16 Oct 2026); 20 observable: 8 wrong results, 5 internal errors, 4 assertions, 2 missing errors, 1 wrong error \\
 Crash-only visibility & 9 of 20 observable benchmark bugs \\
@@ -115,7 +115,7 @@ All three can explain every part; this document is the script.
 \toprule
 Component & Weight & How this project addresses it \\
 \midrule
-Implementation and results & 50\% & Working fuzzer (typed grammar, 12 metamorphic oracles, plan-variant and cross-version oracles, hang oracle, triage with tree reduction, gated LLM arm, benchmark), final campaigns. \textbf{Upstream-accepted bugs: six fixed upstream (five with our patches), one more confirmed.} Generalized fuzzer: three more fixes filed. \\
+Implementation and results & 50\% & Working fuzzer (typed grammar, 12 metamorphic oracles, plan-variant and cross-version oracles, hang oracle, triage with tree reduction, gated LLM arm, benchmark), final campaigns. \textbf{Upstream-accepted bugs: seven fixed upstream (five with our patches).} Generalized fuzzer: three more fixes filed. \\
 Meetings and presentation & 25\% & Progress meetings 1 and 2, final presentation (Beamer, 24 slides) and class talk (Beamer, 12 slides), each with a speaker-notes PDF, this document, live demo (Section~\ref{sec:demo}). \\
 Paper (ACM/FSE) & 25\% & ACM \texttt{sigconf}: motivation (a real wrong result, BUG \#19793), technique, implementation, evaluation (four RQs), related work, threats to validity, data availability, signed contributions. \\
 Repository & -- & Public, MIT license, \file{README.md} with build and run instructions, exact dependencies, one-command reproduction, and every upstream report with its state. \\

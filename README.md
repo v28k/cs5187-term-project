@@ -19,11 +19,11 @@ grammar from recent PostgreSQL commits with an LLM behind a server-side validati
 
 ## Headline result
 
-Arbor found **nine PostgreSQL bugs** that we reported upstream: **six are fixed upstream, five of
-them with our patches**, and one more is confirmed. One command reproduces the fuzzer finding all
+Arbor found **nine PostgreSQL bugs** that we reported upstream: **seven are fixed upstream, five of
+them with our patches**, and the other two are under review with our patches. One command reproduces the fuzzer finding all
 nine in a 150-second run (section "One-command reproduction").
 
-## Upstream bug reports and their state (9 Nov 2026)
+## Upstream bug reports and their state (12 Nov 2026)
 
 | # | Bug | Upstream report | State |
 |---|---|---|---|
@@ -33,21 +33,27 @@ nine in a 150-second run (section "One-command reproduction").
 | 4 | `JSON_TABLE` assigns no collations (wrong result in 17/18, assertion on master) | [BUG #19768](https://www.postgresql.org/message-id/19768-3633daa830be95db@postgresql.org) | **merged**: our patch, committed by Amit Langote, back-patched to 17 |
 | 5 | `NOT IN` anti-join ignores an implicit cast (wrong result on master) | [pgsql-bugs thread](https://www.postgresql.org/message-id/PN0P287MB090375874C6D5433282EC9DFA7642@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM) | **merged**: our patch, committed by Richard Guo |
 | 6 | `first_value`/`nth_value` with `IGNORE NULLS` never returns (ignores cancel) | [pgsql-bugs thread](https://www.postgresql.org/message-id/PN0P287MB09038F3BD9921EBACF5646F6A7632@PN0P287MB0903.INDP287.PROD.OUTLOOK.COM) | **merged**: our patch, committed by Tatsuo Ishii |
-| 7 | `MERGE` into a partitioned table: "SubPlan found with no parent plan" | [BUG #19802](https://www.postgresql.org/message-id/19802-ef50a8f1a4b5deee@postgresql.org) | **acknowledged**: confirmed by Tender Wang, patch posted |
+| 7 | `MERGE` into a partitioned table: "SubPlan found with no parent plan" | [BUG #19802](https://www.postgresql.org/message-id/19802-ef50a8f1a4b5deee@postgresql.org) | **merged**: fixed in `7a5559a6` (Tender Wang, committed by Dean Rasheed), back-patched to 15 |
 | 8 | `range @> NULL` folded to a constant (wrong result in 17, 18, master) | [BUG #19793](https://www.postgresql.org/message-id/19793-16d3a1bf33dff0fb@postgresql.org) | **open**: reported with a patch |
 | 9 | `pg_restore_extended_stats` accepts non-finite MCV frequencies | pgsql-hackers ([our patch](docs/bughunt/bhuvan/patches/0001-Reject-non-finite-MCV-frequencies-in-pg_restore_exte.patch)) | **open**: patch submitted |
 
-Further reports: BUG #19826 (`corr()` under partial aggregation; reviewed by Tom Lane, v2 in
-`docs/bughunt/new/`), a Memoize/sublink error (`docs/bughunt/new/E-02-*`), and an independent
+Further reports: BUG #19826 (`corr()` and the `regr_*()` functions under partial aggregation; our
+patch was reviewed and revised by Tom Lane, v3, and our v4 with the tests he asked for was sent on
+12 Nov; all versions in `docs/bughunt/new/`), a Memoize/sublink error (`docs/bughunt/new/E-02-*`), and an independent
 reproducer for BUG #19766. Reproducers and patches: [`docs/bughunt/`](docs/bughunt/).
 
-Generalized fuzzer (branch `generalized`), each filed on 8 Nov 2026 with a fix and a regression test:
+Generalized fuzzer (branch `generalized`; new techniques on `generalised-improved`), each filed on
+8 Nov 2026 with a fix and a regression test:
 
 | Engine | Bug | Issue | Pull request | State |
 |---|---|---|---|---|
-| Turso | `percentile_disc`/`percentile_cont` with an expression argument | [#11594](https://github.com/tursodatabase/turso/issues/11594) | [#11595](https://github.com/tursodatabase/turso/pull/11595) | **open** (awaiting review) |
-| DuckDB | `min`/`max` over a nested value computed by a subquery (2.0.0 regression) | [#28551](https://github.com/duckdb/duckdb/issues/28551) | [#28552](https://github.com/duckdb/duckdb/pull/28552) | **open** (awaiting review) |
-| DataFusion | `UPDATE`/`DELETE` that repeat an expression fail on `__common_expr_1` | [#27235](https://github.com/apache/datafusion/issues/27235) | [#27236](https://github.com/apache/datafusion/pull/27236) | **open** (awaiting review) |
+| Turso | `percentile_disc`/`percentile_cont` with an expression argument | [#11594](https://github.com/tursodatabase/turso/issues/11594) | [#11595](https://github.com/tursodatabase/turso/pull/11595) | **open** (in review; test for a case found by a reviewer added 12 Nov) |
+| DuckDB | `min`/`max` over a nested value computed by a subquery (2.0.0 regression) | [#28551](https://github.com/duckdb/duckdb/issues/28551) | [#28552](https://github.com/duckdb/duckdb/pull/28552) | **approved**: auto-merge enabled by a DuckDB maintainer, marked for the 2.0 backport |
+| DataFusion | `UPDATE`/`DELETE` that repeat an expression fail on `__common_expr_1` | [#27235](https://github.com/apache/datafusion/issues/27235) | [#27236](https://github.com/apache/datafusion/pull/27236) | **open** (validated by a contributor, awaiting a committer) |
+
+A fourth one, a Turso bug that still occurs on Turso's newest code (an aggregate in `IN (SELECT ...)`
+next to a window function), has a fix and a test ready to file: `latestbugs/T-08-*` on branch
+`generalised-improved`.
 
 ## One-command reproduction
 

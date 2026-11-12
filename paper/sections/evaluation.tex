@@ -135,9 +135,8 @@ Table~\ref{tab:rq2} gives the verdicts per oracle.
 \paragraph{Bugs.} Table~\ref{tab:bugs} lists the nine bugs we reported. Five
 came from the fuzzing campaigns; four came from the targeted bug hunt that
 accompanied them, in which we audited recent planner and executor features with
-differential probes. Seven reports were answered by \pg developers: six bugs are
-fixed on master, five of them with fixes written by the authors, and one more is
-confirmed by a committer. The oracles also found three bugs reported by others days
+differential probes. Seven reports were answered by \pg developers, and all seven bugs are
+fixed upstream, five of them with fixes written by the authors. The oracles also found three bugs reported by others days
 before us, which we count as duplicates: a wrong result of self-join
 elimination under \texttt{ROLLUP} in 18.6 (\#19800, a plan variant), \#19772
 (the \texttt{(SELECT e)} rewrite) and \#19784.
@@ -146,7 +145,7 @@ elimination under \texttt{ROLLUP} in 18.6 (\#19800, a plan variant), \#19772
   \centering
   \footnotesize
   \caption{The nine bugs we reported upstream, the oracle that recognises each,
-  and their state on 8~November~2026. All reproduce on the base build
+  and their state on 12~November~2026. All reproduce on the base build
   \texttt{26bd08fb}, which predates the fixes.}
   \label{tab:bugs}
   \begin{tabular}{@{}llll@{}}
@@ -155,7 +154,7 @@ elimination under \texttt{ROLLUP} in 18.6 (\#19800, a plan variant), \#19772
     \midrule
     \texttt{JSON\_TABLE} assigns no collations & \#19768 & assertion & fixed (our patch) \\
     \texttt{range @> NULL} folded to a constant & \#19793 & \texttt{(SELECT e)} rewrite & reported, patch \\
-    \texttt{MERGE}: SubPlan with no parent & \#19802 & internal error & confirmed, patch \\
+    \texttt{MERGE}: SubPlan with no parent & \#19802 & internal error & fixed \\
     parallel \texttt{Append} assertion & \#19803 & TLP (\arm{+LLM fragments}) & fixed \\
     \texttt{to\_char(NaN)} breaks \texttt{NORMALIZE} & \#19771 & assertion & fixed (our patch) \\
     \texttt{NOT IN} anti-join ignores a cast & pgsql-bugs & TLP & fixed (our patch) \\
@@ -195,8 +194,9 @@ order-sensitive aggregates sorted by a key that is not the value, such as
 after an \texttt{INSERT} only master accepts (5), an RLS rewrite that left a
 protected table inside a repeated sub-select unfiltered (5), and an LLM rewrite
 that is not an identity (Section~\ref{sec:rq4}). One remaining candidate is
-a new bug we are reporting: \texttt{corr()} of a constant input is NULL
-serially but 1 under partial aggregation.
+a new bug, which we reported as BUG~\#19826: \texttt{corr()} of a constant input is NULL
+serially but 1 under partial aggregation. A committer reviewed our patch and
+revised it with us; it awaits commit.
 
 \subsection{\rqref{3}: Re-injected Bugs}
 \label{sec:rq3}

@@ -13,7 +13,7 @@
 \maketitle
 \note{VENU (15 s). Good afternoon. We built a fuzzer, a dynamic-analysis tool that writes test
 queries for PostgreSQL and decides by itself when an answer is wrong. Then we generalized it to
-four more SQL engines. Nine PostgreSQL bugs reported, six fixed upstream, five with our patches;
+four more SQL engines. Nine PostgreSQL bugs reported, seven fixed upstream, five with our patches;
 three more fixes filed to DuckDB, Turso and DataFusion.}
 
 \begin{frame}{Target and problem}
@@ -73,18 +73,18 @@ assertion (crash) & extended-statistics generator & assertion in the estimator &
 wrong result + assertion & grammar fuzzer + cross-version & assertion on master, wrong answer on 18.6 & \ok{fixed, our patch} \#19768 \\
 wrong result & cross-version + TLP & extra row on master & \ok{fixed, our patch} \\
 hang & hang oracle & timeout and cancel ignored & \ok{fixed, our patch} \\
-internal error & internal-error oracle (\texttt{XX000}) & ``should not happen'' error & \wa{confirmed} \#19802 \\
+internal error & internal-error oracle (\texttt{XX000}) & ``should not happen'' error & \ok{fixed} \#19802 \\
 wrong result & $e\rightarrow(\mathrm{SELECT}\ e)$ rewrite & sub-select blocked a simplification & \wa{open} \#19793 \\
 bad estimate & CERT oracle & estimate rose under a restriction & \wa{open} (patch) \\
 \bottomrule
 \end{tabularx}
 
 \smallskip
-\small\textbf{9 reported, 6 fixed upstream (5 with our patches), 1 confirmed.} The tool rediscovers all 9 in one 150-second run.
+\small\textbf{9 reported, 7 fixed upstream (5 with our patches), 2 under review.} The tool rediscovers all 9 in one 150-second run.
 \end{frame}
 \note{BHUVAN (30 s). Read the middle column: every oracle found something. Two bugs came only from
 comparing with the last release, one only from the sub-select rewrite, one only from the hang
-oracle, one only from the estimate oracle. Six are fixed upstream; five of the fixes are our
+oracle, one only from the estimate oracle. Seven are fixed upstream; five of the fixes are our
 patches.}
 
 \begin{frame}{Arbor: three bugs in detail}
@@ -160,7 +160,7 @@ the hunt loop goes from campaign to a filing package on its own.}
 \end{block}
 \column{0.32\textwidth}
 \begin{block}{DuckDB}
-\textbf{State}: \wa{filed with fix}\\[2pt]
+\textbf{State}: \ok{approved by a maintainer}\\[2pt]
 \textbf{Type}: internal error, regression in 2.0.0.\\[2pt]
 \textbf{What happened}: for \texttt{min}/\texttt{max} over a nested value the binder copied the argument before checking whether a collation applies; an argument containing a subquery cannot be copied.\\[2pt]
 \textbf{How found}: internal-error oracle on the nightly build.\\[2pt]
@@ -176,7 +176,7 @@ the hunt loop goes from campaign to a filing package on its own.}
 \end{block}
 \end{columns}
 \smallskip
-\scriptsize \textbf{Other bugs found}: a DataFusion internal error with subqueries in \texttt{VALUES} (fix ready); a Turso panic, a rejected Turso join and a DuckDB bind error, all three already fixed upstream when we re-checked on the newest code (\texttt{main}).
+\scriptsize \textbf{Other bugs found}: a DataFusion internal error with subqueries in \texttt{VALUES} and a Turso panic with an aggregate in \texttt{IN (SELECT ...)} next to a window function (both with a fix ready); a Turso panic, a rejected Turso join and a DuckDB bind error, all three already fixed upstream when we re-checked on the newest code (\texttt{main}).
 \end{frame}
 \note{GOWTHAM (20 s) Turso: only the comparison with SQLite showed the wrong value; the aggregate
 read its fraction from the wrong register. BHUVAN (20 s) DuckDB: the internal-error oracle; a
@@ -187,7 +187,7 @@ regression test and pass the engine's full test suite.}
 \begin{frame}{Results and conclusion}
 \begin{columns}[T]
 \column{0.24\textwidth}\centering{\Huge\textbf{9}}\\\scriptsize \pg bugs reported
-\column{0.24\textwidth}\centering{\Huge\ok{6}}\\\scriptsize fixed upstream (5 our patches)
+\column{0.24\textwidth}\centering{\Huge\ok{7}}\\\scriptsize fixed upstream (5 our patches)
 \column{0.24\textwidth}\centering{\Huge\textbf{3}}\\\scriptsize fixes filed to DuckDB, Turso, DataFusion
 \column{0.24\textwidth}\centering{\Huge\textbf{36.7\%}}\\\scriptsize backend lines (random 22.2\%)
 \end{columns}
