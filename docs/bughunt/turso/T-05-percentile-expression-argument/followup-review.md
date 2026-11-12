@@ -80,3 +80,12 @@ review asked to fix. SQLite 3.54.1 raises "the fraction argument to percentile_d
 Local run of all `turso-sqltests` (cli backend): 3630 passed, 1 failed (that test). Fix: one commit on top of
 05d4506b, "test: expect the fraction error for percentile_disc(x, 100)" (`followup-within-group-test.patch`, tree
 bb12e6a2881e1b4b72c5adac9a9d27874ed1a5a6); `within-group.sqltest` then passes 75/75.
+
+## GROUP BY tests suggested on the PR (head 2ff27089)
+
+A contributor noted that the register fix also covers GROUP BY: there the arguments come from cached sorter columns,
+so with several percentile calls in one query every call but the last read the wrong fraction on main. Four tests
+added (percentile_disc with two calls and with three fractions, percentile_cont and percentile with three fractions);
+expected values checked against SQLite 3.54.1. All four fail with the core files of main (e520c28) and pass on the
+PR; the sqltest file passes 22/22. One test-only commit on top of 2ff27089, "test: cover percentile aggregates under
+GROUP BY with several calls" (`followup-group-by-tests.patch`, tree c536fad4ba19910f12ec15b5d1a7f1aa21ca0748).
