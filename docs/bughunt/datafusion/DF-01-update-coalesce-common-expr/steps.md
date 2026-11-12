@@ -1,4 +1,4 @@
-# Steps for the owner (DF-01): issue first, then the fix PR
+# Filing steps (DF-01): issue first, then the fix PR
 
 DataFusion's AI policy (`docs/source/contributor-guide/ai-policy.md`) welcomes AI-assisted PRs only when the author
 has read the whole PR, understands it end-to-end and answers reviewers in their own words; first-time contributors

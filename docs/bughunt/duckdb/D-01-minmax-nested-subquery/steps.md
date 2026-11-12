@@ -1,4 +1,4 @@
-# Steps for the owner (D-01): issue first, then the fix PR
+# Filing steps (D-01): issue first, then the fix PR
 
 **Before anything: DuckDB's `AI_POLICY.md`.** It allows AI-assisted code, but requires that issues, PR descriptions
 and replies to maintainers are written by you, in your own words, and that you can explain the change yourself;

@@ -1,6 +1,6 @@
 # Filing N1 and N2 on pgsql-bugs
 
-Same route as before (docs/bughunt/HANDOFF.md, "Filing steps"):
+Same route as the earlier reports (docs/bughunt/):
 
 1. Sign in at https://www.postgresql.org/account/ (community account) and open
    **https://www.postgresql.org/account/submitbug/**.

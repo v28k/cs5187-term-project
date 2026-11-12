@@ -95,7 +95,7 @@ def hunt(configs: list[str], budget: float, out: str, jobs: int = 2, repeat: int
              "| Campaign | New failures | Reproducible packages |", "|---|---|---|"]
     for name, e in summary["engines"].items():
         lines.append(f"| {name} | {e['new_failures']} | {len(e['packages'])} |")
-    lines += ["", "Packages (drafts; confirm, decide the expected result, then follow docs/generalized/HANDOFF.md 1d):", ""]
+    lines += ["", "Packages (drafts; confirm, decide the expected result, then follow the package's steps.md):", ""]
     lines += [f"- `{p}`" for e in summary["engines"].values() for p in e["packages"]]
     (out_dir / "HUNT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     (out_dir / "hunt.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")

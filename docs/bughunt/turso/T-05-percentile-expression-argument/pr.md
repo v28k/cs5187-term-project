@@ -31,4 +31,4 @@ corpus passes with the change (cli backend: 12700 passed, 4 skipped).
 
 ## Description of AI Usage
 
-<!-- TO FILL BY THE OWNER: Turso's template asks contributors to disclose how AI was used for the PR. -->
+As filed in PR #11595.

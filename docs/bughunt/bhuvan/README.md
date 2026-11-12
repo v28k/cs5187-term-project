@@ -11,7 +11,7 @@ reproduce each, and their upstream status. Part of CS-5187 project A3
 | Grammar fuzzer | `python -m pgfuzz run configs/*.yaml` | typed, scope-aware SQL; differential plan oracle + metamorphic oracles |
 | Cross-version differential | `src/xversion/joinfuzz.py`, `joinfuzz2.py` | same query on master vs 18.6, results compared as multisets |
 | Metamorphic fuzzer | `src/xversion/metafuzz.py` | TLP + NoREC oracles |
-| Differential (hunter B/C) | `bugprogress/scripts/*.py` | code-reading + differential testing of recent features |
+| Differential (hunter B/C) | `docs/bughunt/scripts/*.py` | code-reading + differential testing of recent features |
 | Manual audit + probes | `bughunt/audit/`, `bughunt/audit2/` | 23 Oct 2026 correctness audit |
 
 ## Bugs (summary)
@@ -96,13 +96,13 @@ reproduce each, and their upstream status. Part of CS-5187 project A3
 ### 5. B-01 — FULL JOIN NOT NULL folding (PG19 regression)
 - **Found by:** hunter B differential fuzzer (`fz2.py`), master vs 18.6.
 - **Status:** skipped — same root cause is an open pgsql-hackers item (commitfest 7400, in progress).
-- **Report:** `../new/B-01-full-join-notnull-folding.md`, `../../bugprogress/B-01-*`.
+- **Report:** `../new/B-01-full-join-notnull-folding.md`, `../new/B-01-*`.
 
 ### 6. C-01 — dependencies duplicate-expression assertion
 - **Found by:** hunter C differential fuzzers.
 - **Status:** **filed 27 Oct 2026 by Bhuvan** (assertion-only; distinct from #19789/#19772).
 - **Report:** `../new/C-01-dependencies-duplicate-expression-assert.md`,
-  `../../bugprogress/C-01-*`.
+  `../new/C-01-*`.
 
 ---
 
@@ -151,7 +151,6 @@ Every claim above comes from a real run; the evidence files back the
 reproducers and results.
 
 ## Additional context
-- `HANDOFF-2026-10-18.md` — the updated bug-hunt handoff (18 Oct 2026).
 - `fuzzers/` — the actual fuzz/differential scripts used (grammar-hunt era + the
   23 Oct audit fuzzers: jtfuzz/ixfuzz/ptfuzz/hashcheck/jsoneq/intervalrt, and
   audit2 fuzzers nnfuzz/winfuzz/rtcheck).

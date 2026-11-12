@@ -60,7 +60,7 @@ output (your clone may be too shallow: `git -C ~/pgfuzz/src/postgres-master fetc
 ## Phase 1: LLM arm (RQ4 data, and the fragments the LLM arms use)
 
 Needs `ANTHROPIC_API_KEY` in the environment, or use `--mode manual` (the tool
-writes each prompt to `results/llm/prompts/<key>.md`; paste it into Claude,
+writes each prompt to `results/llm/prompts/<key>.md`; paste it into the LLM's chat interface,
 save the JSON answer as `results/llm/responses/<key>.json`, re-run).
 
 ```bash

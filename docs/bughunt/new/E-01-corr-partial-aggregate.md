@@ -102,3 +102,67 @@ value (7) contradicts their sums.
 Found with a grammar-based fuzzer that compares query results across
 planner settings.
 ```
+
+## Review round 1 (Tom Lane, 3 Nov 2026) and v2
+
+Tom Lane's points: (1) the combine function also lacks the logic added to float8_regr_accum()
+by 7774249d0 (#19615) that forces Sxy to NaN when one input is constant and the other is
+Inf/NaN; (2) the v1 comments did not answer the questions a reader has.
+
+v2 (`v2-0001-Make-float8_regr_combine-handle-constant-inputs-l.patch`, against master 633dee1b):
+- adds the correction terms only for a variable whose common value is unknown (unchanged idea);
+- when the Sxy correction is skipped because one variable is constant, forces Sxy to NaN if
+  Sx or Sy is Inf/NaN (the inputs are not visible in the combine function, but a sum that
+  includes an Inf or NaN is itself Inf or NaN);
+- rewritten comment explaining why the term can be dropped (both means are exactly c in exact
+  arithmetic, Sx1/Sx2 are rounded sums) and why the NaN case must be handled;
+- new commit message referencing 649828769 and 7774249d0; regression test now checks constant
+  input and Inf/NaN in one partition with partitionwise aggregation against the serial plan;
+- make check 239/239.
+
+Note for the reply: with states built by float8_regr_accum, a partial state that saw an Inf or
+NaN already has Sxy = NaN, so the explicit forcing does not change the results of the tests;
+it keeps the combine function correct on its own instead of relying on that.
+
+### Reply to send (reply-all to Tom's message, plain text, attach the v2 patch)
+
+```
+On Mon, Nov 3, 2026, Tom Lane wrote:
+> isn't it also missing the latter routine's recently-added logic for
+> forcing outputs to NaN when necessary?
+
+Yes, thanks. When I skip the Sxy correction because one variable is
+constant, the NaN that 0 * Inf would have produced is lost. v2 forces Sxy
+to NaN in that case, as float8_regr_accum does since 7774249d0. The
+combine function can't see the inputs, so it tests Sx and Sy instead: a
+sum that includes an Inf or NaN is Inf or NaN.
+
+As far as I can tell, a partial state that has seen an Inf or NaN already
+carries Sxy = NaN from float8_regr_accum, so this doesn't change any
+result I could produce through SQL, but the combine function shouldn't
+depend on that.
+
+> the proposed comments read like AI slop
+
+Fair. I rewrote the comment to say why the term can be dropped: if both
+states saw only the value c, both means are c exactly and Sxx1/Sxx2 are
+zero, but Sx1 and Sx2 are rounded sums, so the computed difference of the
+means is a small nonzero number that leaves Sxx positive, and corr() of a
+constant input becomes 1 under partial aggregation. The commit message
+now explains the history (649828769, 7774249d0).
+
+The regression test now compares partitionwise aggregation with the
+serial plan for a constant input and for an Inf or NaN in one partition
+with the other input constant. One existing expected output changes: the
+direct float8_regr_combine() call whose two states have the same common X
+value (7) but different sums gives Sxx 400 instead of 6280. Those states
+can't arise from real input; I can change that test's input instead if
+you prefer.
+
+make check passes on master (633dee1b).
+
+v2 attached.
+
+Regards,
+Venu
+```

@@ -1,78 +1,82 @@
-# Arbor: LLM-guided grammar-aware fuzzing of PostgreSQL
+# Arbor, generalized: rule-directed grammar fuzzing of SQL engines
 
-CS-5187 term project A3. The tool is called `pgfuzz` in
-the code and **Arbor** in the (anonymised) paper.
+CS-5187 term project A3, extended version. Team: **Venu Kummari, Bhuvan Chilukuti, Gowtham Reddy**
+(IIT Guwahati). License: [MIT](LICENSE).
 
-Arbor generates SQL as typed derivation trees from a grammar of 78 rules, rewrites
-the trees into metamorphic checks (TLP, NoREC, typed expression rewrites, a
-row-level-security check, plan-variant and cross-version oracles), reduces every
-finding on its tree and tokens, and extends the grammar from recent PostgreSQL
-commits with an LLM behind a server-side validation gate.
+* **Course project (PostgreSQL fuzzer, paper, slides, submission package):** branch
+  [`main`](https://github.com/v28k/cs5187-term-project/tree/main).
+* **This branch, `generalized`:** the same fuzzer (`pgfuzz`, called Arbor in the paper) extended to
+  **DuckDB, SQLite, Turso and Apache DataFusion**, with new techniques and the bugs found with them.
 
-## Generalized fuzzer (this branch, `generalized`)
+## What this branch adds
 
-The same core now tests **DuckDB, SQLite, Turso and Apache DataFusion** (PostgreSQL stays an
-evaluation target). New since the course paper: engine drivers in spawned workers, dialect
-overlays and an overlay miner, optimizer-rule firing as feedback and coverage, rule-targeted
-generation, Z3 data synthesis, learned cross-engine normalizers, engine test suites as seeds and
-an autonomous hunt -> triage -> filing-package loop.
+| Technique | Where |
+|---|---|
+| One driver per engine in a crash-isolated worker process; a dialect overlay per engine on the same typed grammar, and an overlay miner that drafts the overlay from measured failure rates | `src/pgfuzz/targets/`, `src/grammar/overlays/`, `src/pgfuzz/grammar/miner.py` |
+| Optimizer-rule firing (a rule fires if switching it off changes the plan) as feedback, coverage metric and localization signal, on release builds | `targets/*: fired`, `pgfuzz/grammar/generator.py` |
+| Rule-targeted generation after coverage stalls | `pgfuzz/grammar/generator.py` |
+| Z3 data synthesis for non-vacuous metamorphic checks | `src/pgfuzz/datasynth/` |
+| Learned value normalizers for cross-engine differential testing | `src/pgfuzz/normalizers/`, `pgfuzz learn-normalizers` |
+| Engine test suites as seeds | `pgfuzz import-tests` |
+| **Rule kernels**: per rule, a query reduced while the rule still fires (also from the engines' own tests); **composition oracle** over pairs of kernels; **identity grafts**; **kernel transfer** across engines | `src/pgfuzz/rules/kernels.py`, `pgfuzz kernels` |
+| **State-restoration oracle**: after a rolled-back test case every table has its old row count | `src/pgfuzz/targets/base.py` |
+| Campaign -> triage -> filing package with a regression test in the engine's own format | `pgfuzz hunt`, `pgfuzz package`, `pgfuzz ledger` |
 
-* Bugs: 7 packages in `docs/bughunt/{duckdb,turso,datafusion}/`; 3 were fixed upstream before
-  filing, 3 are filed with fixes (Turso [#11594](https://github.com/tursodatabase/turso/issues/11594) /
-  [PR #11595](https://github.com/tursodatabase/turso/pull/11595), DuckDB
-  [#28551](https://github.com/duckdb/duckdb/issues/28551) / [PR #28552](https://github.com/duckdb/duckdb/pull/28552),
-  DataFusion [#27235](https://github.com/apache/datafusion/issues/27235) /
-  [PR #27236](https://github.com/apache/datafusion/pull/27236)); ledger in `docs/generalized/LEDGER.md`.
-* Plan and status: `docs/generalized/PLAN.md`; log: `PROGRESS.md`; what is left: `FUTURE_WORK.md`;
-  paper skeleton: `docs/generalized/paper/OUTLINE.md`.
+Design and evaluation plan: [`docs/generalized/DESIGN.md`](docs/generalized/DESIGN.md).
+Remaining work: [`docs/generalized/FUTURE_WORK.md`](docs/generalized/FUTURE_WORK.md).
+
+## Bugs
+
+Filed upstream, each with a fix and a regression test (state on 13 Nov 2026):
+
+| Engine | Bug | Issue | Pull request | State |
+|---|---|---|---|---|
+| Turso | `percentile_disc`/`percentile_cont` with an expression argument | [#11594](https://github.com/tursodatabase/turso/issues/11594) | [#11595](https://github.com/tursodatabase/turso/pull/11595) | open, in review |
+| DuckDB | `min`/`max` over a nested value computed by a subquery (2.0.0 regression) | [#28551](https://github.com/duckdb/duckdb/issues/28551) | [#28552](https://github.com/duckdb/duckdb/pull/28552) | **approved** by a maintainer (auto-merge, 2.0 backport) |
+| DataFusion | `UPDATE`/`DELETE` that repeat an expression fail on `__common_expr_1` | [#27235](https://github.com/apache/datafusion/issues/27235) | [#27236](https://github.com/apache/datafusion/pull/27236) | open, validated by a contributor |
+| Turso | aggregate in `IN (SELECT ...)` next to a window function: wrong "misuse" error, or a panic | [#11796](https://github.com/tursodatabase/turso/issues/11796) | [#11797](https://github.com/tursodatabase/turso/pull/11797) | open |
+| DataFusion | scalar subquery inside `VALUES`: internal error (DF-02) | filed 13 Nov 2026 | filed 13 Nov 2026 | open |
+
+Found by the fuzzer but already fixed on the engine's development branch when we checked (not
+filed): Turso T-01, T-02, T-06, T-07; DuckDB D-02; four DataFusion 55.0.0 bugs fixed on `main`.
+Every package and every rejected candidate: [`docs/bughunt/`](docs/bughunt/) and
+[`docs/bughunt/FINDINGS_2026-11.md`](docs/bughunt/FINDINGS_2026-11.md).
+
+## Results so far
+
+* Valid queries with the dialect overlays (600 test cases): DuckDB 96.3 %, SQLite 97.7 %, Turso 93.3 %,
+  DataFusion 79.4 %. One mined overlay round alone: DuckDB statement validity 32.1 % -> 44.1 %.
+* Learned normalizers: held-out DuckDB-vs-SQLite disagreements 28.7 % -> 3.6 %.
+* Rule kernels in campaigns (3 trials x 15 min per arm): optimizer-rule pairs reached
+  DataFusion 241 -> 276 and DuckDB 307 -> 386 (both also per test case), SQLite 86 -> 182 (there
+  mostly because kernels run faster). Details: [`docs/generalized/results/`](docs/generalized/results/).
+
+## Install and run
+
+Python 3.10 or newer; pinned versions in [`src/requirements.txt`](src/requirements.txt).
 
 ```sh
-cd src && pip install -r requirements.txt && pip install duckdb apsw pyturso datafusion z3-solver
-python -m pytest -q                                                     # 192 tests
-python -m pgfuzz -q sample configs/duckdb.yaml -n 300 --execute --quiet-stats   # validity on DuckDB
-python -m pgfuzz run configs/datafusion.yaml                            # a campaign (budget in the config)
-python -m pgfuzz hunt configs/duckdb.yaml configs/datafusion.yaml --budget 600  # campaign + triage + packages
-python -m pgfuzz learn-normalizers configs/eval/c4_duckdb_sqlite.yaml -n 400    # C4
-python -m pgfuzz import-tests <engine test dir> --out corpus/suites/<engine>   # C6
-DRY=1 ../scripts/eval/run_all.sh                                        # check every evaluation config
-python -m pgfuzz ledger                                                 # precision ledger
+cd src
+pip install -r requirements.txt                      # includes duckdb, apsw, pyturso, datafusion, z3-solver
+python -m pytest -q                                  # 205 unit tests
+python -m pgfuzz -q sample configs/duckdb.yaml -n 300 --execute      # validity on DuckDB
+python -m pgfuzz run configs/datafusion.yaml                          # one campaign (budget in the config)
+python -m pgfuzz hunt configs/duckdb.yaml configs/datafusion.yaml --budget 600   # campaign + triage + packages
+python -m pgfuzz kernels configs/duckdb.yaml -n 400 --out ../results/kernels/duckdb   # rule kernels
+python -m pgfuzz run configs/duckdb_kernels.yaml -j 2                 # kernel experiment (two arms)
+python3 ../scripts/eval/kernels_rq8.py results/duckdb_kernels         # its table
+python -m pgfuzz ledger --root ../docs/bughunt                        # precision ledger and package states
 ```
 
-## Course project results in one page (details: [`docs/RESULTS_ANALYSIS.md`](docs/RESULTS_ANALYSIS.md))
-
-* Base: PostgreSQL master `26bd08fb`, assertions on; 5 trials x 1 h per arm.
-* **RQ1** typed grammar 36.7% backend lines vs 22.2% random mutation; 99% vs 26% valid statements; oracles double plan shapes.
-* **RQ2** 93 triaged candidates: 7 real, 15 duplicates of real bugs, 37 false positives (10 classes, all fixed), 28 flaky, 6 open.
-  Four new bugs, two confirmed by committers (#19802, #19803, the latter fixed on master); #19768 and #19793 filed.
-* **RQ3** benchmark of 23 reverted fixes: the best arm found 2 of 20 observable bugs in 1 h; none of the 8 wrong-result bugs.
-* **RQ4** LLM extension: +5 SQL features, no coverage gain, 4 of 10 commits accepted.
-* **Deviation:** the LLM was Google Gemini Flash (free tier) through the tool's manual mode; fixes to the oracles after the campaigns were not re-measured.
+Turso's development branch: `scripts/build_turso_main.sh` builds `pyturso` from source;
+`configs/turso_main.yaml` uses it.
 
 ## Layout
 
 | Path | Content |
 |---|---|
-| `src/` | the tool (`src/pgfuzz`), 192 unit tests (`src/tests`), grammar, configs; see [`src/README.md`](src/README.md) |
-| `paper/` | the FSE-format paper (`make`, `sh scripts/check.sh`); tables are generated by `paper/scripts/make_tables.py` |
-| `runs/memberA-rq3/`, `runs/memberB-rq1-llm/` | raw data of the RQ3 and RQ1/RQ2/RQ4 campaigns, reports, LLM ledger and driver |
-| `triage/verdicts.yaml` | verdict for every bug candidate (precision ledger; `pgfuzz precision`) |
-| `docs/bughunt/` | bug reports and reproducers; `docs/evidence/` smoke and tool evidence |
-| `docs/meeting2/` | guide (PDF), slides (PDF, PPTX) |
-| `docs/TEAM_RUNBOOK.md`, `scripts/` | how to rebuild servers and rerun the experiments |
-
-## Reproduce
-
-```sh
-bash scripts/setup_env.sh                       # builds master (assert+gcov), 18.6 reference, benchmark servers
-cd src && python -m pytest -q                    # 192 tests (151 on main)
-python -m pgfuzz -q sample configs/local.yaml -n 300 --execute --seed 1 --out ../results/sample
-python3 paper/scripts/make_tables.py            # regenerate paper tables from runs/ and triage/
-cd paper && make && sh scripts/check.sh
-```
-
-The full campaign commands are in [`docs/EXECUTION_PLAN.md`](docs/EXECUTION_PLAN.md) and
-[`docs/TEAM_RUNBOOK.md`](docs/TEAM_RUNBOOK.md). Never commit API keys.
-
-## Dates
-
-Presentation 12 November; paper and repository due 13 November 2026.
+| `src/` | the tool (`src/pgfuzz`), tests, grammar and overlays, configs, known-bug catalogs, kernel corpora |
+| `scripts/` | builds, evaluation (`scripts/eval/`), baselines, benchmark and coverage scripts |
+| `docs/generalized/` | design, future work, ledger, results, paper outline |
+| `docs/bughunt/` | one package per bug (report, reproducer, fix, regression test, filing steps) |
+| `paper/`, `runs/`, `triage/`, `docs/` (others) | the course project, as on `main` |

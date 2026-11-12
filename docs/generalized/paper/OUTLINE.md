@@ -2,7 +2,7 @@
 
 Status: skeleton. Numbers that exist are from first versions and smoke runs (8 Nov 2026) and are
 marked as such; every `[TBD]` comes from `scripts/eval/run_all.sh` (E4) once the campaigns run.
-Venue, authorship and the AI-use statement are the owner's decisions (PROGRESS.md, "Open decisions").
+Venue and authorship are still to be decided.
 
 ## Abstract (about 200 words)
 
@@ -58,7 +58,7 @@ upstream. [TBD: RQ3 to RQ6 headline numbers.]
 | RQ | Data source | Existing first numbers |
 |---|---|---|
 | RQ1 Portability | `sample --execute` per engine; overlay LOC; `--mine-overlay` | query validity with manual overlays (600 test cases): DuckDB 96.3 %, SQLite 97.7 % (7 Nov); Turso 93.3 %, DataFusion 79.4 % (8 Nov; DataFusion overlay still in progress, B4); mined overlay alone: DuckDB statement validity 32.1 % to 44.1 % in one round |
-| RQ2 Bugs | `docs/generalized/LEDGER.md`, `latestbugs/` | 10 found; 5 fixed upstream before filing (Turso T-01, T-02, T-06, T-07; DuckDB D-02); 3 filed with fixes (Turso T-05, DuckDB D-01 approved by a maintainer 12 Nov, DataFusion DF-01); 2 ready with fixes (DF-02; Turso T-08, still on Turso main 12 Nov). Rejected 12 Nov after checks: 2 DuckDB internal errors already reported (#27720, #27983), 2 DataFusion errors fixed on main after 55.0.0 (#23232, #24244), 2 already reported (#24915; #20501 wording) |
+| RQ2 Bugs | `docs/generalized/LEDGER.md`, `docs/bughunt/FINDINGS_2026-11.md` | 10 found; 5 fixed upstream before filing (Turso T-01, T-02, T-06, T-07; DuckDB D-02); 3 filed with fixes (Turso T-05, DuckDB D-01 approved by a maintainer 12 Nov, DataFusion DF-01); 2 ready with fixes (DF-02; Turso T-08, still on Turso main 12 Nov). Rejected 12 Nov after checks: 2 DuckDB internal errors already reported (#27720, #27983), 2 DataFusion errors fixed on main after 55.0.0 (#23232, #24244), 2 already reported (#24915; #20501 wording) |
 | RQ3 Rule feedback, targeting, seeds | `configs/eval/e4_rules_*`, `e4_seeds_*` | smoke only [TBD] |
 | RQ4 Data synthesis | `configs/eval/e4_synth_*`, `scripts/eval_c3_vacuity.py` | non-vacuous TLP checks on column predicates 34 % to 40 % (first version, DuckDB) |
 | RQ5 Normalizers | `configs/eval/e4_norm_{off,on}` | held-out disagreement DuckDB vs SQLite 28.7 % to 3.6 % |

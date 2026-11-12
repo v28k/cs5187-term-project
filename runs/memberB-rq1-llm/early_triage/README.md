@@ -58,7 +58,7 @@ pgsql-bugs, then add the verdict to `triage/verdicts.yaml` (team).
   First bad commit per the reporter: 9391f7152 (estimate_array_length uses statistics).
   Tom Lane posted a patch (2026-10-22), Shihao Zhong a follow-up (2026-10-23); no commit yet.
   Mirror: https://github.com/BharatDBPG/BharatDBMS-PG/issues/7857
-* The team already tracks it: bugprogress/C-progress.md item U4.
+* The team already tracks it: docs/bughunt/new/C-progress.md item U4.
 * `~/pgfuzz/install/p19784` (master 126976a8f + Tom's selfuncs.c patch): our reduced
   query returns 1 row, the report's repro returns f, and the original fuzzer test case
   runs without error. So c51c4dacc7f1 is the same bug.

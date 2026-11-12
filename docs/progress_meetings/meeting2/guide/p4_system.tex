@@ -1,0 +1,188 @@
+\part{The system}
+
+\section{Architecture}
+\label{sec:arch}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[font=\small,
+  box/.style={draw,rounded corners=2pt,align=center,fill=blue!4,minimum height=11mm,text width=24mm},
+  io/.style={draw,align=center,fill=gray!12,minimum height=9mm,text width=22mm},
+  fl/.style={-{Stealth[length=2mm]},thick}, bk/.style={-{Stealth[length=2mm]},dashed}]
+\node[io] (g) at (0,0) {typed grammar\\+ schema\\+ data profile};
+\node[box] (s1) at (3.2,0) {\textbf{1} derive test case (trees, weights)};
+\node[box] (s2) at (6.4,0) {\textbf{2} attach oracle checks (tree rewrites)};
+\node[box] (s3) at (9.6,0) {\textbf{3} run: server, plan variants, 18.6};
+\node[box] (s4) at (12.8,0) {\textbf{4} classify, triage, reduce, localize};
+\node[io] (c) at (0,-2.6) {recent \pg commit};
+\node[box] (s5) at (3.2,-2.6) {\textbf{5a} LLM: fragment, seeds, rewrites};
+\node[box] (s6) at (6.4,-2.6) {\textbf{5b} validation gate on the server};
+\draw[fl] (g)--(s1); \draw[fl] (s1)--(s2); \draw[fl] (s2)--(s3); \draw[fl] (s3)--(s4);
+\draw[bk] (s3.north) -- ++(0,0.5) -| node[pos=0.25,above]{\footnotesize feedback: corpus, weights, plan shapes} (s1.north);
+\draw[fl] (c)--(s5); \draw[fl] (s5)--(s6);
+\draw[bk] (s6.south) -- ++(0,-0.45) -| node[pos=0.25,below]{\footnotesize repair round} (s5.south);
+\draw[fl] (s6.north) -- ++(0,0.6) -| (s1.south);
+\end{tikzpicture}
+\caption{The fuzzing loop (top) and the LLM loop (bottom). Steps match Sections~\ref{sec:grammar}--\ref{sec:llm}.}
+\end{figure}
+
+\subsection{Repository map}
+
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+Path & Contents \\
+\midrule
+\file{src/grammar/postgres.pgg} & the typed grammar \\
+\file{src/corpus/schema.sql, schema.yaml} & the 9-relation schema (SQL for the server, YAML for the generator) \\
+\file{src/corpus/rls.sql, profile.json} & RLS policies; data profile \\
+\file{src/pgfuzz/grammar/} & DSL parser (\file{dsl.py}), engine (\file{engine.py}), generator, rewriter (oracles), data profile, tree I/O \\
+\file{src/pgfuzz/reference/} & \pg executor, cross-version executor \\
+\file{src/pgfuzz/eval/} & oracle, differential digests and determinism filter, signatures, metrics, statistics, features, known-bug catalog \\
+\file{src/pgfuzz/triage/} & tokenizer, token reduction, tree reduction, localization, triage driver, precision \\
+\file{src/pgfuzz/llm/} & commit miner, prompts, client, gate, diff coverage, loop \\
+\file{src/pgfuzz/bench/} & re-injected bug benchmark (verify, attribute) \\
+\file{src/pgfuzz/runner/, runlog/, report/} & experiment runner, run logs, reports \\
+\file{src/generator/} & the random/mutation arm (Stage 1) \\
+\file{src/bench/reinjected/} & benchmark: 23 commits, PoCs, \file{bugs.yaml}, \file{verify.json} \\
+\file{src/configs/} & \file{rq1.yaml}, \file{rq3.yaml}, hunt and local configs \\
+\file{scripts/} & server builds and starts (\file{build_reinjected.sh}, \file{rq1_servers.sh}, \file{rq3_servers.sh}, \file{ref_server.sh}), bisection, setup \\
+\file{triage/verdicts.yaml} & the verdict of every triaged candidate (feeds RQ2) \\
+\file{docs/} & guides, plans, evidence, bug reports (\file{docs/bughunt/}), paper draft PDF \\
+\file{paper/} & the ACM/FSE paper (LaTeX) \\
+\bottomrule
+\end{tabularx}
+
+\subsection{One trial}
+
+\texttt{python -m pgfuzz run configs/rq1.yaml -j 4} plans the trials (arm
+$\times$ trial), and each worker runs one trial against its own server
+(port = base port + worker). A trial loops: ask the generator for a test case,
+execute it, classify the result, update metrics and the run log, save a
+failure if the signature is new, give feedback to the generator. Per trial it
+writes \file{manifest.json}, \file{events.jsonl}, \file{timeline.jsonl}
+(snapshots every 30 s), \file{failures/<signature>/} and \file{summary.json}.
+Trials are resumable: re-running the command skips finished trials. The seed of
+trial $k$ is the same in every arm (paired design).
+
+\section{Step 1: the typed grammar and the generator}
+\label{sec:grammar}
+
+\subsection{The \texttt{.pgg} format}
+
+\begin{itemize}
+  \item \texttt{\%type int "int" num ord key \dots{} w=6} declares a SQL type,
+    its classes (\texttt{num}, \texttt{ord}, \texttt{key}, \dots) and a weight.
+  \item A rule has alternatives with weights \texttt{<4>}; terminals are
+    keywords or quoted strings; \texttt{x?0.3} is optional with probability
+    0.3; \texttt{x\{1,4/","\}} repeats 1--4 times separated by commas.
+  \item Rules can be typed: \texttt{expr<T>}, \texttt{expr<int>},
+    \texttt{expr<X:key>} (a type variable restricted to a class).
+  \item Attributes: \texttt{@scope} opens a new name scope,
+    \texttt{@set(agg\_ok)} sets a context flag (aggregates allowed),
+    \texttt{\^{}} marks elements derived early (FROM before SELECT, so the
+    select list can see the FROM's columns).
+  \item Builtins (Python): \texttt{@col(T)} a visible column of type T,
+    \texttt{@lit(T)} a literal, \texttt{@dlit(T)} a literal from the data of the
+    compared column, \texttt{@table} a relation with a fresh alias,
+    \texttt{@items} the select list, \texttt{@group\_keys} makes the level
+    grouped, \texttt{@sorted\_agg} order-sensitive aggregates made
+    deterministic, and about 20 more for DDL and DML.
+\end{itemize}
+
+A real excerpt:
+\begin{lstlisting}
+query @scope
+  : <8> select_core order_by?0.3 limit_clause?0.06
+  | <2> with_clause select_core order_by?0.2
+  | <2> set_query
+  ...
+select_core
+  : <6> SELECT distinct?0.12 @items ^from_clause ^where_clause?0.6
+  | <3> SELECT @items ^from_clause ^where_clause?0.5 GROUP BY ^@group_keys having_clause?0.4
+  | <2> SELECT @items ^from_clause ^where_clause?0.5 ^@global_agg having_clause?0.2
+  ...
+expr<bool>
+  : <4> "(" expr<X:key> cmp expr<X> ")"
+  | <1.2> "(" @col(X:ord) cmp @dlit(X) ")"
+  | <2> "(" expr<bool> AND expr<bool> ")"
+  | <1> "(" expr<X:key> NOT?0.3 IN "(" expr<X>{1,4/","} ")" ")"
+  ...
+\end{lstlisting}
+
+Conventions that make oracles possible: every binary operator is
+parenthesised (precedence never changes types); every column is qualified with
+a unique alias; order-sensitive aggregates order by their own argument.
+
+\subsection{The engine}
+
+The engine expands a rule into a tree, choosing an alternative by weight,
+binding type variables (\texttt{X}) consistently, tracking scopes (which
+aliases and columns are visible, correlated or isolated) and flags (grouped
+level, inside an aggregate). It backtracks when an alternative cannot be
+completed (\texttt{Fail}) and prefers shallow alternatives past a soft depth.
+Each alternative knows its minimal derivation depth (\texttt{mind}). While
+rendering, each node's tokens are wrapped in invisible markers
+(\verb|\x01<nid>| \dots{} \verb|\x02<nid>|), so the exact token span of every node
+is known afterwards. A \texttt{MINIMAL} marker on a guide node makes the
+engine derive that subtree with its smallest alternatives (used by tree
+reduction).
+
+\paragraph{Replay.} Given a guide tree, the engine follows its choices
+(same alternatives, same columns, same literals), re-binding names and types
+in the current schema state. Mutation and reduction both use replay, so their
+results stay valid. Trees are stored with failures as JSON using stable
+alternative \emph{ordinals} (uids are process-local) and exact container
+types; 599 of 600 test cases replay to identical SQL in a fresh process.
+
+\subsection{The generator}
+
+\paragraph{A test case} is 0--2 setup statements (DDL such as
+\texttt{CREATE INDEX}/\texttt{TABLE}, DML, \texttt{ANALYZE}, \texttt{SET LOCAL}
+of a planner setting) followed by 1--2 queries or DML statements.
+
+\paragraph{Fresh or mutated.} With probability 0.5 a corpus entry is picked
+(weighted by its finds and how often it was picked) and mutated:
+\emph{regen} (re-derive one subtree), \emph{splice} (graft a subtree from
+another corpus entry), \emph{insert} (add a statement), \emph{drop} (remove one).
+
+\paragraph{Corpus admission.} A test case enters the corpus if it produced a
+new bug signature, a new SQL feature (catalogue of 148), a new pair of
+features, or a new plan shape (digest of node types of
+\texttt{EXPLAIN (FORMAT JSON, COSTS OFF)}).
+
+\paragraph{Feedback-weighted alternatives} (plan 5.3). Each alternative has a
+weight multiplier. After every test case, each alternative used in a tree gets
+reward $r = 1$ if the test case entered the corpus, $-0.5$ if that tree's
+statement failed, else 0; its weight is multiplied by $e^{\eta(r - \bar r)}$
+with $\eta=0.1$ and $\bar r$ a running average, clipped to $[0.2, 5]$.
+\emph{Measured:} 533 vs 419 distinct plan shapes in 1{,}000 test cases at the
+same validity; the bandit learned to damp window-function alternatives that
+often fail. RQ1 contains an ablation arm without it.
+
+\paragraph{Data profile} (plan 6, interval and constraint-based analysis).
+\texttt{pgfuzz profile} asks the server for min, max and the 10/25/50/75/90\%
+quantiles of every column (\file{corpus/profile.json}). With probability 0.3 a
+literal comes from it: boundary values (observed min$\pm$1, max$\pm$1, 0, $-0$,
+NaN, $\pm$Infinity, the largest int, the empty array) or quantiles. The new
+builtin \texttt{@dlit(T)} takes a quantile of the \emph{column the predicate
+compares} (the engine remembers the last \texttt{@col}), so
+\texttt{col < @dlit} selects a real share of rows. \emph{Measured:}
+column-vs-constant predicates selecting 5--95\% of their table: 29.3\%
+$\rightarrow$ 58.6\%.
+
+\paragraph{Validity tuning loop.} \texttt{pgfuzz sample --execute} prints the
+valid rate, the top error messages and the worst alternatives (by valid
+rate); each fix is to one rule. This loop raised validity from 83\% to 100\%
+before meeting 1.
+
+\subsection{The schema}
+
+Nine relations shared by both arms: \texttt{t0} (int, text, float8), \texttt{t1}
+(int PK, int, jsonb, int4range), \texttt{t2} (identity bigint, numeric,
+timestamptz, text[]), \texttt{t3} (int NOT NULL, bool, date, interval, int[],
+text), \texttt{t4} (virtual and stored generated columns), \texttt{tp}
+(range-partitioned), \texttt{tl} (list-partitioned), \texttt{ti} (inheritance
+parent with child), \texttt{v0} (a view). Data is deterministic (no
+\texttt{now()}), with NULLs in most columns. Indexes: B-tree (including
+multi-column \texttt{t3(c0,c2)} for skip scan), GIN, GiST, BRIN, and an
+expression index with a predicate.

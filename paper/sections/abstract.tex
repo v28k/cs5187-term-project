@@ -17,11 +17,13 @@ gate accepts only if the server runs them, they reach the changed lines, and
 a rewrite never changes a result. In five one-hour trials per
 configuration, the typed grammar covers 36.7\% of backend lines against 22.2\%
 for random mutation, and the oracles double the plan shapes reached. We reported nine
-bugs found with \tool; five reports were answered, two bugs are confirmed by
-committers and three are fixed on master, and \tool rediscovers all nine. Of 93 triaged candidates, 8 are real and 15 duplicate real bugs; the
+bugs found with \tool; seven reports were answered and all seven bugs are fixed
+upstream (five with the authors' patches), and \tool rediscovers all nine. Of 93 triaged candidates, 8 are real and 15 duplicate real bugs; the
 false positives come from a few classes, which we fixed. The LLM adds SQL
 features but no coverage, and one rewrite it proposed passed our gate although
 it is not an identity. On the benchmark of 23 real bugs, the arms found
 2 of 20 at best. The main lesson is that oracle precision, not generator reach,
 limits a wrong-result fuzzer: a richer grammar also reaches the corners where
-two ``equivalent'' queries are not.
+two ``equivalent'' queries are not. Generalized with per-engine dialect overlays and optimizer-rule
+feedback, \tool also tests DuckDB, SQLite, Turso and DataFusion; there it found
+three more bugs, for which we filed fixes upstream.

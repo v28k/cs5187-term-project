@@ -264,7 +264,7 @@ python3 -m pgfuzz llm report 2>&1 | tee $OUT/logs/B2_llm_report.txt
 ```
 **No API key?** Add `--mode manual --limit 10` to `llm extend`. It stops at each
 prompt and tells you the file `results/llm/prompts/<key>.md`; paste that into
-Claude (claude.ai), save Claude's JSON answer as `results/llm/responses/<key>.json`,
+the LLM's chat interface, save its JSON answer as `results/llm/responses/<key>.json`,
 and run the same command again until it finishes.
 
 `--exclude` is essential: the model must never see the fixes of the RQ3 bugs.

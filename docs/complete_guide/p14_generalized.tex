@@ -1,0 +1,285 @@
+\part{The generalized fuzzer: DuckDB, SQLite, Turso, DataFusion}
+\label{part:generalized}
+
+\begin{keybox}[In one paragraph]
+After the \pg campaigns we turned the fuzzer into a target-independent tool
+(public branch \texttt{generalized} of
+\url{https://github.com/v28k/cs5187-term-project}). The typed grammar, the
+derivation trees, the metamorphic oracles and the triage stay the same. New are
+an engine abstraction, dialect overlays with an overlay miner, optimizer-rule
+firing as feedback and coverage, Z3 data synthesis, learned normalizers for
+cross-engine comparison, engine test suites as seeds, and an autonomous loop
+from campaign to filing package. Short campaigns found seven bugs; three were
+fixed upstream before we reported them, and for three we filed an issue and a
+pull request with a fix and a regression test (DuckDB's approved by a maintainer, the other two in review). A later Turso bug (T-08) is ready to file with a fix.
+\end{keybox}
+
+\section{Why generalize, and what had to change}
+
+The course fuzzer is tied to \pg in three places: the executor speaks the \pg
+protocol, the grammar uses \pg syntax, and the plan-variant oracle uses \pg's
+\texttt{enable\_*} settings. Each became an interface:
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{p{0.25\linewidth}X}
+\toprule
+\pg-specific part & Generalized form \\
+\midrule
+\texttt{PostgresExecutor} & \texttt{Driver} + \texttt{WorkerExecutor} (\file{src/pgfuzz/targets/base.py}): each engine runs in a spawned worker process; a crash or a Rust panic kills only the worker and becomes a candidate \\
+\pg grammar & the same grammar plus a per-engine \emph{dialect overlay} and dialect data (literals, casts, functions) \\
+plan variants via \texttt{enable\_*} & optimizer-rule switches of each engine, and the set of rules that \emph{fire} on a query \\
+release vs master & any two engines or versions through \texttt{CrossVersionExecutor} (nightly vs release, Turso vs SQLite, DuckDB vs SQLite) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{The engines}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{lllX}
+\toprule
+Engine & Version & Valid queries & Rule switches and plan access \\
+\midrule
+DuckDB & 2.1.0 nightly, 2.0.0 & 96.3\% & \texttt{disabled\_optimizers}; nightly vs 2.0.0 as cross-version oracle \\
+SQLite & 3.54.1 (APSW) & 97.7\% & 30 switches of \texttt{SQLITE\_TESTCTRL\_OPTIMIZATIONS}, called through the symbol table of the APSW module; \texttt{EXPLAIN QUERY PLAN} \\
+Turso & pyturso 0.8.3 & 93.3\% & compared against SQLite on every query (a SQLite rewrite in Rust) \\
+DataFusion & Python bindings 55.0.0; \texttt{main} built from source & 79.4\% & \texttt{EXPLAIN VERBOSE} prints the plan after every optimizer rule (``SAME TEXT AS ABOVE'' when a rule changed nothing): exact rule firing from one query; \texttt{SET datafusion.optimizer.*} as plan variants \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Validity was measured with \texttt{pgfuzz sample --execute} on 600 test cases
+(DuckDB and SQLite on 7 Nov, Turso and DataFusion on 8 Nov). DataFusion's
+overlay is the youngest; reaching 95\% is future work.
+
+\paragraph{Gotchas we hit and fixed.} Each one first produced a false positive:
+\begin{itemize}
+  \item settings changed by one DuckDB test case leaked into the next across
+    \texttt{ROLLBACK}; the driver now resets the session settings;
+  \item \texttt{POSITIONAL JOIN} with a view has an undefined row order; it is now
+    generated only between base tables;
+  \item float masking was decided separately for the two sides of a check, so
+    one side rounded \texttt{5e-324} to 0; it is now one decision per check;
+  \item in SQLite a date is text, so \texttt{d + 0} is a year; the dialect data
+    excludes that rewrite;
+  \item APSW's statement cache kept a plan compiled before an optimizer switch;
+    the cache is off;
+  \item APSW cannot describe an empty \texttt{RETURNING} result; the driver
+    treats it as an empty result set.
+\end{itemize}
+
+\section{Dialect overlays and the overlay miner}
+
+An overlay is a \texttt{.pgg} file of directives applied to the base grammar
+(\file{src/pgfuzz/grammar/overlay.py}): \texttt{\%drop rule "text"} removes the
+alternatives containing the text; \texttt{\%dropopt} does the same inside groups;
+\texttt{\%droprule} and \texttt{\%droptype} remove a rule or a type, and every
+alternative that uses it is removed by cascade; \texttt{\%replace} rewrites
+text; \texttt{\%weight} changes a weight; \texttt{\%addclass}/\texttt{\%delclass}
+edit type classes. Plain grammar text appends alternatives. Dialect data
+(\texttt{*.data.yaml}) gives literals, the cast style, function names and the
+rewrites to exclude.
+
+\paragraph{Overlay miner (A3).} \texttt{pgfuzz sample --execute --mine-overlay
+F} runs test cases, counts for every grammar alternative how often it was used
+and how often its statement ran without error, and writes a \texttt{\%drop}
+line for every alternative used at least 20 times with at most 10\% success.
+Two guards keep it from blaming a parent for a broken child: it never mines the
+start rule, and it skips a rule whose measured alternatives all fail. Result:
+DuckDB with no manual overlay goes from \textbf{32.1\% to 44.1\%} valid
+statements after one mined round (134 directives,
+\file{src/grammar/overlays/duckdb.mined.pgg}); the manual overlay reaches
+96.3\% of queries.
+
+\section{Optimizer-rule firing (C1, C2)}
+
+A rule \emph{fires} on a query if the plan changes when the rule is switched
+off (or, for DataFusion, if the per-rule trace shows a change). The probe runs on
+a sample of test cases (30\%, limited to 25\% of the time). Its uses:
+\begin{itemize}
+  \item \textbf{feedback}: a test case that fires a new rule or a new pair of
+    rules enters the corpus;
+  \item \textbf{coverage}: rules seen and rule pairs seen, an engine-independent
+    measure that needs no instrumented build;
+  \item \textbf{rule-targeted generation} (C2): the generator keeps statistics
+    of which grammar alternatives make which rules fire; after a stall it picks
+    an unfired or rare rule as a target and raises the weight of the
+    alternatives associated with it;
+  \item \textbf{localization}: a failure that disappears when one rule is off
+    points at that rule.
+\end{itemize}
+Ground truth (C5, \file{scripts/coverage/}): a gcov build of SQLite; 200 test
+cases cover \textbf{69.4\%} of the lines of SQLite's optimizer files (where.c
+63.5\%, select.c 81.0\%, expr.c 78.4\%). The scripts also correlate rule
+coverage with line coverage (Spearman $\rho$) per arm.
+
+\section{Data synthesis with Z3 (C3)}
+
+A TLP check splits a query into the rows where the predicate is true, false and
+NULL. If the table has no rows of some kind, the check is \emph{vacuous}: it
+cannot catch a bug in that partition. \file{src/pgfuzz/datasynth/} translates the
+predicate subtree (comparisons, \texttt{AND}/\texttt{OR}/\texttt{NOT},
+\texttt{IS NULL}, \texttt{BETWEEN}, \texttt{IN} lists, \texttt{LIKE} prefixes,
+arithmetic, three-valued NULL logic) to Z3 and solves for rows that make each
+partition non-empty. First result on DuckDB column predicates: non-vacuous TLP
+checks \textbf{34\% $\rightarrow$ 40\%}. Inserting the rows into the tables the
+query reads (not only into scratch tables) is the next step.
+
+\section{Learned normalizers and the cross-engine oracle (C4)}
+
+Two correct engines may print the same value differently (15 significant digits
+vs the shortest round-trip form, \texttt{2.0} vs \texttt{2}, \texttt{true} vs
+\texttt{1}, 4-byte vs 8-byte \texttt{REAL}). \texttt{pgfuzz learn-normalizers}
+runs small typed probes on both engines, clusters the disagreements and picks
+normalizers from a library (\texttt{float\_text\_15}, \texttt{float\_round\_12},
+\texttt{integral\_float}, \texttt{bool\_int}, \texttt{float32}) and guards (query
+features whose results are not comparable). The rules are stored as YAML
+(\file{src/normalizers/duckdb__sqlite.yaml}). DuckDB against SQLite, held-out
+probes: disagreements drop from \textbf{28.7\% to 3.6\%}.
+
+\section{Engine test suites as seeds (C6)}
+
+\texttt{pgfuzz import-tests} turns sqllogictest files (DuckDB \texttt{.test},
+DataFusion and SQLite \texttt{.slt}) and Turso \texttt{.sqltest} files into seed
+files, skipping tests that need loops, extensions or external files and leaving
+out statements that were meant to fail. DataFusion's suite gives 406 seed files
+with 19{,}602 statements, of which 83\% execute; DuckDB's optimizer tests give
+134 files.
+
+\section{The autonomous loop (D1--D4)}
+
+\begin{itemize}
+  \item \texttt{pgfuzz hunt CONFIG... --budget S}: one campaign per engine in
+    parallel, triage of every new failure (three re-runs, reduction), and a
+    filing package for every candidate that reproduces every time; a summary in
+    \file{HUNT.md}. A 20-second DataFusion round produced 3 reproducible
+    package drafts without any manual step.
+  \item \texttt{pgfuzz package}: \file{repro.sql}, a regression test in the
+    engine's own format (DuckDB \texttt{.test}, DataFusion/SQLite \texttt{.slt},
+    Turso \texttt{.sqltest}), \file{report.md} and an \file{issue.md} skeleton;
+    expected rows the tool cannot know are marked \texttt{VERIFY}.
+  \item \texttt{pgfuzz ledger}: precision per engine and oracle, and the state
+    of every package (branch \texttt{generalized}).
+\end{itemize}
+
+\section{The bugs}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}p{0.1\linewidth}p{0.36\linewidth}p{0.17\linewidth}X@{}}
+\toprule
+Id & Bug & Upstream & State (9 Nov 2026) \\
+\midrule
+T-05 & Turso: \texttt{percentile\_disc}/\texttt{percentile\_cont} with an expression as the value argument give NULL or a bogus range error & issue \#11594, PR \#11595 & filed with fix; \textbf{open} \\
+D-01 & DuckDB: \texttt{min}/\texttt{max} over a nested value computed by a subquery fail with ``Cannot copy BoundSubqueryExpression'' (2.0.0 regression) & issue \#28551, PR \#28552 & filed with fix; \textbf{open} \\
+DF-01 & DataFusion: \texttt{UPDATE}/\texttt{DELETE} that repeat an expression fail with ``No field named \_\_common\_expr\_1'' & issue \#27235, PR \#27236 & filed with fix; \textbf{open} \\
+DF-02 & DataFusion: scalar subquery inside \texttt{VALUES}: ``ScalarSubqueryExpr evaluated before the subquery was executed'' & -- & fix written and tested; ready to file \\
+T-01 & Turso: \texttt{FULL JOIN} on an \texttt{INTEGER PRIMARY KEY} rejected & -- & fixed upstream before we reported it \\
+T-02 & Turso: panic in window planning (window function over a column-free call, referenced twice in \texttt{ORDER BY}) & -- & fixed upstream before we reported it (found by bisection) \\
+D-02 & DuckDB: outer-join / \texttt{MERGE} condition with two subqueries: ``Failed to bind column reference'' & -- & fixed upstream before we reported it \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Packages with reproducers, root causes, patches and tests:
+\file{docs/bughunt/turso/}, \file{docs/bughunt/duckdb/} and \file{docs/bughunt/datafusion/} on the \texttt{generalized} branch.
+
+\subsection{T-05: Turso, percentile with an expression argument}
+\begin{lstlisting}[language=SQL]
+CREATE TABLE t (a INTEGER, b TEXT);
+INSERT INTO t VALUES (1, 'x'), (2, 'y');
+SELECT percentile_disc(a + 0, 1) FROM t;     -- Turso: range error; SQLite: 2.0
+SELECT percentile_disc(length(b), 1) FROM t; -- Turso: NULL;        SQLite: 1.0
+SELECT percentile_disc(a, 1) FROM t;         -- both 2.0 (a bare column works)
+\end{lstlisting}
+\textbf{Found by} the Turso-vs-SQLite differential oracle. \textbf{Cause}:
+\texttt{translate\_aggregation\_step} (\file{core/translate/aggregation.rs})
+translates the first argument of an external aggregate into one register and
+every later argument into a temporary register, but \texttt{AggStep} reads the
+arguments from consecutive registers; for an expression argument the fraction
+is read from the wrong register. \textbf{Fix}: a new
+\texttt{AggArgumentSource::translate\_all} allocates one block of registers and
+translates argument $i$ into register $start+i$. \textbf{Tests}: a new
+\texttt{.sqltest} with 5 cases (fail without the fix, pass with it) and the
+full SQLite conformance corpus (12{,}700 passed, 0 failed). An automated
+reviewer on the PR asked to validate the fraction like SQLite and to share the
+percentile step; both are addressed in follow-up commits.
+
+\subsection{D-01: DuckDB, min/max over a nested value from a subquery}
+\begin{lstlisting}[language=SQL]
+CREATE TABLE a (x INTEGER);
+INSERT INTO a VALUES (1), (2);
+SELECT min((SELECT [1])) FROM a;        -- expected [1]
+SELECT max((SELECT {'k': x})) FROM a;   -- expected {'k': 2}
+-- 2.0.0 and nightly: Serialization Error: Cannot copy BoundSubqueryExpression
+\end{lstlisting}
+\textbf{Found by} the internal-error oracle. \textbf{Cause}: since commit
+\texttt{2ef9f76b2e}, \texttt{BindMinMax} (\file{minmax.cpp}) copies the argument
+of every nested-type \texttt{min}/\texttt{max} before it knows whether a
+collation applies, and copying a bound subquery throws. \textbf{Fix}: first test
+the collation on a placeholder expression and copy only when a collation
+applies. \textbf{Tests}: a new \texttt{.test} file (9 assertions), the collation
+tests (1{,}245 assertions) and the subquery tests (7{,}976 assertions) pass.
+
+\subsection{DF-01: DataFusion, UPDATE/DELETE with a repeated expression}
+\begin{lstlisting}[language=SQL]
+CREATE TABLE t (c0 INT, c1 VARCHAR);
+INSERT INTO t VALUES (1, 'a'), (NULL, 'b');
+UPDATE t SET c0 = COALESCE(c0, 0);
+-- Schema error: No field named __common_expr_1. Valid fields are c0, c1.
+\end{lstlisting}
+\textbf{Found by} the internal-error oracle; while re-checking on \texttt{main}
+we found that the \texttt{WHERE} clause of \texttt{UPDATE} and \texttt{DELETE}
+fails the same way. \textbf{Cause}: the physical planner extracts the
+assignments and filters of a DML statement from the \emph{optimized} input plan;
+common-subexpression elimination has replaced the repeated cast by a column
+\texttt{\_\_common\_expr\_N} that exists only in the plan, not in the table.
+\textbf{Fix}: \texttt{inline\_projected\_columns} replaces such references by
+the projected expression before the assignments and filters are passed to the
+table. \textbf{Tests}: new cases in \file{dml_update.slt} and
+\file{dml_delete.slt}; all 546 sqllogictest files, clippy and fmt pass.
+
+\subsection{DF-02: DataFusion, scalar subquery in VALUES (ready to file)}
+\texttt{VALUES ((SELECT 1), 5)} fails with an internal error because the
+\texttt{VALUES} operator evaluates its expressions at planning time, before any
+subquery has run. The fix plans such rows as projections over a one-row source,
+evaluated inside \texttt{ScalarSubqueryExec}. DataFusion limits non-committers
+to three open PRs and a first contribution is best kept to one PR at a time, so we file it after DF-01.
+
+\paragraph{Filing rules we follow.} The owner of the work files every report
+personally; DuckDB and DataFusion ask that issue and PR text be written by the
+human contributor, and Turso's PR template asks how AI was used. Patches carry
+Venu Kummari as author.
+
+\section{Evaluation design (scripts ready; runs are future work)}
+
+\begin{itemize}
+  \item \file{scripts/eval/make_configs.py} writes 11 configurations from the
+    engine configs: rule feedback and targeting off/on, data synthesis off/on and
+    suite seeds off/on (each for DuckDB, SQLite and DataFusion), and DuckDB vs
+    SQLite without and with learned normalizers. \file{scripts/eval/run_all.sh}
+    runs them (\texttt{DRY=1} checks them; it passes). A 15-second smoke run of
+    five arms ran.
+  \item \file{scripts/baselines/sqlancer.sh}: SQLancer (NoREC, TLP) under the
+    same budget on DuckDB and SQLite.
+  \item \file{scripts/bench/}: a DuckDB re-injected bug benchmark; 334 candidate
+    fix commits since May 2026 were mined from DuckDB's history.
+\end{itemize}
+The full runs take about four days on one 4-core machine; they and the
+improvements are listed on branch \texttt{generalized}.
+
+\section{Commands}
+\begin{lstlisting}
+cd src && pip install -r requirements.txt     # duckdb, apsw, pyturso, datafusion, z3-solver
+python -m pytest -q                            # 192 tests (1 skipped without z3)
+python -m pgfuzz -q sample configs/duckdb.yaml -n 600 --execute --quiet-stats
+python -m pgfuzz run configs/datafusion.yaml
+python -m pgfuzz hunt configs/duckdb.yaml configs/datafusion.yaml --budget 600
+python -m pgfuzz learn-normalizers configs/eval/c4_duckdb_sqlite.yaml -n 400
+python -m pgfuzz import-tests <suite dir> --out corpus/suites/<engine>
+python -m pgfuzz package datafusion <triage dir> --out results/packages
+python -m pgfuzz ledger
+DRY=1 ../scripts/eval/run_all.sh
+\end{lstlisting}

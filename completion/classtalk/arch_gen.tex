@@ -1,0 +1,17 @@
+% architecture of the generalized fuzzer
+\begin{tikzpicture}
+\node[io]  (core) at (0,0)     {same core: typed grammar, trees, oracles, triage};
+\node[box] (ov)   at (3.3,0)   {\textbf{Dialect overlay}\\+ overlay miner};
+\node[box] (gen)  at (6.6,0)   {\textbf{Generator}\\rule-targeted weights,\\suite seeds};
+\node[box] (drv)  at (9.9,0)   {\textbf{Driver per engine}\\in a worker process};
+\node[box] (z3)   at (3.3,-2)  {\textbf{Z3 data}\\rows for every\\TLP partition};
+\node[box] (rule) at (6.6,-2)  {\textbf{Rule-firing probe}\\rule off / per-rule\\plan trace};
+\node[orc] (eng)  at (9.9,-2)  {DuckDB $\cdot$ SQLite\\Turso $\cdot$ DataFusion};
+\node[box] (orc)  at (6.6,-4)  {\textbf{Oracles}: metamorphic,\\cross-engine with\\learned normalizers};
+\node[box] (hunt) at (9.9,-4)  {\textbf{hunt}: triage $\rightarrow$\\package + native\\regression test};
+\draw[fl] (core)--(ov); \draw[fl] (ov)--(gen); \draw[fl] (gen)--(drv); \draw[fl] (drv)--(eng);
+\draw[fl] (z3)--(gen);
+\draw[fl] (eng)--node[above,font=\tiny]{plans}(rule);
+\draw[bk] (rule)--node[right,font=\tiny]{feedback, coverage}(gen);
+\draw[fl] (eng)--(orc); \draw[fl] (orc)--(hunt);
+\end{tikzpicture}

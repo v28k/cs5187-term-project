@@ -1,0 +1,201 @@
+% Class talk (about 7 minutes). Build: make (slides PDF and speaker-notes PDF).
+\documentclass[aspectratio=169,10pt]{beamer}
+\input{common}
+\ifdefined\shownotes\setbeameroption{show only notes}\fi
+\title{Grammar-Aware Fuzzing of PostgreSQL, and Beyond}
+\subtitle{CS-5187 Software Analysis, Term Project A3}
+\author{Venu Kummari \and Bhuvan Chilukuti \and Gowtham Reddy}
+\institute{IIT Guwahati}
+\date{November 2026}
+
+\begin{document}
+
+\maketitle
+\note{VENU. Good afternoon. I am Venu, with Bhuvan and Gowtham. We built a fuzzer, a
+dynamic-analysis tool that automatically generates test queries for PostgreSQL and decides by
+itself whether an answer is wrong. It found nine PostgreSQL bugs; six are fixed upstream, five with
+our patches. We then generalized it to four more SQL engines, where we filed three more fixes. We
+focus on how the tool works and how it found the bugs.}
+
+\begin{frame}{Problem: the oracle for wrong results}
+\begin{columns}[T]
+\column{0.52\textwidth}
+\begin{itemize}
+  \item Target: \pg, master built with \textbf{assertions}, compared with release 18.6.
+  \item Four failure classes: crash/assertion, \textbf{wrong result}, internal error, hang.
+  \item A wrong result leaves no trace: the tool needs a \alert{test oracle} that knows the right answer.
+\end{itemize}
+\column{0.44\textwidth}
+\begin{block}{Idea}
+Generate SQL as \alert{typed derivation trees}; rewrite each tree into
+\alert{equivalent queries} and run it under \alert{other plans} and on the \alert{last
+release}. Any disagreement is a bug.
+\end{block}
+\end{columns}
+\end{frame}
+\note{VENU. A fuzzer can run millions of queries; the hard part is to know that an answer is
+wrong. Our answer is comparison: equivalent questions must give equal answers.}
+
+\begin{frame}{Architecture of the \pg fuzzer}
+\centering\resizebox{\linewidth}{!}{\input{arch_main}}
+\small
+\begin{itemize}
+  \item One derivation tree, four jobs: \alert{generate, mutate, rewrite into oracles, reduce}.
+  \item 10{,}500 lines of Python, 151 unit tests.
+\end{itemize}
+\end{frame}
+\note{VENU. Five steps. Derive a test case from our typed grammar; rewrite its trees into
+oracle checks; execute on master, under other planner settings and on 18.6; triage the failures.
+The LLM loop reads recent commits and proposes new grammar, which enters only if it passes a gate
+on the real server.}
+
+\begin{frame}{Techniques: grammar and oracles}
+\small
+\begin{columns}[T]
+\column{0.42\textwidth}
+\textbf{Typed grammar} (own DSL, 78 rules)
+\begin{itemize}
+  \item types as parameters, scope-aware names $\Rightarrow$ \alert{99.3\%} valid statements (random mutation 26\%)
+  \item feedback: corpus, subtree mutation, bandit weights, data-aware literals
+\end{itemize}
+\column{0.55\textwidth}
+\textbf{Oracle stack}
+\begin{itemize}
+  \item server watches: crash/assertion (server log), internal error \texttt{XX000}, hang (timeout and cancel ignored)
+  \item \textbf{plan variants}: 18 planner settings, same answer required
+  \item \textbf{metamorphic tree rewrites}: TLP $Q = Q_p \uplus Q_{\neg p} \uplus Q_{p\ \mathrm{IS\ NULL}}$, NoREC, $e \rightarrow (\mathrm{SELECT}\ e)$
+  \item \textbf{cross-version}: master vs 18.6
+  \item \textbf{CERT}: a restriction must not raise the row estimate
+\end{itemize}
+\end{columns}
+\end{frame}
+\note{GOWTHAM. The grammar carries SQL types, so generated queries are valid and reach the
+planner. On top sits a stack of oracles. Three just watch the server. The others compare two
+answers that must agree. Because we keep the tree, a rewrite is type-correct at any nesting level.}
+
+\begin{frame}{Techniques: triage and the LLM gate}
+\small
+\begin{columns}[T]
+\column{0.48\textwidth}
+\textbf{Triage}
+\begin{enumerate}
+  \item reproduce $\times3$ on a fresh server
+  \item reduce on the tree (smallest derivation of the same type), then statements, then tokens: 116 $\rightarrow$ 79 tokens
+  \item localize: plan variant, rewrite or version
+  \item deduplicate by signature
+\end{enumerate}
+\column{0.48\textwidth}
+\textbf{LLM proposes, server decides}
+\begin{itemize}
+  \item reads a recent commit, proposes grammar, seeds, rewrites
+  \item gate: parses, reachable, $\geq60\%$ runs, executes the commit's \alert{changed lines} (gcov)
+  \item 4 of 10 commits passed
+\end{itemize}
+\end{columns}
+\end{frame}
+\note{BHUVAN. Triage makes a failure reportable: reproduce it, shrink it while keeping it valid by
+replaying trees, and find which setting or rewrite flips it. The LLM is never trusted on its word:
+PostgreSQL itself decides what enters the fuzzer.}
+
+\begin{frame}{How the tool found the \pg bugs}
+\scriptsize
+\begin{tabularx}{\linewidth}{@{}L{0.18\linewidth}L{0.24\linewidth}YL{0.16\linewidth}@{}}
+\toprule
+Bug type & Found by & Signal & Upstream \\
+\midrule
+assertion & LLM fragment + TLP check & assertion during a metamorphic check & \ok{fixed} \#19803 \\
+wrong output & cross-version oracle & master and 18.6 disagreed & \ok{fixed, our patch} \\
+assertion & extended-statistics generator & assertion in the estimator & \ok{fixed, our patch} \\
+assertion / wrong result & grammar fuzzer + cross-version & assertion on master, wrong answer on 18.6 & \ok{fixed, our patch} \\
+wrong result & cross-version + TLP & extra row on master & \ok{fixed, our patch} \\
+hang & hang oracle & timeout and cancel ignored & \ok{fixed, our patch} \\
+internal error & \texttt{XX000} oracle & ``should not happen'' error & \wa{confirmed} \\
+wrong result & $e\rightarrow(\mathrm{SELECT}\ e)$ rewrite & sub-select blocked a simplification & \wa{open} \\
+bad estimate & CERT oracle & estimate rose under a restriction & \wa{open} \\
+\bottomrule
+\end{tabularx}
+
+\smallskip
+\small\textbf{9 reported, 6 fixed upstream (5 with our patches).} \texttt{scripts/reproduce.sh}: all 9 rediscovered in 150 s.
+\end{frame}
+\note{GOWTHAM and BHUVAN. Read the middle column: every oracle earned its place. Two bugs came
+only from comparing versions, one only from the sub-select rewrite, one only from the hang
+oracle, one only from the estimate oracle. After the oracle fired, triage reduced and localized
+each case, and we wrote the root cause and the patch.}
+
+\begin{frame}{Results}
+\small
+\begin{tabularx}{\linewidth}{@{}lY@{}}
+\toprule
+RQ1 reach & backend lines \textbf{36.7\% vs 22.2\%} for random mutation ($\hat A_{12}=1.00$, $p=0.008$); oracles: plan shapes $\times1.7$ \\
+RQ2 precision & 93 candidates: 8 real, 15 duplicates, 42 false positives (all classes fixed), 28 flaky \\
+RQ3 benchmark & 23 real bugs re-injected; best arm found 2 of 20 in 1 h \\
+RQ4 LLM & +5 SQL features, no coverage gain \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Lesson: \alert{oracle precision}, not generator reach, limits a wrong-result fuzzer.
+\end{frame}
+\note{GOWTHAM. 5 trials of 1 hour per arm. Typing pays; oracles find real bugs, and their false
+positives were the main cost.}
+
+\begin{frame}{Beyond \pg: the generalized fuzzer}
+\centering\resizebox{!}{0.6\textheight}{\input{arch_gen}}
+\small
+\begin{itemize}
+  \item DuckDB, SQLite, Turso, DataFusion; same trees, oracles and triage.
+\end{itemize}
+\end{frame}
+\note{VENU. We then made the tool target-independent. Each engine gets a driver in its own worker
+process and a dialect overlay on the same grammar.}
+
+\begin{frame}{Generalized techniques}
+\small
+\begin{itemize}
+  \item \textbf{Dialect overlays} + \textbf{overlay miner}: failing grammar alternatives become \texttt{\%drop} lines (DuckDB 32\% $\rightarrow$ 44\% valid with no manual line; with overlays 79--98\% valid).
+  \item \textbf{Optimizer-rule firing} instead of code coverage: a rule fires if the plan changes when it is switched off (SQLite test control, DuckDB \texttt{disabled\_optimizers}, DataFusion \texttt{EXPLAIN VERBOSE}); used as feedback, coverage and for \alert{rule-targeted generation}.
+  \item \textbf{Z3 data synthesis}: rows that make every TLP partition non-empty.
+  \item \textbf{Learned normalizers} for cross-engine comparison: disagreements 28.7\% $\rightarrow$ 3.6\%.
+  \item \textbf{Autonomous loop}: campaign $\rightarrow$ triage $\rightarrow$ package with a regression test in the engine's own format.
+\end{itemize}
+\end{frame}
+\note{BHUVAN. Rule firing works on release builds of any engine and is about the optimizer, where
+logic bugs live. Normalizers make two engines comparable without hand-written rules.}
+
+\begin{frame}{How the generalized fuzzer found its bugs}
+\small
+\begin{tabularx}{\linewidth}{@{}lL{0.2\linewidth}YL{0.22\linewidth}@{}}
+\toprule
+Engine & Bug type & Found by & State \\
+\midrule
+Turso & wrong result & Turso-vs-SQLite differential oracle & \wa{filed with fix}: \#11594 / PR \#11595 \\
+DuckDB & internal error (regression) & internal-error oracle on the nightly build & \wa{filed with fix}: \#28551 / PR \#28552 \\
+DataFusion & internal error in DML & internal-error oracle & \wa{filed with fix}: \#27235 / PR \#27236 \\
+3 more & panic, errors & worker caught a panic / error & fixed upstream before we filed \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Each fix has a regression test in the engine's format and passes the engine's full suite.
+\end{frame}
+\note{VENU. Same pipeline as for PostgreSQL. The three pull requests were filed on 8 November and
+await review.}
+
+\begin{frame}{Conclusion}
+\begin{columns}[T]
+\column{0.32\textwidth}\centering{\Huge\textbf{9}}\\\small \pg bugs reported
+\column{0.32\textwidth}\centering{\Huge\ok{6}}\\\small fixed upstream (5 our patches)
+\column{0.32\textwidth}\centering{\Huge\textbf{3}}\\\small fixes filed to DuckDB, Turso, DataFusion
+\end{columns}
+\bigskip
+\small Team: Venu (tool, paper, generalized fuzzer) $\cdot$ Bhuvan (RQ3, bug hunts, four patches) $\cdot$ Gowtham (campaigns, LLM arm, two reports, one fix).
+\end{frame}
+\note{GOWTHAM. Valid SQL is the easy part; knowing the right answer is the hard part. Thank you.}
+
+\begin{frame}[standout]
+Thank you. Questions?\\[6pt]
+\normalsize github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi
+\end{frame}
+
+\end{document}

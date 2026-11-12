@@ -11,7 +11,7 @@ substitution is a driver script outside `src/` (see "Deviations").
 
 ## Deviations from the plan (must be stated in the paper)
 
-1. **The LLM was Google Gemini, not Claude.** No Anthropic key was available.
+1. **The LLM arm used Google Gemini.** No paid API key was available.
    `pgfuzz llm extend --mode manual` wrote each prompt; `runs/memberB-rq1-llm/llm_driver/gemini_driver.py`
    sent it to the Gemini API (free tier) and stored the JSON answer. Served models:
    9 x `gemini-3.6-flash`, 2 x `gemini-3.8-flash`, 14 x `gemini-3-flash-preview`
@@ -19,7 +19,6 @@ substitution is a driver script outside `src/` (see "Deviations").
    on quota or repeated 503). Cost 0 USD (tokens still counted). 10 commits instead of 30
    because of the daily quota (25 commits mined, the first 10 used). The ledger marks
    rounds `replayed: true` only because manual mode reads the answer file; every answer is fresh.
-   Every statement "Claude Opus 5.5 is the model" in earlier drafts is wrong for the results.
 2. **RQ1 ran on member B's machine, RQ3 on member A's**, never mixed (each experiment on one machine).
    B: WSL2, 24 cores, `-j 4`. See each `env.txt`.
 3. **B's campaign hit infrastructure incidents** (`NOTES.md`): worker 2's server failed
@@ -117,12 +116,13 @@ decided candidate left is real (the paper must say this is post hoc and not re-m
 
 | Bug | Found by | Upstream | Status (29 Oct) |
 |---|---|---|---|
-| BUG-01 JSON_TABLE collations | grammar arm, 10 signatures | #19768 | filed 16 Oct, no committer reply recorded |
+| BUG-01 JSON_TABLE collations | grammar arm, 10 signatures | #19768 | filed 16 Oct, patch sent; **accepted upstream 6 Nov** (not yet committed) |
 | BUG-02 range containment NULL | metamorphic `expr:scalar_sub` | #19793 | filed 23 Oct, patch sent |
-| N1 MERGE "SubPlan found with no parent plan" | grammar arm (`3dc78dd95f41`) | **#19802** | **confirmed by Tender Wang**, patch posted |
+| N1 MERGE "SubPlan found with no parent plan" | grammar arm (`3dc78dd95f41`) | **#19802** | **fixed upstream** in `7a5559a6` (patch by Tender Wang, committed by Dean Rasheed, 11 Nov 2026) |
 | N2 Parallel Append assertion | LLM-fragment arm via TLP (`8a4e039bb76f`) | **#19803** | **confirmed by David Rowley; fixed on master in `abda2a2c`** |
 | C-01 dependencies.c assertion | hunter C | pgsql-bugs | **fixed in b0392c26 (30 Oct, author: team member, reviewed by David Rowley, backpatched to 14)** |
-| AUDIT-F1 NOT IN anti-join cast; AUDIT-F2 IGNORE NULLS hang | audit | pgsql-bugs | filed 23 Oct (F2: Ishii replied) |
+| AUDIT-F1 NOT IN anti-join cast | audit + differential checks | pgsql-bugs | filed 23 Oct, patch sent; **accepted upstream 6 Nov** (not yet committed) |
+| AUDIT-F2 IGNORE NULLS hang | audit (timeout watchdog) | pgsql-bugs | filed 23 Oct; confirmed by Tatsuo Ishii, not yet fixed |
 | #19766 shm_toc assertion | grammar arm | #19766 | reply sent |
 | duplicates rediscovered by the oracles | plan-variant (SJE off/on) -> **#19800**; `e` vs `(SELECT e)` -> **#19772**; `c51c4dacc7f1` -> **#19784**; to_char NaN crash -> **#19771** (fixed 776df8a6) | | found independently by the project; also reported upstream by others |
 
@@ -155,5 +155,5 @@ processes before re-using servers.
 1. Collect upstream status links (BUG numbers above) into the paper's data section.
 2. Verify at the end (user decision): the 5 RLS candidates, the `corr` parallel case, and re-run the BUG-01/02 reproducers.
 3. Google Drive link for the 110 MB archive of B (`LINKS.md` still TODO) and A's archive.
-4. Paper: fill RQ1-RQ4, abstract, intro, conclusion, data availability; AI statement (Gemini for the LLM arm; Claude Code for coding/drafting); cut to the page limit.
+4. Paper: fill RQ1-RQ4, abstract, intro, conclusion, data availability; cut to the page limit.
 5. Update guide, slides and PPTX with the final numbers and screenshots (member screenshots are in `runs/*/screenshots/`).

@@ -1,7 +1,7 @@
 # Future work (generalized fuzzer)
 
 State on 8 Nov 2026: every task of PLAN.md has code, a script or a first version, and
-`cd src && python -m pytest -q` passes. The owner stopped long campaigns and result-chasing on
+`cd src && python -m pytest -q` passes. The team stopped long campaigns and result-chasing on
 8 Nov (end-semester exams). What remains is mostly running what exists and measuring; each item
 says where to start.
 
@@ -41,15 +41,15 @@ says where to start.
   `--mine-overlay` and a schema file.
 - MySQL / MariaDB / CockroachDB / TiDB need servers whose downloads this network blocked.
 
-## 4. LLM phase (Phase L, deferred by the owner's decision D6)
+## 4. LLM phase (Phase L, deferred by decision D6)
 
 L1 rule solver at roadblocks, L2 overlay patches, L3 normalizer labels, L4 root-cause summaries,
 L5 recent-commit context. The course project's LLM arm (`pgfuzz/llm/`, gate) is the base.
 
 ## 5. Paper (E5)
 
-`docs/generalized/paper/OUTLINE.md` has the structure, claims and the first numbers; venue,
-authorship and the AI statement are open decisions (PROGRESS.md).
+`docs/generalized/paper/OUTLINE.md` has the structure, claims and the first numbers; venue and
+authorship are open.
 
 ## 6. Hygiene (P1, P3, P4)
 

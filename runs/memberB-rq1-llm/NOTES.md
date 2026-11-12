@@ -10,8 +10,8 @@ then exited 1 on its final `pip install` line (relative path after `cd`). The
 requirements were installed separately with `pip --user` as in runbook 0.5.
 pytest: 138 passed.
 
-## B2: the LLM arm uses Gemini, not Claude
-There was no Anthropic API key, so the team agreed to use the Gemini API (free tier).
+## B2: the LLM arm uses Gemini
+There was no paid API key, so the team agreed to use the Gemini API (free tier).
 pgfuzz was **not changed**: `pgfuzz llm extend --mode manual` wrote each prompt,
 and `llm_driver/gemini_driver.py` sent it to Gemini and saved the JSON answer as
 `responses/<key>.json`, then re-ran extend until no prompt was left. Each response

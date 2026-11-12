@@ -1,4 +1,4 @@
-# Steps for the owner (T-05): issue first, then the fix PR
+# Filing steps (T-05): issue first, then the fix PR
 
 Turso's CONTRIBUTING.md ("Developing with AI coding agents") expects you to understand the code you submit and to
 describe the change in your own words; its PR template has a required "Description of AI Usage" section, left for you

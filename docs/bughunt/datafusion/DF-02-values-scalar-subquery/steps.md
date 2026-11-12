@@ -1,4 +1,4 @@
-# Steps for the owner (DF-02): issue first, then the fix PR
+# Filing steps (DF-02): issue first, then the fix PR
 
 Same policy notes as DF-01 (DataFusion AI policy; at most 3 open PRs; better one PR at a time on a first
 contribution, so open this one after DF-01 has had a review). Read `report.md` and `fix.patch` first.
