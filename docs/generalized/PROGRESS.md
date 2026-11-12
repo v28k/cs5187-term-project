@@ -43,6 +43,34 @@ Filing order suggested in each `steps.md`: issue first, then the PR. Ready to fi
 
 ## 2026-11-12: T-08 (Turso), BUG #19826 v4, hunt on newest code
 
+Later the same day:
+
+- Upstream states (checked 12 Nov): PostgreSQL BUG #19802 fixed (`7a5559a6`, Tender Wang /
+  Dean Rasheed, back-patched to 15) -> seven of nine PostgreSQL bugs fixed. DuckDB PR #28552
+  approved by a maintainer (auto-merge on, labelled for the 2.0 backport). Turso PR #11595: a
+  reviewer found a GROUP BY case, the owner added a test. DataFusion PR #27236 validated by a
+  contributor. `main` (course submission) updated: paper, README, completion/, slides, guide.
+- hunt_main triage, all verdicts in `latestbugs/README.md`: DuckDB nightly internal errors are
+  #27720 / #27983 (already reported); DataFusion 55.0.0: `round(decimal, 2)` comparison error
+  fixed on main by #23232, UNION nullability by #24244, interval range frames reported as #24915;
+  Turso: the 466 differences are T-05 (filed) and the bare-column issue #5545. No new bug.
+- Tool: known bugs match on SQL (`sql_regex`), so filed bugs stop dominating Turso campaigns;
+  triage no longer crashes on non-PostgreSQL wrong results (plan-variant localization is
+  PostgreSQL only).
+- Rule kernels from engine test suites (`kernels --from-suite`), kernel transfer
+  (`--transfer-from`), memory cap for mining. Three probe bugs fixed: (1) the DuckDB rule probe
+  replaced a test case's own `SET disabled_optimizers` instead of adding to it, so every rule
+  looked as if it fired (47 of 48 rules for one query); (2) a failing setup statement made the
+  whole probe fail; (3) on DuckDB a failed reset skipped the ROLLBACK and left later probes in
+  an aborted transaction. Kernel numbers before these fixes are void; the corpora in
+  `src/corpus/kernels/` are re-mined.
+- Kernels: SQLite 16/30 rules (32 kernels, 8 from Turso's SQLite-compatible tests; the
+  grammar never fired `BalancedMerge`, the tests did), 118 pairs, 88 co-fire, 293 seeds, 0
+  violations. DuckDB 31/48 (60 kernels; 5 rules only from DuckDB's optimizer tests), 464 pairs,
+  364 co-fire, 1283 seeds, 0 violations. Transfer SQLite -> DuckDB: 25/32 kernels run, 11 DuckDB
+  rules fire, none that the DuckDB grammar does not reach; DuckDB -> SQLite: 5/60 run.
+- Kernel campaigns (2 arms x 3 trials x 15 min, SQLite and DuckDB): see below.
+
 - BUG #19826 (PostgreSQL, main branch package): reviewed Tom Lane's v3 on master b0496e3
   (243/243 regression tests); v4 fixes the commonX/commonY entries of the old direct
   `float8_regr_combine()` test (its other numbers are real states of `regr_test`) and adds
