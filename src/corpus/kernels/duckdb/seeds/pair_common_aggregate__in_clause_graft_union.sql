@@ -1,0 +1,3 @@
+-- composition of rule kernels common_aggregate x in_clause (duckdb), template graft_union
+SELECT TRUE AS c0, 1.5::numeric AS c1 UNION (SELECT TRUE AS c0, 0.0::numeric AS c1 UNION BY NAME SELECT LIST_CONTAINS ([NULL, 1]::int[], a1.c0) AS c0, 2.25::numeric AS c1 FROM (SELECT * FROM t3 UNION ALL SELECT * FROM t3 WHERE (SELECT count(*) FROM (SELECT '{"k": -1, "a": [1, 2, 3]}'::jsonb AS c0, 0.5::numeric AS c1, 1::bigint AS c2, 'a'::text AS c3 FROM t3 AS a1 HAVING BOOL_AND ((a1.c5 < ANY (SELECT 'NaN'::text AS c0)))) AS kb) < 0) AS a1);
+-- pgfuzz:check kernel:graft_union SELECT TRUE AS c0, 1.5::numeric AS c1 UNION (SELECT TRUE AS c0, 0.0::numeric AS c1 UNION BY NAME SELECT LIST_CONTAINS ([NULL, 1]::int[], a1.c0) AS c0, 2.25::numeric AS c1 FROM t3 AS a1)

@@ -1,0 +1,3 @@
+-- composition of rule kernels common_aggregate x cte_inlining (duckdb), template graft_union
+SELECT a1.c0 AS c0, a1.c0 AS c1 FROM (SELECT * FROM t3 UNION ALL SELECT * FROM t3 WHERE (SELECT count(*) FROM (SELECT a1.c2 AS c0, '{"k": -1, "a": [1, 2, 3]}'::jsonb AS c1, a1.c0 AS c2, '1999-12-31'::date AS c3 FROM t0 AS a1 WHERE NULLIF ((NOT COALESCE (FALSE, (EXISTS (SELECT a1.c0 AS c0)))), TRUE)) AS kb) < 0) AS a1 WHERE (2 > ALL (SELECT a1.c0 AS c0)) INTERSECT (SELECT 17 AS c0, 10 AS c1 UNION SELECT 22 AS c0, 1 AS c1);
+-- pgfuzz:check kernel:graft_union SELECT a1.c0 AS c0, a1.c0 AS c1 FROM t3 AS a1 WHERE (2 > ALL (SELECT a1.c0 AS c0)) INTERSECT (SELECT 17 AS c0, 10 AS c1 UNION SELECT 22 AS c0, 1 AS c1)

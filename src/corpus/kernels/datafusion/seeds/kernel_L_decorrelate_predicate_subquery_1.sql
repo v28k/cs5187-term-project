@@ -1,0 +1,2 @@
+-- rule kernel: L:decorrelate_predicate_subquery (datafusion)
+WITH cte1 AS (SELECT DISTINCT (-1) AS c0, (1.0 / 3)::float8 AS c1 FROM t2 AS a1 WHERE (NOT EXISTS (SELECT 7 AS c0, 1.0::float8 AS c1))) SELECT 1.5::numeric AS c0, FALSE AS c1 FROM t2 AS a2 WHERE (('2024-12-31'::date = '2000-01-01'::date) OR ((ABS (3))::bigint >= LEAST (10::bigint, (SELECT COUNT (*) FROM cte1 AS a3))));

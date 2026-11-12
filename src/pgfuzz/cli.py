@@ -144,7 +144,7 @@ def cmd_replay(a: argparse.Namespace) -> int:
                 if cls.is_bug_candidate:
                     found += 1
                     sig = signature.compute(cls, tc)
-                    rec.update(signature=sig.id, strength=sig.strength, known_bugs=catalog.match(cls),
+                    rec.update(signature=sig.id, strength=sig.strength, known_bugs=catalog.match(cls, tc),
                                details={k: v for k, v in cls.details.items() if k != "backtrace"})
                 print(json.dumps(rec))
     finally:
@@ -510,6 +510,41 @@ def cmd_ledger(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_kernels(a: argparse.Namespace) -> int:
+    from pgfuzz.rules import kernels as K
+
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    if a.transfer_from:
+        src = json.loads(Path(a.transfer_from).read_text(encoding="utf-8"))
+        tr = K.transfer(src, a.config, name=a.name, mem_limit_gb=a.mem_gb)
+        (out / "transfer.json").write_text(json.dumps(tr, indent=1), encoding="utf-8")
+        print(json.dumps({k: tr[k] for k in ("source", "target", "kernels", "ran", "fired_any", "errors")}
+                         | {"target_rules_reached": len(tr["target_rules_reached"]),
+                            "target_rules": len(tr["target_rules"])}, indent=1))
+        return 0
+    if a.from_json:
+        mined = json.loads(Path(a.from_json).read_text(encoding="utf-8"))
+    else:
+        mined = K.mine(a.config, n=a.n, seed=a.seed, per_rule=a.per_rule, budget=a.budget, name=a.name,
+                       mem_limit_gb=a.mem_gb)
+        K.save(mined, out / "kernels.json")
+    if a.from_suite:
+        files = sorted(Path(a.from_suite).rglob("*.sql")) if Path(a.from_suite).is_dir() else [Path(a.from_suite)]
+        mined = K.mine_suite(a.config, files, mined, per_rule=a.per_rule, name=a.name, max_queries=a.suite_queries,
+                             mem_limit_gb=a.mem_gb)
+        K.save(mined, out / "kernels.json")
+        print(json.dumps({"suite": mined["suite_stats"], "never_fired_after_suite": mined["never_fired_after_suite"]}))
+    st = K.compose(a.config, mined, out / "seeds", per_pair=a.per_pair, seed=a.seed, name=a.name)
+    (out / "compose.json").write_text(json.dumps(st, indent=1), encoding="utf-8")
+    nk = sum(len(v) for v in mined["kernels"].values())
+    print(json.dumps({"engine": mined["engine"], "rules": len(mined["rules"]), "rules_with_kernel": len(mined["kernels"]),
+                      "kernels": nk, "never_fired": mined["never_fired"], "pairs_tried": st["pairs_tried"],
+                      "pairs_cofired": st["pairs_cofired"], "seeds": st["seeds"], "invalid": st["invalid"],
+                      "violations": len(st["violations"]), "out": str(out)}, indent=1))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="pgfuzz", description="Evaluation harness for grammar-aware PostgreSQL fuzzing")
     ap.add_argument("-v", "--verbose", action="count", default=1, help="-v info (default), -vv debug")
@@ -671,6 +706,24 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--max-statements", type=int, default=200)
     p.add_argument("--max-files", type=int)
     p.set_defaults(fn=cmd_import_tests)
+
+    p = sub.add_parser("kernels", help="mine rule kernels (minimal firing witnesses) and compose them into seeds")
+    p.add_argument("config")
+    p.add_argument("--name", help="config (arm) whose generator to use (default: the first)")
+    p.add_argument("-n", type=int, default=300, help="generated test cases to mine from")
+    p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--per-rule", type=int, default=2, help="kernels to keep per rule")
+    p.add_argument("--budget", type=int, default=80, help="reduction runs per kernel")
+    p.add_argument("--per-pair", type=int, default=2, help="composition templates per rule pair")
+    p.add_argument("--from-json", help="compose from an existing kernels.json instead of mining")
+    p.add_argument("--from-suite", help="also mine kernels for rules without one from imported engine tests "
+                   "(a directory of .sql files written by 'pgfuzz import-tests')")
+    p.add_argument("--suite-queries", type=int, default=20000, help="max suite queries to probe")
+    p.add_argument("--mem-gb", type=float, default=3.0, help="address-space cap of the mining process (0: none)")
+    p.add_argument("--transfer-from", help="kernels.json mined on another engine: run its kernels on this "
+                   "config's engine and map source rules to the rules they fire here (writes transfer.json)")
+    p.add_argument("--out", required=True)
+    p.set_defaults(fn=cmd_kernels)
 
     p = sub.add_parser("ledger", help="precision ledger per engine x oracle from docs/bughunt (D4)")
     p.add_argument("--root", default="../docs/bughunt")

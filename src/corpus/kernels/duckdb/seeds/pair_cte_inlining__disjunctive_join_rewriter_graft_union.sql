@@ -1,0 +1,3 @@
+-- composition of rule kernels cte_inlining x disjunctive_join_rewriter (duckdb), template graft_union
+SELECT a1.c2 AS c0, '{"k": -1, "a": [1, 2, 3]}'::jsonb AS c1, a1.c0 AS c2, '1999-12-31'::date AS c3 FROM (SELECT * FROM t0 UNION ALL SELECT * FROM t0 WHERE (SELECT count(*) FROM (FROM (VALUES (1, 2)) a(x, y) JOIN (VALUES (1, 2)) c(x, y) ON a.x = c.x OR a.y = c.y) AS kb) < 0) AS a1 WHERE NULLIF ((NOT COALESCE (FALSE, (EXISTS (SELECT a1.c0 AS c0)))), TRUE);
+-- pgfuzz:check kernel:graft_union SELECT a1.c2 AS c0, '{"k": -1, "a": [1, 2, 3]}'::jsonb AS c1, a1.c0 AS c2, '1999-12-31'::date AS c3 FROM t0 AS a1 WHERE NULLIF ((NOT COALESCE (FALSE, (EXISTS (SELECT a1.c0 AS c0)))), TRUE)

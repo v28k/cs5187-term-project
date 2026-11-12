@@ -1,0 +1,3 @@
+-- composition of rule kernels L:eliminate_duplicated_expr x L:optimize_unions (datafusion), template exists
+SELECT count(*) FROM (SELECT '2000-01-01'::date AS c0 UNION ALL (SELECT '2024-02-29'::date AS c0 UNION ALL (SELECT '1999-12-31'::date AS c0 UNION SELECT '2024-02-29'::date AS c0))) AS ka WHERE EXISTS (SELECT 1 FROM (SELECT 'c4ca4238a0b923820dcc509a6f75849b'::text AS c0 ORDER BY 1, 1) AS kb);
+-- pgfuzz:check kernel:exists SELECT CASE WHEN (SELECT count(*) FROM (SELECT 'c4ca4238a0b923820dcc509a6f75849b'::text AS c0 ORDER BY 1, 1) AS kb) > 0 THEN (SELECT count(*) FROM (SELECT '2000-01-01'::date AS c0 UNION ALL (SELECT '2024-02-29'::date AS c0 UNION ALL (SELECT '1999-12-31'::date AS c0 UNION SELECT '2024-02-29'::date AS c0))) AS ka) ELSE 0 END

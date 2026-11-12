@@ -399,8 +399,13 @@ class Rewriter:
         return items.val if items is not None and isinstance(items.val, tuple) else None
 
     def _has_window(self, t: _Tree, core: Node) -> bool:
-        items = t.child(core, "@items")
-        return items is not None and t.contains(items, {"win"})
+        """A window function of this select (items, or a QUALIFY filter) sees the rows left by
+        WHERE/HAVING, so partitioning those clauses changes its value: no TLP on such a core."""
+        for clause in ("@items", "qualify_clause"):
+            c = t.child(core, clause)
+            if c is not None and t.contains(c, {"win"}):
+                return True
+        return False
 
     def _partition(self, t: _Tree, core: Node, clause: Node, keyword: str, union: str, nested: bool) -> list[str]:
         pred = t.child(clause, "expr")

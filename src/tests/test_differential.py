@@ -72,3 +72,17 @@ def test_equal_intervals_with_different_text_have_one_digest():
     assert result_digest([["-1 days +02:00:00"]], [iv])[0] != result_digest([["1 day 02:00:00"]], [iv])[0]
     assert _interval_micros("infinity") is None          # unknown style: compared as text
     assert result_digest([["infinity"]], [iv])[0] != result_digest([["-infinity"]], [iv])[0]
+
+
+def test_float_aggregates_under_dedup_are_not_compared_across_plans():
+    """STDDEV differs in its last bits with batch size / partitions; UNION (distinct) then keeps
+    a different number of rows (found as ~600 DataFusion plan-variant false positives)."""
+    from pgfuzz.eval.differential import eligible
+
+    q = "SELECT STDDEV(a1.c3) AS c0 FROM t4 AS a1 GROUP BY a1.c2 UNION SELECT 1"
+    assert not eligible(q)
+    assert eligible(q.replace("UNION", "UNION ALL"))
+    assert eligible("SELECT STDDEV(c3) FROM t4 GROUP BY c2")
+    assert not eligible("SELECT DISTINCT AVG(c0) FROM t GROUP BY c1")
+    assert eligible("SELECT DISTINCT c0 FROM t")
+    assert eligible("SELECT AVG(c0) FROM t WHERE c1 IS DISTINCT FROM 2")

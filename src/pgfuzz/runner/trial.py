@@ -180,7 +180,7 @@ def run_trial(cfg: ExperimentConfig, fc: FuzzConfig, trial: int, worker: int = 0
             t = elapsed()
             cls = oracle.classify(res)
             sig = signature.compute(cls, tc) if cls.is_bug_candidate else None
-            known = catalog.match(cls) if sig else []
+            known = catalog.match(cls, tc) if sig else []
             upd = metrics.update(t, tc, res, cls, sig, known)
             parsed = sum(1 for o, st in zip(upd.statement_outcomes, res.statements) if o.parsed and st.status is not StatementStatus.SKIPPED)
             ok = sum(1 for o, st in zip(upd.statement_outcomes, res.statements) if o.value == "ok" and st.status is not StatementStatus.SKIPPED)

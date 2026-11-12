@@ -1,0 +1,2 @@
+-- rule kernel: DistinctOpt (sqlite)
+WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT DISTINCT CAST(1000 AS INTEGER) AS c0, a1.c0 AS c1 FROM t1 AS a1;

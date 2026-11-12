@@ -1,0 +1,3 @@
+-- composition of rule kernels disjunctive_join_rewriter x reorder_filter (duckdb), template union
+SELECT count(*) FROM (SELECT 1 AS k FROM (FROM (VALUES (1, 2)) a(x, y) JOIN (VALUES (1, 2)) c(x, y) ON a.x = c.x OR a.y = c.y) AS ka UNION ALL SELECT 2 AS k FROM (SELECT 2.25::numeric AS c0, '0'::text AS c1, (SELECT COUNT (*) FROM t4 AS a1 WHERE ((a1.c3 <= 2.25::numeric) OR (a1.c0 IS NULL))) AS c2) AS kb) AS u;
+-- pgfuzz:check kernel:union SELECT (SELECT count(*) FROM (FROM (VALUES (1, 2)) a(x, y) JOIN (VALUES (1, 2)) c(x, y) ON a.x = c.x OR a.y = c.y) AS ka) + (SELECT count(*) FROM (SELECT 2.25::numeric AS c0, '0'::text AS c1, (SELECT COUNT (*) FROM t4 AS a1 WHERE ((a1.c3 <= 2.25::numeric) OR (a1.c0 IS NULL))) AS c2) AS kb)

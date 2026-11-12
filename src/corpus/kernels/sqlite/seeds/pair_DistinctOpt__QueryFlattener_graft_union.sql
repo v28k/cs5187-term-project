@@ -1,0 +1,3 @@
+-- composition of rule kernels DistinctOpt x QueryFlattener (sqlite), template graft_union
+SELECT DISTINCT a1.n AS c0 FROM (v0 AS a1 LEFT JOIN (SELECT * FROM ti UNION ALL SELECT * FROM ti WHERE (SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT a2.c1 AS c0, CAST('abc' AS TEXT) AS c1 FROM (SELECT CAST(1.5 AS NUMERIC) AS c0, FALSE AS c1, '{"k": 1, "a": [1, 2]}' AS c2 FROM t0 AS a1) AS a2 UNION ALL SELECT TRUE AS c0, CAST('abc' AS TEXT) AS c1) AS kb) < 0) AS a2 ON (a1.c0 = a2.c0)) UNION ALL SELECT CAST(0 AS INTEGER) AS c0;
+-- pgfuzz:check kernel:graft_union SELECT DISTINCT a1.n AS c0 FROM (v0 AS a1 LEFT JOIN ti AS a2 ON (a1.c0 = a2.c0)) UNION ALL SELECT CAST(0 AS INTEGER) AS c0

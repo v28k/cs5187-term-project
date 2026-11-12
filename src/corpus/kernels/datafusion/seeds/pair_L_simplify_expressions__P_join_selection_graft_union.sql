@@ -1,0 +1,3 @@
+-- composition of rule kernels L:simplify_expressions x P:join_selection (datafusion), template graft_union
+SELECT '2000-01-01'::date AS c0 FROM ((SELECT * FROM t4 UNION ALL SELECT * FROM t4 WHERE (SELECT count(*) FROM (SELECT TRUE AS c0, 1.5::numeric AS c1) AS kb) < 0) AS a1 JOIN t4 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c0, a2.c3 UNION ALL (SELECT '2024-01-01'::date AS c0 UNION SELECT '2024-01-01'::date AS c0);
+-- pgfuzz:check kernel:graft_union SELECT '2000-01-01'::date AS c0 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c0, a2.c3 UNION ALL (SELECT '2024-01-01'::date AS c0 UNION SELECT '2024-01-01'::date AS c0)

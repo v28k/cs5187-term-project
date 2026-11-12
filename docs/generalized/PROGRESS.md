@@ -34,11 +34,90 @@ Status after re-checking each bug on the engine's newest development code built 
 | T-05 percentile with expression argument | Turso | yes (9b71df9ab) | yes (`fix.patch`, new .sqltest; full sqlite-sqltests corpus 12700 passed) | `docs/bughunt/turso/T-05-percentile-expression-argument/` |
 | T-02 window fn over DATE() twice in ORDER BY (panic) | Turso | **no: fixed upstream by merge 8f1f6ee83 "register ORDER BY window functions only for terms that are kept" (16 Oct 2026), found by bisect** | not needed | `docs/bughunt/turso/T-02-window-arg-call-order-by-twice/` (do not file) |
 | T-01 FULL JOIN on INTEGER PRIMARY KEY rejected | Turso | **no: fixed upstream by 44fe44520 "core: implement SQLite-style right and full joins" (merge 2b9184f8d, 7 Oct 2026; parent still fails, merge works)** | not needed | `docs/bughunt/turso/T-01-full-join-rowid-equality/` (do not file) |
+| T-08 aggregate in `IN (SELECT ...)` with a window function (misuse error; panic for median) | Turso | yes (38b7d9de1, 12 Nov 2026) | yes (patch, new .sqltest; window/agg/subquery corpora 1399 passed, sqlite-sqltests 12726 passed except the 2 big-db disk tests, turso+shared 3661 passed) | `latestbugs/T-08-turso-window-aggregate-in-subquery/` (**ready to file**) |
 
 Filing order suggested in each `steps.md`: issue first, then the PR. Ready to file: D-01, DF-01, DF-02, T-05
 (DataFusion: one PR at a time on a first contribution).
 
 ## Session log
+
+## 2026-11-12: T-08 (Turso), BUG #19826 v4, hunt on newest code
+
+Later the same day:
+
+- Upstream states (checked 12 Nov): PostgreSQL BUG #19802 fixed (`7a5559a6`, Tender Wang /
+  Dean Rasheed, back-patched to 15) -> seven of nine PostgreSQL bugs fixed. DuckDB PR #28552
+  approved by a maintainer (auto-merge on, labelled for the 2.0 backport). Turso PR #11595: a
+  reviewer found a GROUP BY case, the owner added a test. DataFusion PR #27236 validated by a
+  contributor. `main` (course submission) updated: paper, README, completion/, slides, guide.
+- hunt_main triage, all verdicts in `latestbugs/README.md`: DuckDB nightly internal errors are
+  #27720 / #27983 (already reported); DataFusion 55.0.0: `round(decimal, 2)` comparison error
+  fixed on main by #23232, UNION nullability by #24244, interval range frames reported as #24915;
+  Turso: the 466 differences are T-05 (filed) and the bare-column issue #5545. No new bug.
+- Tool: known bugs match on SQL (`sql_regex`), so filed bugs stop dominating Turso campaigns;
+  triage no longer crashes on non-PostgreSQL wrong results (plan-variant localization is
+  PostgreSQL only).
+- Rule kernels from engine test suites (`kernels --from-suite`), kernel transfer
+  (`--transfer-from`), memory cap for mining. Three probe bugs fixed: (1) the DuckDB rule probe
+  replaced a test case's own `SET disabled_optimizers` instead of adding to it, so every rule
+  looked as if it fired (47 of 48 rules for one query); (2) a failing setup statement made the
+  whole probe fail; (3) on DuckDB a failed reset skipped the ROLLBACK and left later probes in
+  an aborted transaction. Kernel numbers before these fixes are void; the corpora in
+  `src/corpus/kernels/` are re-mined.
+- A fourth probe bug: the SQLite probe reset a test case's own `PRAGMA automatic_index` /
+  `reverse_unordered_selects` to the defaults after the first rule, so one such PRAGMA made 29 of
+  30 rules look as if they fired (the plain campaign arm showed "30 rules", 12 of them exactly
+  12 times). Fixed; SQLite kernels re-mined.
+- Kernels (after all fixes): SQLite: grammar fires 16 of 30 rules; 17 rules with kernels (33
+  kernels), 136 pairs, 123 co-fire, 400 seeds, 0 violations. DuckDB: grammar 28 of 48, its
+  optimizer tests 5 more; 31 rules with kernels (60), 464 pairs, 364 co-fire, 1283 seeds, 0
+  violations. Transfer SQLite -> DuckDB: 29/33 run, 13 DuckDB rules, none new; DuckDB -> SQLite
+  5/60 run. DataFusion: suite mining killed by a test that exhausts memory in-process (Rust
+  aborts on allocation failure); grammar-only mining instead. Panics seen in DataFusion 55.0.0 on
+  its own `main` tests (`aggregate_skip_partial`, `array_concat`) are fixed on main: not bugs.
+- Kernel campaigns (2 arms x 3 trials x 15 min): DuckDB rule pairs 307 -> 386 (A12 1.00,
+  p 0.10), rules 31 -> 33, 3 rules only with kernels, similar test-case counts; SQLite rule
+  pairs 86 -> 182, rules 17 -> 21, but twice the test cases (per 1000 test cases 4.9 vs 5.3:
+  the SQLite gain is throughput; DuckDB per 1000: 21.7 vs 25.9). One TLP false positive (QUALIFY with
+  a window function) fixed. `docs/generalized/results/rq8_kernels_2026-11-12.md`.
+- DataFusion kernels (grammar only): 25 of 47 rules fire, 23 with kernels (45), 253 pairs, 220
+  co-fire, 678 seeds, 0 violations. Campaign: rule pairs 241 -> 276, per 1000 test cases 14.6 ->
+  19.2 (A12 1.00, p 0.10). Its 631 plan-variant differences: 564 are GROUP BY CUBE/ROLLUP split
+  groups (fixed on main by #24422), 66 are floating-point aggregates under UNION (filter added:
+  `eval/differential.py`), 1 is `array_has_all` with an all-NULL batch (fixed on main). All three
+  are now known bugs / excluded, so DataFusion 55 campaigns stop flooding. No filable bug.
+
+- BUG #19826 (PostgreSQL, main branch package): reviewed Tom Lane's v3 on master b0496e3
+  (243/243 regression tests); v4 fixes the commonX/commonY entries of the old direct
+  `float8_regr_combine()` test (its other numbers are real states of `regr_test`) and adds
+  overflow tests. The owner sent the reply with v4 (`docs/bughunt/new/` on `main`).
+- Turso lead from the 11 Nov hunt (panic "aggregate called in scalar context", failure
+  3308362ffef6) reduced by hand: an aggregate in `IN (SELECT ...)` in a query with a window
+  function. Built-in aggregates are wrongly rejected as misuse, extension aggregates panic.
+  Still on main 38b7d9de1. Cause in `core/translate/window.rs` (`rewrite_terminal_expr` passes
+  `contains_aggregates = false` for subquery expressions); fixed, test added, corpora pass.
+  Open PR #11597 only changes the panic into the wrong error. Package: `latestbugs/T-08-*`.
+- `TursoDriver` now reports the version of the pyturso it actually loads (0.9.0rc5 from
+  `/root/arbor/pyturso-main`, was misreported as the pip 0.8.3).
+- Hunt on newest builds (`results/hunt_main`) crashed when a Rust build filled the disk;
+  restarted. Build Turso with `CARGO_INCREMENTAL=0` and delete `target/release` after the
+  wheel is built: the session's disk allowance is small.
+
+## 2026-11-11: branch `generalised-improved` (new techniques, hunt on newest code)
+- New branch `generalised-improved`; hand-over for the next session: `docs/generalized/NEXT.md`.
+- Literature check (web search): SQL Server rule-testing framework (SIGMOD 2009) covers rules and rule pairs but reads
+  rule patterns from the optimizer; ARG (ASE 2025) abstracts single rules from rewriter source. No prior work found that
+  learns a rule's trigger by reduction or composes triggers with a built-in oracle.
+- Rule kernels (`pgfuzz kernels`): mining by tree reduction under "the rule still fires" (median 260 -> 57 tokens on
+  SQLite), 6 composition templates with a composition oracle, 3 identity grafts. 1,239 composed seeds on SQLite, DuckDB,
+  DataFusion: no violation at default settings.
+- State-restoration oracle (tables and row counts must be unchanged after ROLLBACK). Found Turso T-06 on 0.8.3
+  (runtime error ends the transaction; later INSERT commits). Also T-07 (correlated subquery in HAVING reads NULL).
+  Both verified **fixed on Turso main 0c9fe0dd9** (tursodb built from source): recorded in `latestbugs/`, not filable.
+- 1 h hunt on the pip releases: ~890 Turso differences were follow-on noise of T-06 plus T-05; a DuckDB plan-variant
+  difference was flaky (GROUP BY on VARIANCE). Decision: hunt only on newest builds (`configs/turso_main.yaml`,
+  `scripts/build_turso_main.sh`).
+- Tests: 197 passed, 1 skipped.
 
 ## 2026-11-08 (wrap-up): every remaining task has code or a script; long runs moved to future work
 - Owner's decision: wrap the project up tonight (end-semester exams); no long campaigns, no result-chasing; what is

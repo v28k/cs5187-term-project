@@ -1,0 +1,3 @@
+-- composition of rule kernels BalancedMerge x ExistsToJoin (sqlite), template union
+SELECT count(*) FROM (SELECT 1 AS k FROM (SELECT '{"k": -1, "a": [1, 2, 3]}' AS c0, '2024-01-01 00:00:00' AS c1 FROM t0 AS a1 WHERE (EXISTS (SELECT a1.c1 AS c0, a2.c0 AS c1, a1.c1 AS c2 FROM t1 AS a2))) AS ka UNION ALL SELECT 2 AS k FROM (SELECT NULL UNION SELECT 1 UNION SELECT 2 UNION SELECT NULL) AS kb) AS u;
+-- pgfuzz:check kernel:union SELECT (SELECT count(*) FROM (SELECT '{"k": -1, "a": [1, 2, 3]}' AS c0, '2024-01-01 00:00:00' AS c1 FROM t0 AS a1 WHERE (EXISTS (SELECT a1.c1 AS c0, a2.c0 AS c1, a1.c1 AS c2 FROM t1 AS a2))) AS ka) + (SELECT count(*) FROM (SELECT NULL UNION SELECT 1 UNION SELECT 2 UNION SELECT NULL) AS kb)

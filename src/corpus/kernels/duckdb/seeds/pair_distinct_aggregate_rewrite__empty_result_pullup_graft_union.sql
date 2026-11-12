@@ -1,0 +1,3 @@
+-- composition of rule kernels distinct_aggregate_rewrite x empty_result_pullup (duckdb), template graft_union
+SELECT '2000-01-01 00:00:00+00'::timestamptz AS c0, 1.5::numeric AS c1, (- CASE WHEN FALSE THEN (SELECT SUM (DISTINCT a2.c1) FROM t2 AS a2) ELSE 2.25::numeric END) AS c2, 10 AS c3 FROM (SELECT * FROM t1 UNION ALL SELECT * FROM t1 WHERE (SELECT count(*) FROM (SELECT '2024-01-01'::date AS c0, (MAX ('epoch'::timestamptz) OVER () + '00:00:00.000001'::interval) AS c1 FROM tp AS a1 WHERE FALSE) AS kb) < 0) AS a1;
+-- pgfuzz:check kernel:graft_union SELECT '2000-01-01 00:00:00+00'::timestamptz AS c0, 1.5::numeric AS c1, (- CASE WHEN FALSE THEN (SELECT SUM (DISTINCT a2.c1) FROM t2 AS a2) ELSE 2.25::numeric END) AS c2, 10 AS c3 FROM t1 AS a1

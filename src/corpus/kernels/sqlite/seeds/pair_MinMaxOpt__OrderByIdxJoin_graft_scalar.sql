@@ -1,0 +1,3 @@
+-- composition of rule kernels MinMaxOpt x OrderByIdxJoin (sqlite), template graft_scalar
+SELECT '{"k": 2, "a": [0]}' AS c0, CAST('[1,10)' AS TEXT) AS c1 FROM (t1 AS a1 LEFT JOIN (SELECT * FROM t1 WHERE (SELECT count(*) FROM (SELECT JSON_GROUP_ARRAY (CASE WHEN TRUE THEN (SELECT MIN (10) FROM t2 AS a2) ELSE a1.c0 END ORDER BY CASE WHEN TRUE THEN (SELECT MIN (10) FROM t2 AS a2) ELSE a1.c0 END) AS c0 FROM t4 AS a1 GROUP BY a1.c0) AS kb) >= 0) AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c1, a1.c0;
+-- pgfuzz:check kernel:graft_scalar SELECT '{"k": 2, "a": [0]}' AS c0, CAST('[1,10)' AS TEXT) AS c1 FROM (t1 AS a1 LEFT JOIN t1 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c1, a1.c0

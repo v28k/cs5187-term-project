@@ -1,0 +1,3 @@
+-- composition of rule kernels L:eliminate_cross_join x L:type_coercion (datafusion), template graft_union
+SELECT 100 AS c0, 1.5::numeric AS c1, 5 AS c2, 0::bigint AS c3 FROM ((SELECT * FROM ti UNION ALL SELECT * FROM ti WHERE (SELECT count(*) FROM (SELECT 10::bigint AS c0, FALSE AS c1, make_array('a', 'b') AS c2, make_array(NULL, 1) AS c3) AS kb) < 0) AS a1 INNER JOIN (t4 AS a2 JOIN t4 AS a3 ON (a2.c0 = a3.c0)) ON ((a1.c0 = a3.c0) AND TRUE)) GROUP BY a1.c1;
+-- pgfuzz:check kernel:graft_union SELECT 100 AS c0, 1.5::numeric AS c1, 5 AS c2, 0::bigint AS c3 FROM (ti AS a1 INNER JOIN (t4 AS a2 JOIN t4 AS a3 ON (a2.c0 = a3.c0)) ON ((a1.c0 = a3.c0) AND TRUE)) GROUP BY a1.c1

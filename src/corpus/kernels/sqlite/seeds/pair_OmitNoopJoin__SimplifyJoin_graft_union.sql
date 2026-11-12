@@ -1,0 +1,3 @@
+-- composition of rule kernels OmitNoopJoin x SimplifyJoin (sqlite), template graft_union
+SELECT a1.c0 AS c0, CAST(0.5 AS REAL) AS c1, a2.c0 AS c2, '1970-01-01' AS c3 FROM (tp AS a1 FULL JOIN (SELECT * FROM t4 UNION ALL SELECT * FROM t4 WHERE (SELECT count(*) FROM (SELECT DISTINCT a1.n AS c0 FROM (v0 AS a1 LEFT JOIN ti AS a2 ON (a1.c0 = a2.c0)) UNION ALL SELECT CAST(100 AS INTEGER) AS c0) AS kb) < 0) AS a2 ON (a1.c0 = a2.c1)) WHERE (a2.c0 > 100);
+-- pgfuzz:check kernel:graft_union SELECT a1.c0 AS c0, CAST(0.5 AS REAL) AS c1, a2.c0 AS c2, '1970-01-01' AS c3 FROM (tp AS a1 FULL JOIN t4 AS a2 ON (a1.c0 = a2.c1)) WHERE (a2.c0 > 100)

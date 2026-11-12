@@ -1,0 +1,3 @@
+-- composition of rule kernels limit_pushdown x outer_join_simplification (duckdb), template scalar_filter
+SELECT count(*) FROM (SELECT (SELECT MAX (a1.c0) FROM t4 AS a1 WHERE (EXISTS (SELECT 1::bigint AS c0))) AS c0, '2000-01-01'::date AS c1) AS ka WHERE (SELECT count(*) FROM (SELECT a2.c0 AS c0, '2024-01-01 00:00:00+00'::timestamptz AS c1 FROM (tp AS a1 JOIN (t0 AS a2 LEFT JOIN (t1 POSITIONAL JOIN tp) ON ((a2.c1 = tp.c1) AND TRUE)) ON ((a1.c0 = tp.c0) AND ('abc'::text NOT ILIKE '%\\%'::text))) QUALIFY (COUNT (*) OVER () = 1)) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT (SELECT MAX (a1.c0) FROM t4 AS a1 WHERE (EXISTS (SELECT 1::bigint AS c0))) AS c0, '2000-01-01'::date AS c1) AS ka

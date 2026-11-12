@@ -1,0 +1,3 @@
+-- composition of rule kernels common_subplan x join_order (duckdb), template scalar_filter
+SELECT count(*) FROM (SELECT 1.0::float8 AS c0, '{"k": -1, "a": [1, 2, 3]}'::jsonb AS c1, a1.c0 AS c2, '2000-01-01'::date AS c3 FROM tl AS a1 WHERE NULLIF ((NOT COALESCE (FALSE, (EXISTS (SELECT FALSE AS c0)))), TRUE)) AS ka WHERE (SELECT count(*) FROM (SELECT 0.0::numeric AS c0, 'a'::text AS c1 FROM t0 AS a1 GROUP BY a1.c2) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT 1.0::float8 AS c0, '{"k": -1, "a": [1, 2, 3]}'::jsonb AS c1, a1.c0 AS c2, '2000-01-01'::date AS c3 FROM tl AS a1 WHERE NULLIF ((NOT COALESCE (FALSE, (EXISTS (SELECT FALSE AS c0)))), TRUE)) AS ka

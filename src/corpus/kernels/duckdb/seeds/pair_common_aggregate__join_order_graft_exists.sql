@@ -1,0 +1,3 @@
+-- composition of rule kernels common_aggregate x join_order (duckdb), template graft_exists
+SELECT a1.c0 AS c0, a1.c0 AS c1 FROM (SELECT * FROM t3 WHERE EXISTS (SELECT 1 FROM (SELECT 0.0::numeric AS c0, 'a'::text AS c1 FROM t0 AS a1 GROUP BY a1.c2) AS kb) OR NOT EXISTS (SELECT 1 FROM (SELECT 0.0::numeric AS c0, 'a'::text AS c1 FROM t0 AS a1 GROUP BY a1.c2) AS kb)) AS a1 WHERE (2 > ALL (SELECT a1.c0 AS c0)) INTERSECT (SELECT 17 AS c0, 10 AS c1 UNION SELECT 22 AS c0, 1 AS c1);
+-- pgfuzz:check kernel:graft_exists SELECT a1.c0 AS c0, a1.c0 AS c1 FROM t3 AS a1 WHERE (2 > ALL (SELECT a1.c0 AS c0)) INTERSECT (SELECT 17 AS c0, 10 AS c1 UNION SELECT 22 AS c0, 1 AS c1)

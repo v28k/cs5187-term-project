@@ -1,0 +1,3 @@
+-- composition of rule kernels filter_pullup x outer_join_simplification (duckdb), template graft_scalar
+SELECT 'x%'::text AS c0 EXCEPT ALL SELECT a1.c1 AS c0 FROM (SELECT * FROM tl WHERE (SELECT count(*) FROM (SELECT a2.c0 AS c0, '2024-01-01 00:00:00+00'::timestamptz AS c1 FROM (tp AS a1 JOIN (t0 AS a2 LEFT JOIN (t1 POSITIONAL JOIN tp) ON ((a2.c1 = tp.c1) AND TRUE)) ON ((a1.c0 = tp.c0) AND ('abc'::text NOT ILIKE '%\\%'::text))) QUALIFY (COUNT (*) OVER () = 1)) AS kb) >= 0) AS a1 WHERE (EXISTS (SELECT a1.c1 AS c0 FROM v0 AS a2 WHERE NULL::boolean));
+-- pgfuzz:check kernel:graft_scalar SELECT 'x%'::text AS c0 EXCEPT ALL SELECT a1.c1 AS c0 FROM tl AS a1 WHERE (EXISTS (SELECT a1.c1 AS c0 FROM v0 AS a2 WHERE NULL::boolean))

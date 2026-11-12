@@ -327,7 +327,7 @@ def _write(out_dir: Path, cand: Candidate, result: dict[str, Any], stmts: list[s
         for name, obs in result["observed_reference"].items():
             lines += [f"`{name}`:", "", "```", _table(obs), "```", ""]
     loc = result.get("localization")
-    if loc:
+    if loc and "verdict" in loc:
         v = loc["verdict"]
         lines += ["## Where the bug is (localization)", "", f"**{v['kind']}**: {v['summary']}.", ""]
         if v["suspects"]:
@@ -383,7 +383,7 @@ def upstream_report(cand: Candidate, result: dict[str, Any], sql: str) -> str:
             lines += [f"{name}:", _table(o), ""]
     lines += ["Expected", "--------", "", "<what should happen, and why: SQL standard / documentation section>", ""]
     loc = result.get("localization")
-    if loc:
+    if loc and "verdict" in loc:
         lines += ["Analysis", "--------", "", loc["verdict"]["summary"].capitalize() + "."]
         lines += [f"  {k}: {f}" for k, f in loc["verdict"]["suspects"].items()]
         lines.append("")

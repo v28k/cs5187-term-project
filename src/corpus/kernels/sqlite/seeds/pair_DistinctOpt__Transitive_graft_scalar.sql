@@ -1,0 +1,3 @@
+-- composition of rule kernels DistinctOpt x Transitive (sqlite), template graft_scalar
+SELECT CAST(' ' AS TEXT) AS c0, CAST('%' AS TEXT) AS c1 FROM (t1 AS a1 JOIN (v0 AS a2 INNER JOIN (SELECT * FROM ti WHERE (SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT DISTINCT CAST(1000 AS INTEGER) AS c0, a1.c0 AS c1 FROM t1 AS a1) AS kb) >= 0) AS a3 ON ((a2.c0 = a3.c0) AND TRUE)) ON ((a1.c0 = a3.c0) AND (a2.c0 = (-20)))) GROUP BY a1.c1, a1.c2, a1.c0;
+-- pgfuzz:check kernel:graft_scalar SELECT CAST(' ' AS TEXT) AS c0, CAST('%' AS TEXT) AS c1 FROM (t1 AS a1 JOIN (v0 AS a2 INNER JOIN ti AS a3 ON ((a2.c0 = a3.c0) AND TRUE)) ON ((a1.c0 = a3.c0) AND (a2.c0 = (-20)))) GROUP BY a1.c1, a1.c2, a1.c0

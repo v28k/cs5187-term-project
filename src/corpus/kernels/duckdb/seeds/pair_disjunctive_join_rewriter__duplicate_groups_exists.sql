@@ -1,0 +1,3 @@
+-- composition of rule kernels disjunctive_join_rewriter x duplicate_groups (duckdb), template exists
+SELECT count(*) FROM (FROM (VALUES (1, 2)) a(x, y) JOIN (VALUES (1, 2)) b( y) ON a.x JOIN (VALUES (1, 2)) c(x, y) ON a.x = c.x OR a.y = c.y) AS ka WHERE EXISTS (SELECT 1 FROM (SELECT 10::bigint AS c0 EXCEPT SELECT 10::bigint AS c0 FROM t4 AS a1 GROUP BY a1.c1, a1.c0, a1.c3) AS kb);
+-- pgfuzz:check kernel:exists SELECT CASE WHEN (SELECT count(*) FROM (SELECT 10::bigint AS c0 EXCEPT SELECT 10::bigint AS c0 FROM t4 AS a1 GROUP BY a1.c1, a1.c0, a1.c3) AS kb) > 0 THEN (SELECT count(*) FROM (FROM (VALUES (1, 2)) a(x, y) JOIN (VALUES (1, 2)) b( y) ON a.x JOIN (VALUES (1, 2)) c(x, y) ON a.x = c.x OR a.y = c.y) AS ka) ELSE 0 END

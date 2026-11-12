@@ -1,0 +1,3 @@
+-- composition of rule kernels OmitOrderBy x Transitive (sqlite), template scalar_filter
+SELECT count(*) FROM (SELECT FALSE AS c0, '{}' AS c1 FROM (SELECT '2024-12-31' AS c0, CAST('ß' AS TEXT) AS c1, 100 AS c2 FROM t2 AS a1 ORDER BY 2) AS a2 ORDER BY 2) AS ka WHERE (SELECT count(*) FROM (SELECT CAST(' ' AS TEXT) AS c0, CAST('%' AS TEXT) AS c1 FROM (t1 AS a1 JOIN (v0 AS a2 INNER JOIN ti AS a3 ON ((a2.c0 = a3.c0) AND TRUE)) ON ((a1.c0 = a3.c0) AND (a2.c0 = (-20)))) GROUP BY a1.c1, a1.c2, a1.c0) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT FALSE AS c0, '{}' AS c1 FROM (SELECT '2024-12-31' AS c0, CAST('ß' AS TEXT) AS c1, 100 AS c2 FROM t2 AS a1 ORDER BY 2) AS a2 ORDER BY 2) AS ka

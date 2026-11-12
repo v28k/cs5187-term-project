@@ -1,0 +1,2 @@
+-- rule kernel: L:eliminate_outer_join (datafusion)
+WITH cte1 AS (SELECT DISTINCT ROUND ((42.5::numeric - NULL::numeric), 2) AS c0, a1.n AS c1, '_'::text AS c2 FROM (v0 AS a1 FULL JOIN t1 AS a2 ON (a1.c0 = a2.c0)) WHERE (FALSE <= (a2.c0 BETWEEN 2 AND 3))) SELECT a3.c0 AS c0, 'a'::text AS c1, (CASE WHEN FALSE THEN '7 days'::interval ELSE GREATEST ('7 days'::interval, (SELECT MIN ('1 day'::interval) FROM cte1 AS a4 WHERE TRUE)) END + '1 year 2 months 3 days 4 hours 5 minutes 6.789 seconds'::interval) AS c2 FROM generate_series (5, 10) AS a3 (c0);

@@ -1,0 +1,3 @@
+-- composition of rule kernels L:type_coercion x P:aggregate_statistics (datafusion), template graft_exists
+SELECT '0'::text AS c0, 3 AS c1, GREATEST (1000::bigint, COALESCE (NULLIF (1000::bigint, (SELECT COUNT (*) FROM (SELECT * FROM tl WHERE EXISTS (SELECT 1 FROM (SELECT 10::bigint AS c0, FALSE AS c1, make_array('a', 'b') AS c2, make_array(NULL, 1) AS c3) AS kb) OR NOT EXISTS (SELECT 1 FROM (SELECT 10::bigint AS c0, FALSE AS c1, make_array('a', 'b') AS c2, make_array(NULL, 1) AS c3) AS kb)) AS a2)), 1000::bigint)) AS c2, a1.c1 AS c3 FROM tp AS a1;
+-- pgfuzz:check kernel:graft_exists SELECT '0'::text AS c0, 3 AS c1, GREATEST (1000::bigint, COALESCE (NULLIF (1000::bigint, (SELECT COUNT (*) FROM tl AS a2)), 1000::bigint)) AS c2, a1.c1 AS c3 FROM tp AS a1

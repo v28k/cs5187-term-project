@@ -1,0 +1,3 @@
+-- composition of rule kernels aggregate_function_rewriter x statistics_propagation (duckdb), template graft_exists
+SELECT 20 AS c0, a1.c5 AS c1, 'A'::text AS c2, 1000::bigint AS c3 FROM (SELECT * FROM t3 WHERE EXISTS (SELECT 1 FROM (SELECT a1.c0 AS c0, a1.c0 AS c1, AVG (41) AS c2, AVG ((-1.5)::float8) AS c3 FROM t0 AS a1 GROUP BY a1.c0) AS kb) OR NOT EXISTS (SELECT 1 FROM (SELECT a1.c0 AS c0, a1.c0 AS c1, AVG (41) AS c2, AVG ((-1.5)::float8) AS c3 FROM t0 AS a1 GROUP BY a1.c0) AS kb)) AS a1 GROUP BY a1.c2, a1.c5;
+-- pgfuzz:check kernel:graft_exists SELECT 20 AS c0, a1.c5 AS c1, 'A'::text AS c2, 1000::bigint AS c3 FROM t3 AS a1 GROUP BY a1.c2, a1.c5

@@ -30,7 +30,7 @@ def parse_slt(text: str) -> list[str] | None:
     """Statements of a sqllogictest file in order (failing ones left out); None if the file is
     not self-contained (loops, extensions, files, environment variables)."""
     if any(m in text for m in ("\nloop ", "\nforeach ", "\nconcurrentloop", "\nconcurrentforeach", "__TEST_DIR__",
-                               "\nrequire-env", "{UUID}", "\nunzip")) or text.startswith(("loop ", "foreach ")):
+                               "\nrequire-env", "{UUID}", "\nunzip", "{DATA_DIR}", "{TEMP_DIR}")) or text.startswith(("loop ", "foreach ")):
         return None
     if re.search(r"^require\s+(?!skip_reload|vector_size|no_alternative_verify|noforcestorage)", text, re.M):
         return None

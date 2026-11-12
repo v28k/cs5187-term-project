@@ -1,0 +1,3 @@
+-- composition of rule kernels L:common_sub_expression_eliminate x L:propagate_empty_relation (datafusion), template graft_scalar
+SELECT 2 AS c0 FROM (SELECT * FROM t3 WHERE (SELECT count(*) FROM (SELECT CASE a1.c4 WHEN make_array(1, 2, 3, 4) THEN 5e-324::float8 WHEN a1.c4 THEN 0.0::float8 ELSE 0.5::float8 END AS c0 FROM (t3 AS a1 INNER JOIN ti AS a2 ON (a1.c0 = a2.c0)) UNION ALL SELECT 100.0::float8 AS c0) AS kb) >= 0) AS a1 WHERE FALSE GROUP BY GROUPING SETS ((a1.c0), ()) UNION SELECT 10 AS c0;
+-- pgfuzz:check kernel:graft_scalar SELECT 2 AS c0 FROM t3 AS a1 WHERE FALSE GROUP BY GROUPING SETS ((a1.c0), ()) UNION SELECT 10 AS c0

@@ -1,0 +1,3 @@
+-- composition of rule kernels in_clause x reorder_filter (duckdb), template graft_scalar
+SELECT 2.25::numeric AS c0, '0'::text AS c1, (SELECT COUNT (*) FROM (SELECT * FROM t4 WHERE (SELECT count(*) FROM (SELECT TRUE AS c0, 1.5::numeric AS c1 UNION (SELECT TRUE AS c0, 0.0::numeric AS c1 UNION BY NAME SELECT LIST_CONTAINS ([NULL, 1]::int[], a1.c0) AS c0, 2.25::numeric AS c1 FROM t3 AS a1)) AS kb) >= 0) AS a1 WHERE ((a1.c3 <= 2.25::numeric) OR (a1.c0 IS NULL))) AS c2;
+-- pgfuzz:check kernel:graft_scalar SELECT 2.25::numeric AS c0, '0'::text AS c1, (SELECT COUNT (*) FROM t4 AS a1 WHERE ((a1.c3 <= 2.25::numeric) OR (a1.c0 IS NULL))) AS c2

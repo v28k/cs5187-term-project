@@ -1,0 +1,3 @@
+-- composition of rule kernels CoverIdxScan x OrderByIdxJoin (sqlite), template graft_union
+WITH cte1 AS (SELECT 22 AS c0) SELECT a2.c1 AS c0, CAST('ß' AS TEXT) AS c1 FROM ((SELECT * FROM t1 UNION ALL SELECT * FROM t1 WHERE (SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT FALSE AS c0, CAST('abc' AS TEXT) AS c1 FROM t0 AS a1 UNION ALL SELECT FALSE AS c0, CAST('NaN' AS TEXT) AS c1) AS kb) < 0) AS a1 JOIN t1 AS a2 ON (a1.c1 = a2.c1)) WHERE (a1.c0 = 3) ORDER BY 1;
+-- pgfuzz:check kernel:graft_union WITH cte1 AS (SELECT 22 AS c0) SELECT a2.c1 AS c0, CAST('ß' AS TEXT) AS c1 FROM (t1 AS a1 JOIN t1 AS a2 ON (a1.c1 = a2.c1)) WHERE (a1.c0 = 3) ORDER BY 1

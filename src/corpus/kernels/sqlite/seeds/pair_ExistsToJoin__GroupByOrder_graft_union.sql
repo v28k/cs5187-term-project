@@ -1,0 +1,3 @@
+-- composition of rule kernels ExistsToJoin x GroupByOrder (sqlite), template graft_union
+WITH cte1 AS MATERIALIZED (SELECT DISTINCT TRUE AS c0, a1.c0 AS c1 FROM (SELECT * FROM v0 UNION ALL SELECT * FROM v0 WHERE (SELECT count(*) FROM (SELECT '{"k": -1, "a": [1, 2, 3]}' AS c0, '2024-01-01 00:00:00' AS c1 FROM t0 AS a1 WHERE (EXISTS (SELECT a1.c1 AS c0, a2.c0 AS c1, a1.c1 AS c2 FROM t1 AS a2))) AS kb) < 0) AS a1 ORDER BY 1, 2) SELECT CAST(' ' AS TEXT) AS c0 FROM cte1 AS a2 EXCEPT SELECT CAST('a' AS TEXT) AS c0;
+-- pgfuzz:check kernel:graft_union WITH cte1 AS MATERIALIZED (SELECT DISTINCT TRUE AS c0, a1.c0 AS c1 FROM v0 AS a1 ORDER BY 1, 2) SELECT CAST(' ' AS TEXT) AS c0 FROM cte1 AS a2 EXCEPT SELECT CAST('a' AS TEXT) AS c0

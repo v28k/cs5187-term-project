@@ -1,0 +1,3 @@
+-- composition of rule kernels grouping_sets x window_self_join (duckdb), template product
+SELECT count(*) FROM (SELECT ((- MIN (a1.c0)) + 500) AS c0 FROM tp AS a1 GROUP BY CUBE (a1.c1)) AS ka CROSS JOIN (SELECT AGE ((MAX ('2024-01-01 00:00:00+00'::timestamptz) OVER () - '0'::interval), '2024-02-29 12:34:56+00'::timestamptz) AS c0, 10 AS c1, 2 AS c2) AS kb;
+-- pgfuzz:check kernel:product SELECT (SELECT count(*) FROM (SELECT ((- MIN (a1.c0)) + 500) AS c0 FROM tp AS a1 GROUP BY CUBE (a1.c1)) AS ka) * (SELECT count(*) FROM (SELECT AGE ((MAX ('2024-01-01 00:00:00+00'::timestamptz) OVER () - '0'::interval), '2024-02-29 12:34:56+00'::timestamptz) AS c0, 10 AS c1, 2 AS c2) AS kb)

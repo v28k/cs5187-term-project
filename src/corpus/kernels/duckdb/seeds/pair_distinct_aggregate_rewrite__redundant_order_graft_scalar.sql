@@ -1,0 +1,3 @@
+-- composition of rule kernels distinct_aggregate_rewrite x redundant_order (duckdb), template graft_scalar
+SELECT '2000-01-01 00:00:00+00'::timestamptz AS c0, 1.5::numeric AS c1, (- CASE WHEN FALSE THEN (SELECT SUM (DISTINCT a2.c1) FROM t2 AS a2) ELSE 2.25::numeric END) AS c2, 10 AS c3 FROM (SELECT * FROM t1 WHERE (SELECT count(*) FROM (SELECT '0'::interval AS c0, '1999-12-31'::date AS c1, 0.0::float8 AS c2 FROM ti AS a1 WHERE (SELECT BOOL_OR (a2.c0) FROM (SELECT FALSE AS c0 ORDER BY ALL) AS a2)) AS kb) >= 0) AS a1;
+-- pgfuzz:check kernel:graft_scalar SELECT '2000-01-01 00:00:00+00'::timestamptz AS c0, 1.5::numeric AS c1, (- CASE WHEN FALSE THEN (SELECT SUM (DISTINCT a2.c1) FROM t2 AS a2) ELSE 2.25::numeric END) AS c2, 10 AS c3 FROM t1 AS a1

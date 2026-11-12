@@ -1,0 +1,3 @@
+-- composition of rule kernels unused_columns x window_self_join (duckdb), template cte_twice
+WITH ka AS (SELECT AGE ((MAX ('2024-01-01 00:00:00+00'::timestamptz) OVER () - '0'::interval), '2024-02-29 12:34:56+00'::timestamptz) AS c0, 10 AS c1, 2 AS c2), kb AS (SELECT 0.5::numeric AS c0, 'a'::text AS c1 FROM t0 AS a1 GROUP BY a1.c2) SELECT (SELECT count(*) FROM ka) + (SELECT count(*) FROM kb) + (SELECT count(*) FROM ka);
+-- pgfuzz:check kernel:cte_twice SELECT 2 * (SELECT count(*) FROM (SELECT AGE ((MAX ('2024-01-01 00:00:00+00'::timestamptz) OVER () - '0'::interval), '2024-02-29 12:34:56+00'::timestamptz) AS c0, 10 AS c1, 2 AS c2) AS ka) + (SELECT count(*) FROM (SELECT 0.5::numeric AS c0, 'a'::text AS c1 FROM t0 AS a1 GROUP BY a1.c2) AS kb)

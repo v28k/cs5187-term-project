@@ -1,0 +1,3 @@
+-- composition of rule kernels L:common_sub_expression_eliminate x P:join_selection (datafusion), template graft_scalar
+SELECT 16 AS c0, COALESCE (CASE WHEN TRUE THEN ARRAY[(SELECT MIN (0) FROM (SELECT * FROM t2 WHERE (SELECT count(*) FROM (SELECT '2000-01-01'::date AS c0 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c0, a2.c3 UNION ALL (SELECT '2024-01-01'::date AS c0 UNION SELECT '2024-01-01'::date AS c0)) AS kb) >= 0) AS a2)] ELSE ARRAY[1] END, make_array(NULL, 1)) AS c1 FROM ti AS a1;
+-- pgfuzz:check kernel:graft_scalar SELECT 16 AS c0, COALESCE (CASE WHEN TRUE THEN ARRAY[(SELECT MIN (0) FROM t2 AS a2)] ELSE ARRAY[1] END, make_array(NULL, 1)) AS c1 FROM ti AS a1

@@ -1,0 +1,3 @@
+-- composition of rule kernels compressed_materialization x disjunctive_join_rewriter (duckdb), template union
+SELECT count(*) FROM (SELECT 1 AS k FROM (FROM (VALUES (1, 2)) a(x, y) JOIN (VALUES (1, 2)) b( y) ON a.x JOIN (VALUES (1, 2)) c(x, y) ON a.x = c.x OR a.y = c.y) AS ka UNION ALL SELECT 2 AS k FROM (SELECT 41 AS c0, a1.c1 AS c1, 'A'::text AS c2, 100::bigint AS c3 FROM tl AS a1 GROUP BY a1.c1) AS kb) AS u;
+-- pgfuzz:check kernel:union SELECT (SELECT count(*) FROM (FROM (VALUES (1, 2)) a(x, y) JOIN (VALUES (1, 2)) b( y) ON a.x JOIN (VALUES (1, 2)) c(x, y) ON a.x = c.x OR a.y = c.y) AS ka) + (SELECT count(*) FROM (SELECT 41 AS c0, a1.c1 AS c1, 'A'::text AS c2, 100::bigint AS c3 FROM tl AS a1 GROUP BY a1.c1) AS kb)

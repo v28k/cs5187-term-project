@@ -1,0 +1,3 @@
+-- composition of rule kernels L:eliminate_filter x P:EnsureRequirements (datafusion), template scalar_filter
+SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT ' '::text AS c0, 3 AS c1 ORDER BY 1) AS ka WHERE (SELECT count(*) FROM (SELECT '0'::text AS c0, 10::bigint AS c1, 2 AS c2 FROM tl AS a1 GROUP BY a1.c1, a1.c0 HAVING TRUE) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT ' '::text AS c0, 3 AS c1 ORDER BY 1) AS ka

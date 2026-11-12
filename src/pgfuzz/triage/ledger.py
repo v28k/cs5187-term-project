@@ -74,7 +74,10 @@ def build(root: str | Path) -> dict[str, Any]:
             status = (m.group(1) if m else "?").replace("*", "")
             pid = rep.parent.name
             if pid in (filed or {}):
-                status = "filed: " + ", ".join(f"[{k}]({v})" for k, v in filed[pid].items())
+                links = {k: v for k, v in filed[pid].items() if k != "state"}
+                status = "filed: " + ", ".join(f"[{k}]({v})" for k, v in links.items())
+                if filed[pid].get("state"):
+                    status += f"; {filed[pid]['state']}"
             packages.append({"engine": eng, "id": pid, "title": title, "status": status})
     rows = []
     for (eng, fam), c in sorted(table.items()):
@@ -95,5 +98,5 @@ def render(led: dict[str, Any]) -> str:
                    f"{r['not_a_bug']} | {r['open']} | {p} |")
     out += ["", "## Filing packages", "", "| Engine | Package | Status |", "|---|---|---|"]
     for p in led["packages"]:
-        out.append(f"| {p['engine']} | {p['title']} | {p['status'][:200]} |")
+        out.append(f"| {p['engine']} | {p['title']} | {p['status'][:320]} |")
     return "\n".join(out) + "\n"

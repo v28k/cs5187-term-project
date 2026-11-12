@@ -1,0 +1,3 @@
+-- composition of rule kernels OmitOrderBy x OrderByIdxJoin (sqlite), template scalar_filter
+SELECT count(*) FROM (SELECT '{"k": 2, "a": [0]}' AS c0, CAST('[1,10)' AS TEXT) AS c1 FROM (t1 AS a1 LEFT JOIN t1 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c1, a1.c0) AS ka WHERE (SELECT count(*) FROM (SELECT FALSE AS c0, '{}' AS c1 FROM (SELECT '2024-12-31' AS c0, CAST('ß' AS TEXT) AS c1, 100 AS c2 FROM t2 AS a1 ORDER BY 2) AS a2 ORDER BY 2) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT '{"k": 2, "a": [0]}' AS c0, CAST('[1,10)' AS TEXT) AS c1 FROM (t1 AS a1 LEFT JOIN t1 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c1, a1.c0) AS ka

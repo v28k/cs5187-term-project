@@ -1,0 +1,3 @@
+-- composition of rule kernels unused_columns x window_self_join (duckdb), template exists
+SELECT count(*) FROM (SELECT AGE ((MAX ('2024-01-01 00:00:00+00'::timestamptz) OVER () - '0'::interval), '2024-02-29 12:34:56+00'::timestamptz) AS c0, 10 AS c1, 2 AS c2) AS ka WHERE EXISTS (SELECT 1 FROM (SELECT 0.5::numeric AS c0, 'a'::text AS c1 FROM t0 AS a1 GROUP BY a1.c2) AS kb);
+-- pgfuzz:check kernel:exists SELECT CASE WHEN (SELECT count(*) FROM (SELECT 0.5::numeric AS c0, 'a'::text AS c1 FROM t0 AS a1 GROUP BY a1.c2) AS kb) > 0 THEN (SELECT count(*) FROM (SELECT AGE ((MAX ('2024-01-01 00:00:00+00'::timestamptz) OVER () - '0'::interval), '2024-02-29 12:34:56+00'::timestamptz) AS c0, 10 AS c1, 2 AS c2) AS ka) ELSE 0 END

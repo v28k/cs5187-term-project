@@ -1,0 +1,3 @@
+-- composition of rule kernels L:eliminate_filter x L:scalar_subquery_to_join (datafusion), template graft_union
+SELECT '2024-12-31'::date AS c0 UNION ALL (SELECT '2024-01-01'::date AS c0 FROM (SELECT * FROM t4 UNION ALL SELECT * FROM t4 WHERE (SELECT count(*) FROM (SELECT a1.c0 AS c0 FROM tl AS a1 WHERE (SELECT BOOL_AND (TRUE) FROM ti AS a2 WHERE (NOT (NULL::boolean <= (16 IS DISTINCT FROM a1.c0)))) UNION SELECT 100 AS c0) AS kb) < 0) AS a1 WHERE TRUE UNION ALL (SELECT '2024-02-29'::date AS c0 UNION SELECT '1999-12-31'::date AS c0));
+-- pgfuzz:check kernel:graft_union SELECT '2024-12-31'::date AS c0 UNION ALL (SELECT '2024-01-01'::date AS c0 FROM t4 AS a1 WHERE TRUE UNION ALL (SELECT '2024-02-29'::date AS c0 UNION SELECT '1999-12-31'::date AS c0))

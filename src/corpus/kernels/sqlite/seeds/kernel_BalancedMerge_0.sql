@@ -1,0 +1,2 @@
+-- rule kernel: BalancedMerge (sqlite)
+SELECT NULL UNION SELECT 1 UNION SELECT 2 UNION SELECT NULL;

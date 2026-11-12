@@ -81,6 +81,7 @@ def _test_control_function(module_path: str) -> Any | None:
 class SQLiteDriver(Driver):
     name = "sqlite"
     sqlstate = _SQLSTATE
+    state_tables_sql = "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
     error_aborts_transaction = False
     type_oids = {"REAL": 701, "FLOAT": 701, "DOUBLE": 701, "NUMERIC": 1700, "DECIMAL": 1700}
 
@@ -161,7 +162,14 @@ class SQLiteDriver(Driver):
             mask |= 1 << (OPT_BITS[r] - 1)
         return {"mask": mask}
 
+    _VARIANT_PRAGMAS = ("reverse_unordered_selects", "automatic_index")
+
     def apply_variant(self, spec: Any) -> None:
+        # Remember the PRAGMA values the test case itself may have set, so that the reset
+        # restores them: resetting to the defaults would change the plan of every later
+        # rule probe of the same query, and every rule would look as if it fired.
+        self._saved_pragmas = {p: self._run(f"PRAGMA {p}")[0][0] for p in self._VARIANT_PRAGMAS} \
+            if spec.get("sql") else {}
         for s in spec.get("sql", []):
             self._run(s)
         if "mask" in spec and self._tc is not None:
@@ -176,8 +184,9 @@ class SQLiteDriver(Driver):
     def reset_variant(self) -> None:
         if self._tc is not None:
             self._tc(SQLITE_TESTCTRL_OPTIMIZATIONS, ctypes.c_void_p(self.db.sqlite3pointer()), 0)
-        for p in ("PRAGMA reverse_unordered_selects = 0", "PRAGMA automatic_index = 1"):
-            self._run(p)
+        for p, v in (getattr(self, "_saved_pragmas", None) or {}).items():
+            self._run(f"PRAGMA {p} = {int(v)}")
+        self._saved_pragmas = {}
 
     def explain(self, sql: str) -> str:
         rows = self._run("EXPLAIN QUERY PLAN " + sql)

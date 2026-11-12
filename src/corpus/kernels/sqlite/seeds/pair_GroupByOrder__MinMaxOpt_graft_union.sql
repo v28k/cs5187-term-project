@@ -1,0 +1,3 @@
+-- composition of rule kernels GroupByOrder x MinMaxOpt (sqlite), template graft_union
+WITH cte1 AS MATERIALIZED (SELECT DISTINCT TRUE AS c0, a1.c0 AS c1 FROM v0 AS a1 ORDER BY 1, 2) SELECT CAST(' ' AS TEXT) AS c0 FROM (SELECT * FROM cte1 UNION ALL SELECT * FROM cte1 WHERE (SELECT count(*) FROM (SELECT '{"k": 0, "a": [3, 4, 5]}' AS c0, (- (SELECT MIN (a2.c0) FROM ti AS a2)) AS c1, CAST(10.0 AS NUMERIC) AS c2, 0 AS c3 FROM t0 AS a1) AS kb) < 0) AS a2 EXCEPT SELECT CAST('a' AS TEXT) AS c0;
+-- pgfuzz:check kernel:graft_union WITH cte1 AS MATERIALIZED (SELECT DISTINCT TRUE AS c0, a1.c0 AS c1 FROM v0 AS a1 ORDER BY 1, 2) SELECT CAST(' ' AS TEXT) AS c0 FROM cte1 AS a2 EXCEPT SELECT CAST('a' AS TEXT) AS c0

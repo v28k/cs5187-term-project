@@ -1,0 +1,3 @@
+-- composition of rule kernels L:eliminate_filter x P:OutputRequirements (datafusion), template product
+SELECT count(*) FROM (SELECT 2 AS c0) AS ka CROSS JOIN (SELECT '2024-12-31'::date AS c0 UNION ALL (SELECT '2024-01-01'::date AS c0 FROM t4 AS a1 WHERE TRUE UNION ALL (SELECT '2024-02-29'::date AS c0 UNION SELECT '1999-12-31'::date AS c0))) AS kb;
+-- pgfuzz:check kernel:product SELECT (SELECT count(*) FROM (SELECT 2 AS c0) AS ka) * (SELECT count(*) FROM (SELECT '2024-12-31'::date AS c0 UNION ALL (SELECT '2024-01-01'::date AS c0 FROM t4 AS a1 WHERE TRUE UNION ALL (SELECT '2024-02-29'::date AS c0 UNION SELECT '1999-12-31'::date AS c0))) AS kb)
