@@ -1,0 +1,3 @@
+-- composition of rule kernels MinMaxOpt x SimplifyJoin (sqlite), template scalar_filter
+SELECT count(*) FROM (SELECT a1.n AS c0 FROM (v0 AS a1 LEFT JOIN ti AS a2 ON ((a1.c0 = a2.c0) AND TRUE)) WHERE (a2.c1 <= CAST('%' AS TEXT)) UNION ALL SELECT CAST(1000 AS INTEGER) AS c0) AS ka WHERE (SELECT count(*) FROM (SELECT JSON_GROUP_ARRAY (CASE WHEN TRUE THEN (SELECT MIN (10) FROM t2 AS a2) ELSE a1.c0 END ORDER BY CASE WHEN TRUE THEN (SELECT MIN (10) FROM t2 AS a2) ELSE a1.c0 END) AS c0 FROM t4 AS a1 GROUP BY a1.c0) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT a1.n AS c0 FROM (v0 AS a1 LEFT JOIN ti AS a2 ON ((a1.c0 = a2.c0) AND TRUE)) WHERE (a2.c1 <= CAST('%' AS TEXT)) UNION ALL SELECT CAST(1000 AS INTEGER) AS c0) AS ka

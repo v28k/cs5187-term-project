@@ -1,0 +1,3 @@
+-- composition of rule kernels DistinctOpt x MinMaxOpt (sqlite), template graft_exists
+SELECT DISTINCT a2.c0 AS c0 FROM ((t4 AS a1 JOIN t4 AS a2 ON (a1.c0 = a2.c0)) INNER JOIN (SELECT * FROM t2 WHERE EXISTS (SELECT 1 FROM (SELECT '{"k": 0, "a": [3, 4, 5]}' AS c0, (- (SELECT MIN (a2.c0) FROM ti AS a2)) AS c1, CAST(10.0 AS NUMERIC) AS c2, 0 AS c3 FROM t0 AS a1) AS kb) OR NOT EXISTS (SELECT 1 FROM (SELECT '{"k": 0, "a": [3, 4, 5]}' AS c0, (- (SELECT MIN (a2.c0) FROM ti AS a2)) AS c1, CAST(10.0 AS NUMERIC) AS c2, 0 AS c3 FROM t0 AS a1) AS kb)) AS a3 ON ((a1.c3 = a3.c1) AND FALSE));
+-- pgfuzz:check kernel:graft_exists SELECT DISTINCT a2.c0 AS c0 FROM ((t4 AS a1 JOIN t4 AS a2 ON (a1.c0 = a2.c0)) INNER JOIN t2 AS a3 ON ((a1.c3 = a3.c1) AND FALSE))

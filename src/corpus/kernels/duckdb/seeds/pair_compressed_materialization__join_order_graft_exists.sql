@@ -1,0 +1,3 @@
+-- composition of rule kernels compressed_materialization x join_order (duckdb), template graft_exists
+SELECT 41 AS c0, a1.c1 AS c1, 'A'::text AS c2, 100::bigint AS c3 FROM (SELECT * FROM tl WHERE EXISTS (SELECT 1 FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 100) SELECT 0 AS c0 UNION SELECT 7 AS c0) AS kb) OR NOT EXISTS (SELECT 1 FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 100) SELECT 0 AS c0 UNION SELECT 7 AS c0) AS kb)) AS a1 GROUP BY a1.c1;
+-- pgfuzz:check kernel:graft_exists SELECT 41 AS c0, a1.c1 AS c1, 'A'::text AS c2, 100::bigint AS c3 FROM tl AS a1 GROUP BY a1.c1

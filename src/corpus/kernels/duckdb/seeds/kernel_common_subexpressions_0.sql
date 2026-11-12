@@ -1,0 +1,2 @@
+-- rule kernel: common_subexpressions (duckdb)
+WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 100) SELECT []::text[] AS c0, CASE WHEN TRUE THEN CASE a1.c0 WHEN a1.c0 THEN NULL::float8 WHEN a1.c0 THEN 100.0::float8 ELSE 5e-324::float8 END ELSE 0.0::float8 END AS c1, a1.c3 AS c2 FROM t3 AS a1 UNION ALL SELECT []::text[] AS c0, 0.5::float8 AS c1, '00:00:00.000001'::interval AS c2;

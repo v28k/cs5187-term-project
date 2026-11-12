@@ -1,3 +1,0 @@
--- composition of rule kernels OrderByIdxJoin x PushDown (sqlite), template graft_union
-SELECT '2000-01-01 00:00:00' AS c0, FALSE AS c1 FROM ((SELECT * FROM t1 UNION ALL SELECT * FROM t1 WHERE (SELECT count(*) FROM (SELECT CAST(' ' AS TEXT) AS c0, a1.n AS c1, CAST(42.5 AS NUMERIC) AS c2, a1.c0 AS c3 FROM v0 AS a1 WHERE ((UNICODE (CAST(' ' AS TEXT)) + 0) < a1.c0)) AS kb) < 0) AS a1 LEFT JOIN v0 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c0, a1.c0;
--- pgfuzz:check kernel:graft_union SELECT '2000-01-01 00:00:00' AS c0, FALSE AS c1 FROM (t1 AS a1 LEFT JOIN v0 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c0, a1.c0

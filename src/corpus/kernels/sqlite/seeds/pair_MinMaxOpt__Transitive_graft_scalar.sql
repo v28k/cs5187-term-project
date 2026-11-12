@@ -1,3 +1,0 @@
--- composition of rule kernels MinMaxOpt x Transitive (sqlite), template graft_scalar
-SELECT TRUE AS c0, '{"k": 2, "a": [0]}' AS c1, a1.c0 AS c2 FROM (((tp AS a1 INNER JOIN v0 AS a2 ON (a1.c0 = a2.c0)) JOIN t0 AS a3 ON (a1.c0 = a3.c0)) JOIN (SELECT * FROM t0 WHERE (SELECT count(*) FROM (SELECT '{"k": 0, "a": [3, 4, 5]}' AS c0, (- (SELECT MIN (a2.c0) FROM ti AS a2)) AS c1, CAST(10.0 AS NUMERIC) AS c2, 0 AS c3 FROM t0 AS a1) AS kb) >= 0) AS a4 ON ((a1.c1 = a4.c1) AND FALSE));
--- pgfuzz:check kernel:graft_scalar SELECT TRUE AS c0, '{"k": 2, "a": [0]}' AS c1, a1.c0 AS c2 FROM (((tp AS a1 INNER JOIN v0 AS a2 ON (a1.c0 = a2.c0)) JOIN t0 AS a3 ON (a1.c0 = a3.c0)) JOIN t0 AS a4 ON ((a1.c1 = a4.c1) AND FALSE))

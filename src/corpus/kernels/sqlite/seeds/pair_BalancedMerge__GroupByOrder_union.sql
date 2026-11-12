@@ -1,3 +1,0 @@
--- composition of rule kernels BalancedMerge x GroupByOrder (sqlite), template union
-SELECT count(*) FROM (SELECT 1 AS k FROM (WITH t(g, x) AS ( SELECT 1, '9007199254740994abc' ) SELECT NULL FROM t GROUP BY g ORDER BY g) AS ka UNION ALL SELECT 2 AS k FROM (SELECT NULL UNION SELECT 1 UNION SELECT 2 UNION SELECT NULL) AS kb) AS u;
--- pgfuzz:check kernel:union SELECT (SELECT count(*) FROM (WITH t(g, x) AS ( SELECT 1, '9007199254740994abc' ) SELECT NULL FROM t GROUP BY g ORDER BY g) AS ka) + (SELECT count(*) FROM (SELECT NULL UNION SELECT 1 UNION SELECT 2 UNION SELECT NULL) AS kb)

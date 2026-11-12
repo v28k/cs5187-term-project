@@ -1,0 +1,3 @@
+-- composition of rule kernels column_lifetime x duplicate_groups (duckdb), template graft_union
+SELECT ((COUNT (DISTINCT a1.c1) % 1000)::int - 1) AS c0, a1.c1 AS c1, 'A'::text AS c2, 1::bigint AS c3 FROM (SELECT * FROM tl UNION ALL SELECT * FROM tl WHERE (SELECT count(*) FROM (SELECT AGE ((MAX ('1999-12-31 23:59:59.999999+05:30'::timestamptz) OVER (PARTITION BY 16) - '-1 month'::interval), DATE_TRUNC ('year', (SELECT MIN ('1999-12-31 23:59:59.999999+05:30'::timestamptz) FROM t4 AS a1))) AS c0, 45 AS c1, 40 AS c2) AS kb) < 0) AS a1 GROUP BY a1.c1;
+-- pgfuzz:check kernel:graft_union SELECT ((COUNT (DISTINCT a1.c1) % 1000)::int - 1) AS c0, a1.c1 AS c1, 'A'::text AS c2, 1::bigint AS c3 FROM tl AS a1 GROUP BY a1.c1

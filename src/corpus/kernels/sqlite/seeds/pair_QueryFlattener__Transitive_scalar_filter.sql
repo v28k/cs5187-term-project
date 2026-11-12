@@ -1,5 +1,3 @@
 -- composition of rule kernels QueryFlattener x Transitive (sqlite), template scalar_filter
-CREATE TABLE t(id INTEGER PRIMARY KEY, f TEXT UNIQUE);
-INSERT INTO t VALUES (1, 'a'), (2, 'b');
-SELECT count(*) FROM (SELECT c.id FROM t a JOIN t b ON a.f = b.f JOIN t c WHERE EXISTS (SELECT 1 FROM t d WHERE f = a.f AND f = c.f)) AS ka WHERE (SELECT count(*) FROM (SELECT '1999-12-31 23:59:59.999' AS c0, CAST(1.5 AS NUMERIC) AS c1, CAST(1000 AS INTEGER) AS c2 FROM (SELECT TRUE AS c0, 11 AS c1 FROM t0 AS a1) AS a2) AS kb) >= 0;
--- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT c.id FROM t a JOIN t b ON a.f = b.f JOIN t c WHERE EXISTS (SELECT 1 FROM t d WHERE f = a.f AND f = c.f)) AS ka
+SELECT count(*) FROM (SELECT '1999-12-31 23:59:59.999' AS c0, CAST(1.5 AS NUMERIC) AS c1, CAST(1000 AS INTEGER) AS c2 FROM (SELECT TRUE AS c0, 11 AS c1 FROM t0 AS a1) AS a2) AS ka WHERE (SELECT count(*) FROM (SELECT CAST('NaN' AS TEXT) AS c0, a2.c3 AS c1 FROM ((t4 AS a1 JOIN t4 AS a2 ON (a1.c3 = a2.c3)) JOIN (SELECT CAST(1.0 AS REAL) AS c0, CAST(100.0 AS NUMERIC) AS c1 FROM t2 AS a3) AS a4 ON ((a1.c3 = a4.c1) AND FALSE)) GROUP BY a2.c3, a2.c0) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT '1999-12-31 23:59:59.999' AS c0, CAST(1.5 AS NUMERIC) AS c1, CAST(1000 AS INTEGER) AS c2 FROM (SELECT TRUE AS c0, 11 AS c1 FROM t0 AS a1) AS a2) AS ka

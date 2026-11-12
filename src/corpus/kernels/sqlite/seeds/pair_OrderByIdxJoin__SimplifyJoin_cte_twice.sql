@@ -1,3 +1,45 @@
 -- composition of rule kernels OrderByIdxJoin x SimplifyJoin (sqlite), template cte_twice
-WITH ka AS (SELECT '2000-01-01 00:00:00' AS c0, FALSE AS c1 FROM (t1 AS a1 LEFT JOIN v0 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c0, a1.c0), kb AS (SELECT a1.n AS c0 FROM (v0 AS a1 LEFT JOIN ti AS a2 ON ((a1.c0 = a2.c0) AND TRUE)) WHERE (a2.c1 <= CAST('%' AS TEXT)) UNION ALL SELECT CAST(1000 AS INTEGER) AS c0) SELECT (SELECT count(*) FROM ka) + (SELECT count(*) FROM kb) + (SELECT count(*) FROM ka);
--- pgfuzz:check kernel:cte_twice SELECT 2 * (SELECT count(*) FROM (SELECT '2000-01-01 00:00:00' AS c0, FALSE AS c1 FROM (t1 AS a1 LEFT JOIN v0 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c0, a1.c0) AS ka) + (SELECT count(*) FROM (SELECT a1.n AS c0 FROM (v0 AS a1 LEFT JOIN ti AS a2 ON ((a1.c0 = a2.c0) AND TRUE)) WHERE (a2.c1 <= CAST('%' AS TEXT)) UNION ALL SELECT CAST(1000 AS INTEGER) AS c0) AS kb)
+CREATE TABLE search_vals(v TEXT);
+INSERT INTO search_vals VALUES('hello');
+INSERT INTO search_vals VALUES('world');
+CREATE TABLE search_vals2(v TEXT);
+INSERT INTO search_vals2 VALUES('hello');
+UPDATE td SET y = y + 100 WHERE x IN (1, 3);
+DELETE FROM td WHERE x IN (1, 3);
+UPDATE OR REPLACE tr SET u = 200 WHERE n IN (10);
+UPDATE OR REPLACE tr SET u = 999 WHERE n IN (10, 30);
+UPDATE tret SET v = v || '!' WHERE n IN (10) RETURNING id, v;
+DELETE FROM tret WHERE n IN (20) RETURNING id, v;
+CREATE TABLE sn(v TEXT);
+INSERT INTO sn VALUES('a');
+INSERT INTO sn VALUES(NULL);
+INSERT INTO sn VALUES('b');
+CREATE TABLE sn2(v TEXT);
+INSERT INTO sn2 VALUES('a');
+INSERT INTO sn2 VALUES(NULL);
+INSERT INTO sn2 VALUES('b');
+CREATE TABLE ts(v TEXT);
+INSERT INTO ts VALUES('1');
+INSERT INTO ts VALUES('2');
+CREATE TABLE sd(v TEXT);
+INSERT INTO sd VALUES('alice');
+INSERT INTO sd VALUES('alice');
+INSERT INTO sd VALUES('bob');
+INSERT INTO sd VALUES('bob');
+CREATE TABLE se(v TEXT);
+INSERT INTO lj2 VALUES(10, 1);
+INSERT INTO lj2 VALUES(11, 2);
+INSERT INTO lj2 VALUES(10, 2);
+INSERT INTO lj2 VALUES(11, 3);
+CREATE TABLE lj_search(v INTEGER);
+INSERT INTO lj2 VALUES(10, 1);
+INSERT INTO lj2 VALUES(11, 2);
+INSERT INTO lj_search VALUES(1);
+CREATE TABLE tsr2(id INTEGER PRIMARY KEY, val INTEGER);
+CREATE INDEX idx_tsr2 ON tsr2(val);
+INSERT INTO tsr2 VALUES(1, 10), (2, 20), (3, 30);
+CREATE TABLE tr(id INTEGER PRIMARY KEY, v INT);
+CREATE INDEX tr_v ON tr(v);
+INSERT INTO tr VALUES (5, 50), (6, 60), (7, 70);
+WITH ka AS (SELECT a1.n AS c0 FROM (v0 AS a1 LEFT JOIN ti AS a2 ON ((a1.c0 = a2.c0) AND TRUE)) WHERE (a2.c1 <= CAST('%' AS TEXT)) UNION ALL SELECT CAST(1000 AS INTEGER) AS c0), kb AS (SELECT b.id, c.id FROM tr b JOIN tr c ORDER BY 1, 2) SELECT (SELECT count(*) FROM ka) + (SELECT count(*) FROM kb) + (SELECT count(*) FROM ka);
+-- pgfuzz:check kernel:cte_twice SELECT 2 * (SELECT count(*) FROM (SELECT a1.n AS c0 FROM (v0 AS a1 LEFT JOIN ti AS a2 ON ((a1.c0 = a2.c0) AND TRUE)) WHERE (a2.c1 <= CAST('%' AS TEXT)) UNION ALL SELECT CAST(1000 AS INTEGER) AS c0) AS ka) + (SELECT count(*) FROM (SELECT b.id, c.id FROM tr b JOIN tr c ORDER BY 1, 2) AS kb)

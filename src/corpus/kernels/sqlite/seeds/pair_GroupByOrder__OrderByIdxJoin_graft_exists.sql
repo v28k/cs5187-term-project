@@ -1,3 +1,0 @@
--- composition of rule kernels GroupByOrder x OrderByIdxJoin (sqlite), template graft_exists
-SELECT '2000-01-01 00:00:00' AS c0, FALSE AS c1 FROM (t1 AS a1 LEFT JOIN (SELECT * FROM v0 WHERE EXISTS (SELECT 1 FROM (WITH t(g, x) AS ( SELECT 1, 9007199254740994 ) SELECT NULL FROM t GROUP BY g ORDER BY g) AS kb) OR NOT EXISTS (SELECT 1 FROM (WITH t(g, x) AS ( SELECT 1, 9007199254740994 ) SELECT NULL FROM t GROUP BY g ORDER BY g) AS kb)) AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c0, a1.c0;
--- pgfuzz:check kernel:graft_exists SELECT '2000-01-01 00:00:00' AS c0, FALSE AS c1 FROM (t1 AS a1 LEFT JOIN v0 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c0, a1.c0

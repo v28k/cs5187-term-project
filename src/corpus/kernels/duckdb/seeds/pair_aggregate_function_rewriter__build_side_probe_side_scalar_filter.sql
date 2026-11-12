@@ -1,0 +1,3 @@
+-- composition of rule kernels aggregate_function_rewriter x build_side_probe_side (duckdb), template scalar_filter
+SELECT count(*) FROM (SELECT ((COUNT (DISTINCT a1.c5) % 1000)::int - 1) AS c0, a1.c5 AS c1, 'A'::text AS c2, COUNT (*) AS c3 FROM t3 AS a1 GROUP BY a1.c2, a1.c5) AS ka WHERE (SELECT count(*) FROM (SELECT (NULLIF (((LIST_SUM (LIST (35 ORDER BY 35)))::int % NULLIF (500, 0)), (-42)) + (-10)) AS c0 FROM t2 AS a1 GROUP BY GROUPING SETS ((a1.c1), (a1.c2), ())) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT ((COUNT (DISTINCT a1.c5) % 1000)::int - 1) AS c0, a1.c5 AS c1, 'A'::text AS c2, COUNT (*) AS c3 FROM t3 AS a1 GROUP BY a1.c2, a1.c5) AS ka

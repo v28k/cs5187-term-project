@@ -1,0 +1,3 @@
+-- composition of rule kernels CoverIdxScan x OmitNoopJoin (sqlite), template scalar_filter
+SELECT count(*) FROM (SELECT CAST(42.5 AS NUMERIC) AS c0 FROM (t3 AS a1 LEFT JOIN t1 AS a2 ON ((a1.c0 = a2.c0) AND a1.c1))) AS ka WHERE (SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT FALSE AS c0, CAST('abc' AS TEXT) AS c1 FROM t0 AS a1 UNION ALL SELECT FALSE AS c0, CAST('NaN' AS TEXT) AS c1) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT CAST(42.5 AS NUMERIC) AS c0 FROM (t3 AS a1 LEFT JOIN t1 AS a2 ON ((a1.c0 = a2.c0) AND a1.c1))) AS ka

@@ -1,0 +1,3 @@
+-- composition of rule kernels common_subplan x grouping_sets (duckdb), template graft_exists
+SELECT ((- MIN (a1.c0)) + 500) AS c0 FROM (SELECT * FROM tp WHERE EXISTS (SELECT 1 FROM (SELECT 1.0::float8 AS c0, '{"k": -1, "a": [1, 2, 3]}'::jsonb AS c1, a1.c0 AS c2, '2000-01-01'::date AS c3 FROM tl AS a1 WHERE NULLIF ((NOT COALESCE (FALSE, (EXISTS (SELECT FALSE AS c0)))), TRUE)) AS kb) OR NOT EXISTS (SELECT 1 FROM (SELECT 1.0::float8 AS c0, '{"k": -1, "a": [1, 2, 3]}'::jsonb AS c1, a1.c0 AS c2, '2000-01-01'::date AS c3 FROM tl AS a1 WHERE NULLIF ((NOT COALESCE (FALSE, (EXISTS (SELECT FALSE AS c0)))), TRUE)) AS kb)) AS a1 GROUP BY CUBE (a1.c1);
+-- pgfuzz:check kernel:graft_exists SELECT ((- MIN (a1.c0)) + 500) AS c0 FROM tp AS a1 GROUP BY CUBE (a1.c1)

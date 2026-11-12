@@ -1,5 +1,3 @@
 -- composition of rule kernels OmitNoopJoin x OrderBySubq (sqlite), template scalar_filter
-CREATE TABLE t (x INT);
-INSERT INTO t VALUES (1);
-SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT a1.c1 AS c0 FROM (t0 AS a1 LEFT JOIN t1 AS a2 ON ((a1.c0 = a2.c0) AND FALSE)) UNION SELECT CAST('[1,10)' AS TEXT) AS c0) AS ka WHERE (SELECT count(*) FROM (WITH t AS (SELECT 1 UNION SELECT 2) SELECT * FROM t ORDER BY 1) AS kb) >= 0;
--- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT a1.c1 AS c0 FROM (t0 AS a1 LEFT JOIN t1 AS a2 ON ((a1.c0 = a2.c0) AND FALSE)) UNION SELECT CAST('[1,10)' AS TEXT) AS c0) AS ka
+SELECT count(*) FROM (SELECT TRUE AS c0, TRUE AS c1 FROM (SELECT CAST(42.5 AS NUMERIC) AS c0 UNION SELECT CAST(1.5 AS NUMERIC) AS c0) AS a1 GROUP BY a1.c0) AS ka WHERE (SELECT count(*) FROM (SELECT CAST(42.5 AS NUMERIC) AS c0 FROM (t3 AS a1 LEFT JOIN t1 AS a2 ON ((a1.c0 = a2.c0) AND a1.c1))) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT TRUE AS c0, TRUE AS c1 FROM (SELECT CAST(42.5 AS NUMERIC) AS c0 UNION SELECT CAST(1.5 AS NUMERIC) AS c0) AS a1 GROUP BY a1.c0) AS ka

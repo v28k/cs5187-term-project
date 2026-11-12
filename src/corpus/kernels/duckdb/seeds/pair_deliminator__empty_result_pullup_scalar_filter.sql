@@ -1,0 +1,3 @@
+-- composition of rule kernels deliminator x empty_result_pullup (duckdb), template scalar_filter
+SELECT count(*) FROM (SELECT '2024-01-01'::date AS c0, (MAX ('epoch'::timestamptz) OVER () + '00:00:00.000001'::interval) AS c1 FROM tp AS a1 WHERE FALSE) AS ka WHERE (SELECT count(*) FROM (SELECT 'A'::text AS c0 FROM t0 AS a1, LATERAL (SELECT '1999-12-31 23:59:59.999999+05:30'::timestamptz AS c0, a1.c1 AS c1) AS a2 EXCEPT ALL SELECT 'A'::text AS c0) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT '2024-01-01'::date AS c0, (MAX ('epoch'::timestamptz) OVER () + '00:00:00.000001'::interval) AS c1 FROM tp AS a1 WHERE FALSE) AS ka

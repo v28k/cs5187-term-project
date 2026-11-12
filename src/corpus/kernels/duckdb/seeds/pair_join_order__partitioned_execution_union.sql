@@ -1,0 +1,3 @@
+-- composition of rule kernels join_order x partitioned_execution (duckdb), template union
+SELECT count(*) FROM (SELECT 1 AS k FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 100) SELECT 0 AS c0 UNION SELECT 7 AS c0) AS ka UNION ALL SELECT 2 AS k FROM (SELECT DISTINCT 10::bigint AS c0, a1.c0 AS c1 FROM tl AS a1) AS kb) AS u;
+-- pgfuzz:check kernel:union SELECT (SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 100) SELECT 0 AS c0 UNION SELECT 7 AS c0) AS ka) + (SELECT count(*) FROM (SELECT DISTINCT 10::bigint AS c0, a1.c0 AS c1 FROM tl AS a1) AS kb)

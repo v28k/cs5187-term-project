@@ -1,0 +1,3 @@
+-- composition of rule kernels empty_result_pullup x redundant_order (duckdb), template graft_union
+SELECT '2024-01-01'::date AS c0, (MAX ('epoch'::timestamptz) OVER () + '00:00:00.000001'::interval) AS c1 FROM (SELECT * FROM tp UNION ALL SELECT * FROM tp WHERE (SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT 'epoch'::timestamptz AS c0 FROM (SELECT 46 AS c0, 0 AS c1 ORDER BY ALL) AS a1 GROUP BY ROLLUP (a1.c1, a1.c0)) AS kb) < 0) AS a1 WHERE FALSE;
+-- pgfuzz:check kernel:graft_union SELECT '2024-01-01'::date AS c0, (MAX ('epoch'::timestamptz) OVER () + '00:00:00.000001'::interval) AS c1 FROM tp AS a1 WHERE FALSE

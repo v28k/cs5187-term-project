@@ -1,0 +1,2 @@
+-- rule kernel: build_side_probe_side (duckdb)
+WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 100) SELECT ARRAY['x'::text, NULL::text] AS c0, 10.0::float8 AS c1, (SELECT MIN ('-1 month'::interval) FROM t0 AS a3) AS c2 FROM t3 AS a1 WHERE (SELECT BOOL_AND (TRUE) FROM t4 AS a2) UNION ALL SELECT ARRAY['1'::text] AS c0, 0.0::float8 AS c1, '00:00:00.000001'::interval AS c2;

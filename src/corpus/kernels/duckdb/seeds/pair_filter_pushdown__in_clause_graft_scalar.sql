@@ -1,0 +1,3 @@
+-- composition of rule kernels filter_pushdown x in_clause (duckdb), template graft_scalar
+SELECT a1.c0 AS c0, a1.c1 AS c1, a1.c2 AS c2, '{"k": -1, "a": [1, 2, 3]}'::jsonb AS c3 FROM (SELECT * FROM t0 WHERE (SELECT count(*) FROM (SELECT '2024-01-01'::date AS c0, (MAX ('1999-12-31 23:59:59.999999+05:30'::timestamptz) OVER (PARTITION BY '2000-01-01 00:00:00+00'::timestamptz) + '00:00:00.000001'::interval) AS c1 FROM t1 AS a1 WHERE NULLIF ((NULL::int < 2), FALSE)) AS kb) >= 0) AS a1 GROUP BY a1.c1, a1.c2, a1.c0 HAVING (a1.c2 IN (MAX (a1.c2)));
+-- pgfuzz:check kernel:graft_scalar SELECT a1.c0 AS c0, a1.c1 AS c1, a1.c2 AS c2, '{"k": -1, "a": [1, 2, 3]}'::jsonb AS c3 FROM t0 AS a1 GROUP BY a1.c1, a1.c2, a1.c0 HAVING (a1.c2 IN (MAX (a1.c2)))

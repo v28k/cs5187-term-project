@@ -1,0 +1,3 @@
+-- composition of rule kernels BalancedMerge x OmitNoopJoin (sqlite), template graft_exists
+SELECT CAST(42.5 AS NUMERIC) AS c0 FROM (t3 AS a1 LEFT JOIN (SELECT * FROM t1 WHERE EXISTS (SELECT 1 FROM (SELECT NULL UNION SELECT 1 UNION SELECT 2 UNION SELECT NULL) AS kb) OR NOT EXISTS (SELECT 1 FROM (SELECT NULL UNION SELECT 1 UNION SELECT 2 UNION SELECT NULL) AS kb)) AS a2 ON ((a1.c0 = a2.c0) AND a1.c1));
+-- pgfuzz:check kernel:graft_exists SELECT CAST(42.5 AS NUMERIC) AS c0 FROM (t3 AS a1 LEFT JOIN t1 AS a2 ON ((a1.c0 = a2.c0) AND a1.c1))

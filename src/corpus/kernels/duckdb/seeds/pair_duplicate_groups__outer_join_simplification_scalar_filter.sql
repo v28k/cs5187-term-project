@@ -1,0 +1,3 @@
+-- composition of rule kernels duplicate_groups x outer_join_simplification (duckdb), template scalar_filter
+SELECT count(*) FROM (SELECT 0 AS c0 FROM (tl AS a1 JOIN (t1 AS a2 FULL JOIN v0 AS a3 ON (a2.c1 = a3.c0)) ON ((a1.c0 = a3.c0) AND TRUE))) AS ka WHERE (SELECT count(*) FROM (SELECT ((COUNT (DISTINCT a1.c1) % 1000)::int - 1) AS c0, a1.c1 AS c1, 'A'::text AS c2, 1::bigint AS c3 FROM tl AS a1 GROUP BY a1.c1) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT 0 AS c0 FROM (tl AS a1 JOIN (t1 AS a2 FULL JOIN v0 AS a3 ON (a2.c1 = a3.c0)) ON ((a1.c0 = a3.c0) AND TRUE))) AS ka

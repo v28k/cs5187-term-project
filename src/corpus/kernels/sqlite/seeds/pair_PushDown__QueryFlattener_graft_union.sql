@@ -1,0 +1,3 @@
+-- composition of rule kernels PushDown x QueryFlattener (sqlite), template graft_union
+SELECT '1999-12-31 23:59:59.999' AS c0, CAST(1.5 AS NUMERIC) AS c1, CAST(1000 AS INTEGER) AS c2 FROM (SELECT TRUE AS c0, 11 AS c1 FROM (SELECT * FROM t0 UNION ALL SELECT * FROM t0 WHERE (SELECT count(*) FROM (SELECT CAST(' ' AS TEXT) AS c0, a1.n AS c1, CAST(42.5 AS NUMERIC) AS c2, a1.c0 AS c3 FROM v0 AS a1 WHERE ((UNICODE (CAST(' ' AS TEXT)) + 0) < a1.c0)) AS kb) < 0) AS a1) AS a2;
+-- pgfuzz:check kernel:graft_union SELECT '1999-12-31 23:59:59.999' AS c0, CAST(1.5 AS NUMERIC) AS c1, CAST(1000 AS INTEGER) AS c2 FROM (SELECT TRUE AS c0, 11 AS c1 FROM t0 AS a1) AS a2

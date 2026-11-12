@@ -1,0 +1,3 @@
+-- composition of rule kernels outer_join_simplification x partitioned_execution (duckdb), template not_exists
+SELECT count(*) FROM (SELECT 0 AS c0 FROM (tl AS a1 JOIN (t1 AS a2 FULL JOIN v0 AS a3 ON (a2.c1 = a3.c0)) ON ((a1.c0 = a3.c0) AND TRUE))) AS ka WHERE NOT EXISTS (SELECT 1 FROM (SELECT DISTINCT 10::bigint AS c0, a1.c0 AS c1 FROM tl AS a1) AS kb);
+-- pgfuzz:check kernel:not_exists SELECT CASE WHEN (SELECT count(*) FROM (SELECT DISTINCT 10::bigint AS c0, a1.c0 AS c1 FROM tl AS a1) AS kb) = 0 THEN (SELECT count(*) FROM (SELECT 0 AS c0 FROM (tl AS a1 JOIN (t1 AS a2 FULL JOIN v0 AS a3 ON (a2.c1 = a3.c0)) ON ((a1.c0 = a3.c0) AND TRUE))) AS ka) ELSE 0 END

@@ -1,0 +1,3 @@
+-- composition of rule kernels aggregate_function_rewriter x deliminator (duckdb), template graft_union
+SELECT 'A'::text AS c0 FROM (SELECT * FROM t0 UNION ALL SELECT * FROM t0 WHERE (SELECT count(*) FROM (SELECT (NULLIF (((LIST_SUM (LIST (35 ORDER BY 35)))::int % NULLIF (500, 0)), (-42)) + (-10)) AS c0 FROM t2 AS a1 GROUP BY GROUPING SETS ((a1.c1), (a1.c2), ())) AS kb) < 0) AS a1, LATERAL (SELECT '1999-12-31 23:59:59.999999+05:30'::timestamptz AS c0, a1.c1 AS c1) AS a2 EXCEPT ALL SELECT 'A'::text AS c0;
+-- pgfuzz:check kernel:graft_union SELECT 'A'::text AS c0 FROM t0 AS a1, LATERAL (SELECT '1999-12-31 23:59:59.999999+05:30'::timestamptz AS c0, a1.c1 AS c1) AS a2 EXCEPT ALL SELECT 'A'::text AS c0

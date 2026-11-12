@@ -1,0 +1,3 @@
+-- composition of rule kernels compressed_materialization x reorder_filter (duckdb), template graft_union
+SELECT (-1) AS c0 FROM ((SELECT * FROM tl UNION ALL SELECT * FROM tl WHERE (SELECT count(*) FROM (SELECT 41 AS c0, a1.c1 AS c1, 'A'::text AS c2, 100::bigint AS c3 FROM tl AS a1 GROUP BY a1.c1) AS kb) < 0) AS a1 JOIN (t1 POSITIONAL JOIN t3) ON ((a1.c0 = t3.c0) AND t3.c1)) WHERE GREATEST (((t1.c2 = '{"k": -1, "a": [1, 2, 3]}'::jsonb) OR TRUE), t3.c1);
+-- pgfuzz:check kernel:graft_union SELECT (-1) AS c0 FROM (tl AS a1 JOIN (t1 POSITIONAL JOIN t3) ON ((a1.c0 = t3.c0) AND t3.c1)) WHERE GREATEST (((t1.c2 = '{"k": -1, "a": [1, 2, 3]}'::jsonb) OR TRUE), t3.c1)

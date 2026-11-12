@@ -1,0 +1,3 @@
+-- composition of rule kernels common_aggregate x duplicate_groups (duckdb), template product
+SELECT count(*) FROM (SELECT 10::bigint AS c0 EXCEPT SELECT 10::bigint AS c0 FROM t4 AS a1 GROUP BY a1.c1, a1.c0, a1.c3) AS ka CROSS JOIN (SELECT a1.c0 AS c0, a1.c0 AS c1 FROM t3 AS a1 WHERE (2 > ALL (SELECT a1.c0 AS c0)) INTERSECT (SELECT 17 AS c0, 10 AS c1 UNION SELECT 22 AS c0, 1 AS c1)) AS kb;
+-- pgfuzz:check kernel:product SELECT (SELECT count(*) FROM (SELECT 10::bigint AS c0 EXCEPT SELECT 10::bigint AS c0 FROM t4 AS a1 GROUP BY a1.c1, a1.c0, a1.c3) AS ka) * (SELECT count(*) FROM (SELECT a1.c0 AS c0, a1.c0 AS c1 FROM t3 AS a1 WHERE (2 > ALL (SELECT a1.c0 AS c0)) INTERSECT (SELECT 17 AS c0, 10 AS c1 UNION SELECT 22 AS c0, 1 AS c1)) AS kb)

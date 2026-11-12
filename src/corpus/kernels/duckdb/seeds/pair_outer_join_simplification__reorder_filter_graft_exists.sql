@@ -1,0 +1,3 @@
+-- composition of rule kernels outer_join_simplification x reorder_filter (duckdb), template graft_exists
+SELECT 2.25::numeric AS c0, '0'::text AS c1, (SELECT COUNT (*) FROM (SELECT * FROM t4 WHERE EXISTS (SELECT 1 FROM (SELECT 0 AS c0 FROM (tl AS a1 JOIN (t1 AS a2 FULL JOIN v0 AS a3 ON (a2.c1 = a3.c0)) ON ((a1.c0 = a3.c0) AND TRUE))) AS kb) OR NOT EXISTS (SELECT 1 FROM (SELECT 0 AS c0 FROM (tl AS a1 JOIN (t1 AS a2 FULL JOIN v0 AS a3 ON (a2.c1 = a3.c0)) ON ((a1.c0 = a3.c0) AND TRUE))) AS kb)) AS a1 WHERE ((a1.c3 <= 2.25::numeric) OR (a1.c0 IS NULL))) AS c2;
+-- pgfuzz:check kernel:graft_exists SELECT 2.25::numeric AS c0, '0'::text AS c1, (SELECT COUNT (*) FROM t4 AS a1 WHERE ((a1.c3 <= 2.25::numeric) OR (a1.c0 IS NULL))) AS c2

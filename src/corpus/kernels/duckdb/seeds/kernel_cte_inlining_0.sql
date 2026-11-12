@@ -1,0 +1,2 @@
+-- rule kernel: cte_inlining (duckdb)
+WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT TRUE AS c0, [1, 2, 3]::int[] AS c1, 1.5::numeric AS c2, LEAST (LEAST (1.5::numeric, (SELECT MAX (100.0::numeric) FROM v0 AS a2 WHERE COALESCE (COALESCE ((a1.c0 BETWEEN 16 AND 3), TRUE), FALSE))), NULL::numeric) AS c3 FROM v0 AS a1;

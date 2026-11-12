@@ -1,0 +1,3 @@
+-- composition of rule kernels OrderBySubq x PushDown (sqlite), template scalar_filter
+SELECT count(*) FROM (SELECT CAST('A' AS TEXT) AS c0 FROM v0 AS a1 WHERE (NOT (((SELECT MIN (a2.c0) FROM t3 AS a2) - 54) > (-8)))) AS ka WHERE (SELECT count(*) FROM (WITH cte1 AS MATERIALIZED (SELECT CAST(5e-324 AS REAL) AS c0 ORDER BY 1) SELECT CAST(1 AS INTEGER) AS c0, CAST(1.5 AS NUMERIC) AS c1 FROM cte1 AS a1 GROUP BY a1.c0 UNION SELECT CAST(1 AS INTEGER) AS c0, CAST(42.5 AS NUMERIC) AS c1) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT CAST('A' AS TEXT) AS c0 FROM v0 AS a1 WHERE (NOT (((SELECT MIN (a2.c0) FROM t3 AS a2) - 54) > (-8)))) AS ka

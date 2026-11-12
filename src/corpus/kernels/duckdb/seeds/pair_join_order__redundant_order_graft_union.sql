@@ -1,0 +1,3 @@
+-- composition of rule kernels join_order x redundant_order (duckdb), template graft_union
+SELECT '0'::interval AS c0, '1999-12-31'::date AS c1, 0.0::float8 AS c2 FROM (SELECT * FROM ti UNION ALL SELECT * FROM ti WHERE (SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 100) SELECT 0 AS c0 UNION SELECT 7 AS c0) AS kb) < 0) AS a1 WHERE (SELECT BOOL_OR (a2.c0) FROM (SELECT FALSE AS c0 ORDER BY ALL) AS a2);
+-- pgfuzz:check kernel:graft_union SELECT '0'::interval AS c0, '1999-12-31'::date AS c1, 0.0::float8 AS c2 FROM ti AS a1 WHERE (SELECT BOOL_OR (a2.c0) FROM (SELECT FALSE AS c0 ORDER BY ALL) AS a2)

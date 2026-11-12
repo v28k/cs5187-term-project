@@ -33,37 +33,37 @@
   "UnionLimit",
   "WindowFunc"
  ],
- "probed_queries": 448,
+ "probed_queries": 447,
  "fires": {
-  "BloomFilter": 142,
-  "Coroutines": 238,
-  "CountOfView": 2,
-  "CoverIdxScan": 77,
-  "DistinctOpt": 2,
-  "ExistsToJoin": 7,
-  "FlttnUnionAll": 2,
-  "GroupByOrder": 2,
-  "HavingToWhere": 2,
-  "IndexedExpr": 2,
-  "JoinMiss": 2,
-  "MinMaxOpt": 109,
-  "NullUnusedCols": 2,
-  "OmitNoopJoin": 3,
+  "BloomFilter": 141,
+  "Coroutines": 239,
+  "CountOfView": 3,
+  "CoverIdxScan": 68,
+  "DistinctOpt": 4,
+  "ExistsToJoin": 9,
+  "FlttnUnionAll": 3,
+  "GroupByOrder": 3,
+  "HavingToWhere": 3,
+  "IndexedExpr": 3,
+  "JoinMiss": 3,
+  "MinMaxOpt": 111,
+  "NullUnusedCols": 3,
+  "OmitNoopJoin": 6,
   "OmitOrderBy": 3,
-  "OnePass": 2,
-  "OrderByIdxJoin": 3,
-  "OrderBySubq": 3,
-  "PropagateConst": 2,
-  "PushDown": 22,
-  "QueryFlattener": 61,
-  "SeekScan": 2,
-  "SimplifyJoin": 19,
-  "SkipScan": 2,
-  "StarQuery": 2,
-  "Stat4": 2,
-  "Transitive": 3,
-  "UnionLimit": 2,
-  "WindowFunc": 2
+  "OnePass": 3,
+  "OrderByIdxJoin": 4,
+  "OrderBySubq": 6,
+  "PropagateConst": 3,
+  "PushDown": 18,
+  "QueryFlattener": 67,
+  "SeekScan": 3,
+  "SimplifyJoin": 16,
+  "SkipScan": 3,
+  "StarQuery": 3,
+  "Stat4": 3,
+  "Transitive": 6,
+  "UnionLimit": 3,
+  "WindowFunc": 3
  },
  "never_fired": [
   "BalancedMerge"
@@ -286,18 +286,58 @@
    {
     "rule": "OrderByIdxJoin",
     "setup": [
-     "CREATE TABLE t(id INTEGER PRIMARY KEY, f TEXT UNIQUE)",
-     "INSERT INTO t VALUES (1, 'a'), (2, 'b')"
+     "CREATE TABLE search_vals(v TEXT)",
+     "INSERT INTO search_vals VALUES('hello')",
+     "INSERT INTO search_vals VALUES('world')",
+     "CREATE TABLE search_vals2(v TEXT)",
+     "INSERT INTO search_vals2 VALUES('hello')",
+     "UPDATE td SET y = y + 100 WHERE x IN (1, 3)",
+     "DELETE FROM td WHERE x IN (1, 3)",
+     "UPDATE OR REPLACE tr SET u = 200 WHERE n IN (10)",
+     "UPDATE OR REPLACE tr SET u = 999 WHERE n IN (10, 30)",
+     "UPDATE tret SET v = v || '!' WHERE n IN (10) RETURNING id, v",
+     "DELETE FROM tret WHERE n IN (20) RETURNING id, v",
+     "CREATE TABLE sn(v TEXT)",
+     "INSERT INTO sn VALUES('a')",
+     "INSERT INTO sn VALUES(NULL)",
+     "INSERT INTO sn VALUES('b')",
+     "CREATE TABLE sn2(v TEXT)",
+     "INSERT INTO sn2 VALUES('a')",
+     "INSERT INTO sn2 VALUES(NULL)",
+     "INSERT INTO sn2 VALUES('b')",
+     "CREATE TABLE ts(v TEXT)",
+     "INSERT INTO ts VALUES('1')",
+     "INSERT INTO ts VALUES('2')",
+     "CREATE TABLE sd(v TEXT)",
+     "INSERT INTO sd VALUES('alice')",
+     "INSERT INTO sd VALUES('alice')",
+     "INSERT INTO sd VALUES('bob')",
+     "INSERT INTO sd VALUES('bob')",
+     "CREATE TABLE se(v TEXT)",
+     "INSERT INTO lj2 VALUES(10, 1)",
+     "INSERT INTO lj2 VALUES(11, 2)",
+     "INSERT INTO lj2 VALUES(10, 2)",
+     "INSERT INTO lj2 VALUES(11, 3)",
+     "CREATE TABLE lj_search(v INTEGER)",
+     "INSERT INTO lj2 VALUES(10, 1)",
+     "INSERT INTO lj2 VALUES(11, 2)",
+     "INSERT INTO lj_search VALUES(1)",
+     "CREATE TABLE tsr2(id INTEGER PRIMARY KEY, val INTEGER)",
+     "CREATE INDEX idx_tsr2 ON tsr2(val)",
+     "INSERT INTO tsr2 VALUES(1, 10), (2, 20), (3, 30)",
+     "CREATE TABLE tr(id INTEGER PRIMARY KEY, v INT)",
+     "CREATE INDEX tr_v ON tr(v)",
+     "INSERT INTO tr VALUES (5, 50), (6, 60), (7, 70)"
     ],
-    "query": "SELECT a.id, c.id FROM t a JOIN t c ORDER BY 1, 2",
+    "query": "SELECT b.id, c.id FROM tr b JOIN tr c ORDER BY 1, 2",
     "tokens": 19,
-    "tokens_before": 60,
+    "tokens_before": 31,
     "fired": [
      "OrderByIdxJoin"
     ],
     "reduced_on_tree": false,
     "source": "suite",
-    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_unnest-exists.sql"
+    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_in-index-seek.sql"
    }
   ],
   "OrderBySubq": [
@@ -315,20 +355,14 @@
    },
    {
     "rule": "OrderBySubq",
-    "setup": [
-     "CREATE TABLE t (x INT)",
-     "INSERT INTO t VALUES (1)"
-    ],
-    "query": "WITH t AS (SELECT 1 UNION SELECT 2) SELECT * FROM t ORDER BY 1",
-    "tokens": 17,
-    "tokens_before": 19,
+    "setup": [],
+    "query": "WITH cte1 AS MATERIALIZED (SELECT CAST(5e-324 AS REAL) AS c0 ORDER BY 1) SELECT CAST(1 AS INTEGER) AS c0, CAST(1.5 AS NUMERIC) AS c1 FROM cte1 AS a1 GROUP BY a1.c0 UNION SELECT CAST(1 AS INTEGER) AS c0, CAST(42.5 AS NUMERIC) AS c1",
+    "tokens": 64,
+    "tokens_before": 185,
     "fired": [
-     "Coroutines",
      "OrderBySubq"
     ],
-    "reduced_on_tree": false,
-    "source": "suite",
-    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_cte.sql"
+    "reduced_on_tree": true
    }
   ],
   "Transitive": [
@@ -347,20 +381,16 @@
    },
    {
     "rule": "Transitive",
-    "setup": [
-     "CREATE TABLE t(id INTEGER PRIMARY KEY, f TEXT UNIQUE)",
-     "INSERT INTO t VALUES (1, 'a'), (2, 'b')"
-    ],
-    "query": "SELECT c.id FROM t a JOIN t b ON a.f = b.f JOIN t c WHERE EXISTS (SELECT 1 FROM t d WHERE f = a.f AND f = c.f)",
-    "tokens": 42,
-    "tokens_before": 59,
+    "setup": [],
+    "query": "SELECT CAST('NaN' AS TEXT) AS c0, a2.c3 AS c1 FROM ((t4 AS a1 JOIN t4 AS a2 ON (a1.c3 = a2.c3)) JOIN (SELECT CAST(1.0 AS REAL) AS c0, CAST(100.0 AS NUMERIC) AS c1 FROM t2 AS a3) AS a4 ON ((a1.c3 = a4.c1) AND FALSE)) GROUP BY a2.c3, a2.c0",
+    "tokens": 87,
+    "tokens_before": 426,
     "fired": [
-     "ExistsToJoin",
+     "BloomFilter",
+     "QueryFlattener",
      "Transitive"
     ],
-    "reduced_on_tree": false,
-    "source": "suite",
-    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_unnest-exists.sql"
+    "reduced_on_tree": true
    }
   ],
   "OmitNoopJoin": [
@@ -374,48 +404,58 @@
      "OmitNoopJoin"
     ],
     "reduced_on_tree": true
+   },
+   {
+    "rule": "OmitNoopJoin",
+    "setup": [],
+    "query": "SELECT CAST(42.5 AS NUMERIC) AS c0 FROM (t3 AS a1 LEFT JOIN t1 AS a2 ON ((a1.c0 = a2.c0) AND a1.c1))",
+    "tokens": 36,
+    "tokens_before": 68,
+    "fired": [
+     "OmitNoopJoin"
+    ],
+    "reduced_on_tree": true
    }
   ],
-  "OmitOrderBy": [
+  "DistinctOpt": [
    {
-    "rule": "OmitOrderBy",
+    "rule": "DistinctOpt",
     "setup": [],
-    "query": "SELECT '1999-12-31' AS c0, a1.c1 AS c1 FROM (SELECT CAST(1.0 AS REAL) AS c0, 500 AS c1 ORDER BY 2 DESC) AS a1 ORDER BY 2 DESC",
-    "tokens": 36,
-    "tokens_before": 52,
+    "query": "SELECT DISTINCT a2.c0 AS c0 FROM ((t4 AS a1 JOIN t4 AS a2 ON (a1.c0 = a2.c0)) INNER JOIN t2 AS a3 ON ((a1.c3 = a3.c1) AND FALSE))",
+    "tokens": 48,
+    "tokens_before": 302,
     "fired": [
-     "Coroutines",
-     "OmitOrderBy"
+     "BloomFilter",
+     "DistinctOpt"
     ],
     "reduced_on_tree": true
    },
    {
-    "rule": "OmitOrderBy",
+    "rule": "DistinctOpt",
     "setup": [
-     "CREATE TABLE sd(a INT, b INT)",
-     "INSERT INTO sd VALUES(1,3),(1,1),(1,2),(2,2),(2,1),(2,3)"
+     "CREATE TABLE t (a,b,c,d)",
+     "INSERT INTO t VALUES (1,2,3,4),(2,3,4,5)"
     ],
-    "query": "WITH cte AS (SELECT b FROM sd ORDER BY b) SELECT * FROM cte ORDER BY b",
-    "tokens": 19,
-    "tokens_before": 29,
+    "query": "SELECT DISTINCT c FROM t",
+    "tokens": 5,
+    "tokens_before": 12,
     "fired": [
-     "OmitOrderBy",
-     "QueryFlattener"
+     "CoverIdxScan",
+     "DistinctOpt"
     ],
     "reduced_on_tree": false,
     "source": "suite",
-    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_subquery_cte_materialization_adversarial.sql"
+    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_orderby_memory.sql"
    }
   ],
   "GroupByOrder": [
    {
     "rule": "GroupByOrder",
     "setup": [],
-    "query": "WITH t(g, x) AS ( SELECT 1, 9007199254740994 ) SELECT NULL FROM t GROUP BY g ORDER BY g",
-    "tokens": 24,
+    "query": "WITH TRUE AS ( SELECT 1 ) SELECT NULL FROM t GROUP BY g ORDER BY g",
+    "tokens": 17,
     "tokens_before": 48,
     "fired": [
-     "Coroutines",
      "GroupByOrder"
     ],
     "reduced_on_tree": false,
@@ -424,17 +464,30 @@
    },
    {
     "rule": "GroupByOrder",
-    "setup": [],
-    "query": "WITH t(g, x) AS ( SELECT 1, '9007199254740994abc' ) SELECT NULL FROM t GROUP BY g ORDER BY g",
-    "tokens": 24,
+    "setup": [
+     "CREATE INDEX t_g ON t(g)",
+     "CREATE TABLE t(v TEXT, k INTEGER)",
+     "INSERT INTO t VALUES ('a',3),('b',2),('a',1),('c',4),('b',5)",
+     "CREATE TABLE t(v TEXT, k TEXT)",
+     "INSERT INTO t VALUES ('one','b'),('two',NULL),('three','A'),('four','a')",
+     "CREATE TABLE t(v TEXT, sep TEXT, k INTEGER)",
+     "INSERT INTO t VALUES ('b','/',2),('c',';',3),('a',':',1)",
+     "CREATE TABLE t(v INTEGER, k INTEGER)",
+     "INSERT INTO t VALUES (2,2),(1,1)",
+     "INSERT INTO t VALUES (1,'b',4),(2,'y',4)",
+     "PRAGMA temp_store=FILE",
+     "PRAGMA cache_size=1",
+     "CREATE TABLE t(g INTEGER, v INTEGER)"
+    ],
+    "query": "SELECT NULL FROM t GROUP BY g ORDER BY g",
+    "tokens": 10,
     "tokens_before": 55,
     "fired": [
-     "Coroutines",
      "GroupByOrder"
     ],
     "reduced_on_tree": false,
     "source": "suite",
-    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_agg-functions_avg-text-types.sql"
+    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_agg-functions_order-by.sql"
    }
   ],
   "BalancedMerge": [
@@ -464,27 +517,72 @@
     "source": "suite",
     "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_compound-select-orderby.sql"
    }
+  ],
+  "OmitOrderBy": [
+   {
+    "rule": "OmitOrderBy",
+    "setup": [
+     "CREATE TABLE t2(a INTEGER, b INTEGER)",
+     "INSERT INTO t2 VALUES (1, 100)",
+     "INSERT INTO t2 VALUES (2, 200)",
+     "INSERT INTO t2 VALUES (3, 300)",
+     "CREATE TABLE names(name TEXT COLLATE NOCASE)",
+     "INSERT INTO names VALUES ('alice')",
+     "INSERT INTO names VALUES ('Bob')",
+     "INSERT INTO names VALUES ('CHARLIE')",
+     "INSERT INTO names VALUES ('dave')"
+    ],
+    "query": "WITH cte AS (SELECT name FROM names ORDER BY name) SELECT name FROM cte ORDER BY name COLLATE BINARY",
+    "tokens": 21,
+    "tokens_before": 21,
+    "fired": [
+     "OmitOrderBy",
+     "QueryFlattener"
+    ],
+    "reduced_on_tree": false,
+    "source": "suite",
+    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_snapshot_tests_subqueries_subquery-sort-elision.sql"
+   },
+   {
+    "rule": "OmitOrderBy",
+    "setup": [
+     "CREATE TABLE sd(a INT, b INT)",
+     "INSERT INTO sd VALUES(1,3),(1,1),(1,2),(2,2),(2,1),(2,3)"
+    ],
+    "query": "WITH cte AS (SELECT b FROM sd ORDER BY b) SELECT * FROM cte ORDER BY b",
+    "tokens": 19,
+    "tokens_before": 29,
+    "fired": [
+     "OmitOrderBy",
+     "QueryFlattener"
+    ],
+    "reduced_on_tree": false,
+    "source": "suite",
+    "test_file": "../results/suites/sqlite/root_arbor_turso-src_sqlite_conformance_sqlite-sqltests_subquery_cte_materialization_adversarial.sql"
+   }
   ]
  },
  "suite_fires": {
   "BalancedMerge": 3,
-  "BloomFilter": 25,
-  "Coroutines": 143,
-  "ExistsToJoin": 5,
-  "GroupByOrder": 12,
-  "MinMaxOpt": 7,
-  "OmitOrderBy": 7,
-  "OrderByIdxJoin": 2,
-  "OrderBySubq": 7,
+  "BloomFilter": 90,
+  "Coroutines": 315,
+  "CoverIdxScan": 74,
+  "DistinctOpt": 1,
+  "ExistsToJoin": 14,
+  "GroupByOrder": 26,
+  "MinMaxOpt": 59,
+  "OmitOrderBy": 19,
+  "OrderByIdxJoin": 3,
+  "OrderBySubq": 15,
   "PushDown": 1,
-  "QueryFlattener": 34,
-  "SimplifyJoin": 1,
+  "QueryFlattener": 111,
+  "SimplifyJoin": 7,
   "Transitive": 1
  },
  "suite_stats": {
   "files": 369,
   "queries": 6000,
-  "probed": 202,
+  "probed": 595,
   "new_rules": 2
  },
  "never_fired_after_suite": []

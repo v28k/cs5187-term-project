@@ -1,0 +1,3 @@
+-- composition of rule kernels PushDown x Transitive (sqlite), template scalar_filter
+SELECT count(*) FROM (SELECT CAST(' ' AS TEXT) AS c0, a1.n AS c1, CAST(42.5 AS NUMERIC) AS c2, a1.c0 AS c3 FROM v0 AS a1 WHERE ((UNICODE (CAST(' ' AS TEXT)) + 0) < a1.c0)) AS ka WHERE (SELECT count(*) FROM (SELECT CAST('NaN' AS TEXT) AS c0, a2.c3 AS c1 FROM ((t4 AS a1 JOIN t4 AS a2 ON (a1.c3 = a2.c3)) JOIN (SELECT CAST(1.0 AS REAL) AS c0, CAST(100.0 AS NUMERIC) AS c1 FROM t2 AS a3) AS a4 ON ((a1.c3 = a4.c1) AND FALSE)) GROUP BY a2.c3, a2.c0) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT CAST(' ' AS TEXT) AS c0, a1.n AS c1, CAST(42.5 AS NUMERIC) AS c2, a1.c0 AS c3 FROM v0 AS a1 WHERE ((UNICODE (CAST(' ' AS TEXT)) + 0) < a1.c0)) AS ka

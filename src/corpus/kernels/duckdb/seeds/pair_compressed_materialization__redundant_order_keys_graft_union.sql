@@ -1,0 +1,3 @@
+-- composition of rule kernels compressed_materialization x redundant_order_keys (duckdb), template graft_union
+SELECT 41 AS c0, a1.c1 AS c1, 'A'::text AS c2, 100::bigint AS c3 FROM (SELECT * FROM tl UNION ALL SELECT * FROM tl WHERE (SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT TRUE AS c0, TRUE AS c1, ARRAY['1'::text] AS c2 UNION SELECT FALSE AS c0, TRUE AS c1, ARRAY['1'::text] AS c2 ORDER BY 3, 3) AS kb) < 0) AS a1 GROUP BY a1.c1;
+-- pgfuzz:check kernel:graft_union SELECT 41 AS c0, a1.c1 AS c1, 'A'::text AS c2, 100::bigint AS c3 FROM tl AS a1 GROUP BY a1.c1
