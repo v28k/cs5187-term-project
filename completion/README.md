@@ -51,13 +51,16 @@ PostgreSQL (nine bugs found by the tool and reported):
 
 Also reported: BUG #19826 (`corr()`/`regr_*()` under partial aggregation). Tom Lane reviewed our patch and revised it (v3); our v4 with the tests he asked for was sent on 12 Nov 2026 and awaits commit.
 
-Generalized fuzzer (branch `generalized` of <https://github.com/v28k/cs5187-term-project>), filed 8 Nov 2026 with a fix and a regression test each:
+Generalized fuzzer (branch `generalized` of <https://github.com/v28k/cs5187-term-project>), each filed with a fix and a regression test:
 
 | Engine | Bug | Issue / PR | State |
 |---|---|---|---|
 | Turso | `percentile_disc`/`percentile_cont` with an expression argument | [#11594](https://github.com/tursodatabase/turso/issues/11594) / [#11595](https://github.com/tursodatabase/turso/pull/11595) | **open** (in review) |
 | DuckDB | `min`/`max` over a nested value computed by a subquery | [#28551](https://github.com/duckdb/duckdb/issues/28551) / [#28552](https://github.com/duckdb/duckdb/pull/28552) | **approved** (auto-merge enabled by a maintainer, 2.0 backport) |
 | DataFusion | `UPDATE`/`DELETE` repeating an expression (`__common_expr_1`) | [#27235](https://github.com/apache/datafusion/issues/27235) / [#27236](https://github.com/apache/datafusion/pull/27236) | **open** (validated by a contributor) |
+| Turso | aggregate in `IN (SELECT ...)` next to a window function (misuse error or panic) | [#11796](https://github.com/tursodatabase/turso/issues/11796) / [#11797](https://github.com/tursodatabase/turso/pull/11797) | **open** (filed 13 Nov) |
+
+Also filed on 13 Nov: DataFusion DF-02 (scalar subquery inside `VALUES`), with a fix.
 
 Updated 12 Nov 2026: BUG #19802 fixed upstream (now seven fixed), DuckDB fix approved, BUG #19826 v4 sent.
 The paper, the final presentation, the short class talk and the complete project document were rebuilt
