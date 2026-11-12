@@ -15,7 +15,14 @@ import statistics
 import sys
 from pathlib import Path
 
-METRICS = ("rule_pairs", "rules_fired", "plan_shapes", "testcases", "valid_query_rate", "bug_candidates")
+METRICS = ("rule_pairs", "rules_fired", "plan_shapes", "testcases", "valid_query_rate", "bug_candidates",
+           "pairs_per_1k_testcases")
+
+
+def value(t: dict, m: str) -> float:
+    if m == "pairs_per_1k_testcases":       # throughput-neutral: pairs reached per 1000 test cases
+        return 1000.0 * float(t.get("rule_pairs") or 0) / max(1.0, float(t.get("testcases") or 0))
+    return float(t.get(m) or 0)
 
 
 def a12(xs: list[float], ys: list[float]) -> float:
@@ -48,11 +55,12 @@ def main(paths: list[str]) -> int:
         print("| metric | plain grammar (median) | + kernels (median) | A12 (kernels > plain) | p (MWU) |")
         print("|---|---|---|---|---|")
         for m in METRICS:
-            xs = [float(t.get(m) or 0) for t in kern]
-            ys = [float(t.get(m) or 0) for t in base]
+            xs = [value(t, m) for t in kern]
+            ys = [value(t, m) for t in base]
             if not xs or not ys:
                 continue
-            fmt = (lambda v: f"{v:.3f}") if m == "valid_query_rate" else (lambda v: f"{v:.0f}")
+            fmt = (lambda v: f"{v:.3f}") if m in ("valid_query_rate",) else \
+                (lambda v: f"{v:.1f}") if m == "pairs_per_1k_testcases" else (lambda v: f"{v:.0f}")
             print(f"| {m} | {fmt(statistics.median(ys))} | {fmt(statistics.median(xs))} | "
                   f"{a12(xs, ys):.2f} | {mwu_p(xs, ys):.3f} |")
         seen = {arm: set().union(*(set(t.get("rules_fired_counts", {})) for t in ts)) for arm, ts in a.items()}

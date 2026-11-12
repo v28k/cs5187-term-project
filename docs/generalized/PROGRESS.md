@@ -77,7 +77,8 @@ Later the same day:
   its own `main` tests (`aggregate_skip_partial`, `array_concat`) are fixed on main: not bugs.
 - Kernel campaigns (2 arms x 3 trials x 15 min): DuckDB rule pairs 307 -> 386 (A12 1.00,
   p 0.10), rules 31 -> 33, 3 rules only with kernels, similar test-case counts; SQLite rule
-  pairs 86 -> 182, rules 17 -> 21, but twice the test cases. One TLP false positive (QUALIFY with
+  pairs 86 -> 182, rules 17 -> 21, but twice the test cases (per 1000 test cases 4.9 vs 5.3:
+  the SQLite gain is throughput; DuckDB per 1000: 21.7 vs 25.9). One TLP false positive (QUALIFY with
   a window function) fixed. `docs/generalized/results/rq8_kernels_2026-11-12.md`.
 
 - BUG #19826 (PostgreSQL, main branch package): reviewed Tom Lane's v3 on master b0496e3
