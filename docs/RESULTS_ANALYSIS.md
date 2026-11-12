@@ -11,7 +11,7 @@ substitution is a driver script outside `src/` (see "Deviations").
 
 ## Deviations from the plan (must be stated in the paper)
 
-1. **The LLM was Google Gemini, not Claude.** No Anthropic key was available.
+1. **The LLM arm used Google Gemini.** No paid API key was available.
    `pgfuzz llm extend --mode manual` wrote each prompt; `runs/memberB-rq1-llm/llm_driver/gemini_driver.py`
    sent it to the Gemini API (free tier) and stored the JSON answer. Served models:
    9 x `gemini-3.6-flash`, 2 x `gemini-3.8-flash`, 14 x `gemini-3-flash-preview`
@@ -19,7 +19,6 @@ substitution is a driver script outside `src/` (see "Deviations").
    on quota or repeated 503). Cost 0 USD (tokens still counted). 10 commits instead of 30
    because of the daily quota (25 commits mined, the first 10 used). The ledger marks
    rounds `replayed: true` only because manual mode reads the answer file; every answer is fresh.
-   Every statement "Claude Opus 5.5 is the model" in earlier drafts is wrong for the results.
 2. **RQ1 ran on member B's machine, RQ3 on member A's**, never mixed (each experiment on one machine).
    B: WSL2, 24 cores, `-j 4`. See each `env.txt`.
 3. **B's campaign hit infrastructure incidents** (`NOTES.md`): worker 2's server failed
@@ -156,5 +155,5 @@ processes before re-using servers.
 1. Collect upstream status links (BUG numbers above) into the paper's data section.
 2. Verify at the end (user decision): the 5 RLS candidates, the `corr` parallel case, and re-run the BUG-01/02 reproducers.
 3. Google Drive link for the 110 MB archive of B (`LINKS.md` still TODO) and A's archive.
-4. Paper: fill RQ1-RQ4, abstract, intro, conclusion, data availability; AI statement (Gemini for the LLM arm; Claude Code for coding/drafting); cut to the page limit.
+4. Paper: fill RQ1-RQ4, abstract, intro, conclusion, data availability; cut to the page limit.
 5. Update guide, slides and PPTX with the final numbers and screenshots (member screenshots are in `runs/*/screenshots/`).

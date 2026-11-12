@@ -19,7 +19,7 @@ m=$(grep -vhE '^[[:space:]]*%' sections/*.tex | grep -o '\\num{' | wc -l | tr -d
 say "\\todo left:" "$t"; say "\\num (unmeasured) left:" "$m"
 [ "$t" = 0 ] && [ "$m" = 0 ] || fail=1
 
-# 3. banned words (STYLE.md 1.2); comments are skipped
+# 3. banned words; comments are skipped
 BANNED='novel|powerful|seamless(ly)?|leverag(e|es|ed|ing)|utiliz(e|es|ed|ing|ation)|robust(ly|ness)?|cutting-edge|state-of-the-art|paradigm|holistic|synerg(y|ies)|comprehensive|groundbreaking|revolutionar(y|ize)|unprecedented|significantly|delve|crucial|pivotal|plethora|myriad|empower|unlock|facilitat(e|es|ed)'
 b=$( { grep -vhE '^\s*%' sections/*.tex | grep -oiwE "$BANNED"; grep -vhE '^\s*%' sections/*.tex | grep -oiE 'harness(es|ed|ing)? (the|its|their)'; } | sort | uniq -c | sort -rn)
 if [ -n "$b" ]; then say "banned words:" ""; echo "$b"; fail=1

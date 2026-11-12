@@ -1,6 +1,6 @@
 # PostgreSQL correctness audit (23 October 2026)
 
-All artifacts referenced below are in [`bughunt/audit/`](bughunt/audit/).
+All artifacts referenced below are in [this folder](./).
 Nothing was sent to any PostgreSQL list or tracker.
 
 ## A. Executive summary
@@ -133,7 +133,7 @@ upper-level Vars, `31c002aa89` refactor) do not touch the inner operand.
 
 **Outcome:** no existing report or fix found.
 
-**Proposed fix** (`bughunt/audit/0001-NOT-IN-antijoin-reject-coerced-inner-arg.diff`, kept as an
+**Proposed fix** (`0001-NOT-IN-antijoin-reject-coerced-inner-arg.diff`, kept as an
 uncommitted diff in worktree `~/audit/src/pg-fix`). It requires each inner operand to be the bare
 `PARAM_SUBLINK` Param, optionally under a binary `RelabelType`, in all three branches of
 `sublink_testexpr_is_not_nullable()`:
@@ -254,13 +254,12 @@ duplicates (A-13, C-2, C-3) + 1 inconclusive (A-14) + 2 not investigated (C-4, C
 * **Repository.** This project is not a PostgreSQL checkout. PostgreSQL sources live in WSL under
   `~/pgfuzz/src/` (team trees, not modified) and `~/audit/src/` (this audit: `pg-master` and `pg-19`
   are detached worktrees at the commits above; `pg-fix` is the fix worktree).
-* **Previous work in this project.** It was read first (`bughunt/HANDOFF-2026-10-18.md`,
-  `LOG.md`):
+* **Previous work in this project.** It was read first (`bughunt/LOG.md`):
   * BUG #19768 (JSON_TABLE collations): filed by the team.
   * candidate 2: known BUG #17731.
   * grammar-hunt crash: known BUG #19766.
   * extended-stats non-finite note: under an existing hackers thread.
-* **Duplicate index.** `bughunt/audit/pgsql-bugs-threads-2026-05-to-10.tsv` has one row per
+* **Duplicate index.** `pgsql-bugs-threads-2026-05-to-10.tsv` has one row per
   thread: first message date, message count, subject, link, authors. Tools to rebuild and query it
   are in `archive-tools/`:
   * `paginate.py` and `threads.py` build the index;

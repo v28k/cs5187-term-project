@@ -1,7 +1,7 @@
 # Two likely-new bugs from the B3 (RQ1) campaign
 
 Checked 28 Oct 2026. Neither appears in `known_bugs/`, `triage/verdicts.yaml`,
-`docs/bughunt/`, `bugprogress/`, the pgsql-bugs / pgsql-hackers archives (web
+`docs/bughunt/`, `docs/bughunt/new/`, the pgsql-bugs / pgsql-hackers archives (web
 search) or the upstream commit log, and both still fail on **today's upstream
 master `4848fd675`** (built with `--enable-cassert`). Status: **new; N1 filed as BUG #19802, N2 filed as BUG #19803 (both 28 Oct 2026)**. A search cannot rule out a report sent in the last few
 days or a private patch, so check the pgsql-bugs list once more before filing.

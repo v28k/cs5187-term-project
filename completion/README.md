@@ -24,7 +24,7 @@ Team: **Venu Kummari, Bhuvan Chilukuti, Gowtham Reddy** (IIT Guwahati). License:
 |---|---|
 | Proposal (2 pages) | submitted by the team leader on the proposal form by 20 Sep 2026 |
 | Progress meetings 1 and 2 | [`progress/`](progress/) |
-| Final presentation (10–15 min) | [`slides/final_presentation.pdf`](slides/final_presentation.pdf) (Beamer; source `docs/beamer/`, `make`) |
+| Final presentation (10–15 min) | [`slides/final_presentation.pdf`](slides/final_presentation.pdf) (Beamer; source `docs/presentation/`, `make`) |
 | Paper in FSE format, ACM `sigconf`, Overleaf | [`paper.pdf`](paper.pdf), [`paper_source.zip`](paper_source.zip) |
 | Each member's contribution: signed statement + commit history | last section of [`paper.pdf`](paper.pdf); commit history (GitHub users `v28k` = Venu Kummari, `Blazing-bhuvi` = Bhuvan Chilukuti, `doma2542` = Gowtham Reddy) |
 | Public GitHub repository, permissive license | MIT ([`../LICENSE`](../LICENSE)) |

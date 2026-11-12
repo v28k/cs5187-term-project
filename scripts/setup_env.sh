@@ -15,4 +15,4 @@ mkdir -p "$ROOT/src" && cd "$ROOT/src"
 ( cd postgres-REL_18_STABLE && ./configure --prefix="$ROOT/install/REL_18_STABLE" --without-icu --enable-tap-tests=no CFLAGS=-O2 >/dev/null \
     && make -s -j"$(nproc)" && make -s install )
 pip install -r "$(dirname "$0")/../src/requirements.txt"
-echo "Done. Next: see docs/bughunt/HANDOFF.md section 'Restarting everything'."
+echo "Done. Next: see docs/TEAM_RUNBOOK.md."
