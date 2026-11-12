@@ -77,3 +77,13 @@ def test_duckdb_rule_probe_adds_to_a_test_cases_own_disabled_optimizers():
     fired = lab.fired(["SET disabled_optimizers = 'join_order'"], q)
     assert fired is not None and len(fired) < 10          # not "every rule fires"
     assert "join_order" not in fired                       # already off in the test case
+
+
+def test_sqlite_rule_probe_keeps_a_test_cases_own_pragmas():
+    lab = K.Lab(CFG)
+    q = "SELECT a.c0 FROM t0 AS a JOIN t1 AS b ON a.c1 = b.c1"      # uses an automatic index
+    plain = lab.fired([], q)
+    for setup in (["PRAGMA automatic_index = 0"], ["PRAGMA reverse_unordered_selects = 1"]):
+        got = lab.fired(setup, q)
+        # before the fix, resetting the PRAGMA after the first probe made 29 of 30 rules "fire"
+        assert got is not None and len(got) <= len(plain) + 2, (setup, got)
