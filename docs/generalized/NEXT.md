@@ -48,10 +48,11 @@ known bugs can now match on SQL (`sql_regex`), so filed bugs stop flooding Turso
 ## To do, in this order
 
 1. File T-08 (owner; prompt and text in `latestbugs/T-08-*/issue.md`), then DF-02.
-2. Read the kernel campaign results (`results/{sqlite,duckdb}_kernels`, `pgfuzz report`) into
-   RQ8 of `paper/OUTLINE.md`; repeat with 5 trials x 1 h for the paper.
-3. Mine DataFusion kernels the same way (`--from-suite` over its `.slt` files) and add a
-   `datafusion_kernels.yaml`.
+2. RQ8 for the paper: repeat `configs/{sqlite,duckdb,datafusion}_kernels.yaml` with 5 trials x 1 h
+   and add "rule pairs per test case" (throughput-neutral) to `scripts/eval/kernels_rq8.py`.
+   First results (3 x 15 min): `docs/generalized/results/rq8_kernels_2026-11-12.md`.
+3. DataFusion suite kernels: run each probe in a worker process (a DataFusion test exhausts memory
+   and Rust aborts the in-process miner); grammar-only DataFusion kernels are in the corpus.
 4. More targets (chDB, Polars), the full evaluation (`scripts/eval/run_all.sh`), the paper.
 5. Re-check the open upstream items weekly: Turso #11595, DataFusion #27236, DuckDB #28552
    (auto-merge on), PostgreSQL BUG #19826 v4, #19793, MCV patch.
