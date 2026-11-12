@@ -28,26 +28,30 @@ oracle, and grafts were not found in prior work.
 - DuckDB "4 vs 5 rows" candidate: flaky (GROUP BY on a float aggregate). Consider excluding
   float aggregates as grouping keys from the determinism filter (`eval/differential.py: eligible`).
 
+## Done on 12 Nov 2026
+
+1. Hunt on newest code (Turso main via `configs/turso_main.yaml`, DuckDB nightly, DataFusion 55):
+   every candidate triaged; verdicts in `latestbugs/README.md`. New: **T-08** (Turso, ready to
+   file, `latestbugs/T-08-*`). The rest were known, already reported, or fixed on main.
+2. Kernel seeds in campaigns: `configs/sqlite_kernels.yaml`, `configs/duckdb_kernels.yaml`
+   (two arms: plain grammar vs. grammar + composed kernel seeds); corpora in `src/corpus/kernels/`.
+3. The 11 Nov lead (Turso panic) became T-08.
+4. Kernels from engine test suites: `pgfuzz kernels CFG --from-suite DIR` (SQLite: Turso's
+   SQLite-compatible sqltests; DuckDB: `test/optimizer`, `test/sql/optimizer`).
+5. Kernel transfer: `pgfuzz kernels CFG --transfer-from kernels.json` (result: correspondence,
+   no new rules reached).
+Tool fixes found on the way: DuckDB rule probe replaced a test case's own `disabled_optimizers`
+(every rule looked as if it fired); probe harness stopped at the first failing setup statement
+and could leave DuckDB in an aborted transaction; triage crashed on non-PostgreSQL wrong results;
+known bugs can now match on SQL (`sql_regex`), so filed bugs stop flooding Turso campaigns.
+
 ## To do, in this order
 
-1. **Hunt on newest code only.** Finish `scripts/build_turso_main.sh`, then
-   `python -m pgfuzz hunt configs/turso_main.yaml configs/duckdb.yaml configs/datafusion.yaml --budget 3600 --out ../results/hunt_main`.
-   Re-check every candidate with `/root/arbor/turso-src/target/debug/tursodb` (or the engine's
-   newest build) before packaging. DataFusion `main` needs datafusion-python built against it.
-2. **Run kernel seeds inside campaigns** (rule ablation applies there): mine with
-   `pgfuzz kernels configs/<engine>.yaml -n 600 --out ../results/kernels/<engine>`, then add
-   `seeds: <that dir>/seeds` and `seed_prob: 0.2` to the generator params of a config copy.
-3. **Unfinished hunt of 11 Nov**: `results/hunt_1111/` (campaign data only if the container
-   survived). Open leads: Turso panic "aggregate called in scalar context"
-   (`core/vdbe/execute.rs`), failure `3308362ffef6`; reduce with `pgfuzz triage` and check on main.
-4. **Kernels for rules that never fire** (19 of 30 on SQLite): take them from the engines' own
-   test suites (`pgfuzz import-tests`), probe each statement with `Lab.fired`, keep statements
-   that fire a rule the grammar never fires, reduce with the token reducer.
-5. **Kernel transfer across engines**: replay a kernel's tree under another engine's overlay and
-   test whether an analogous rule fires.
-6. More targets (chDB, Polars), evaluation runs, paper: `FUTURE_WORK.md`, `paper/OUTLINE.md`.
-   Add an RQ: rule-pair coverage of composed kernels vs random generation (numbers are in
-   `compose.json`: `pairs_tried`, `pairs_cofired`).
-7. For every bug that still reproduces on the newest code: a folder in `latestbugs/<ID>/` with
-   `issue.md` (exact title and text), `repro.sql`, expected vs actual output, versions checked;
-   then tell the owner.
+1. File T-08 (owner; prompt and text in `latestbugs/T-08-*/issue.md`), then DF-02.
+2. Read the kernel campaign results (`results/{sqlite,duckdb}_kernels`, `pgfuzz report`) into
+   RQ8 of `paper/OUTLINE.md`; repeat with 5 trials x 1 h for the paper.
+3. Mine DataFusion kernels the same way (`--from-suite` over its `.slt` files) and add a
+   `datafusion_kernels.yaml`.
+4. More targets (chDB, Polars), the full evaluation (`scripts/eval/run_all.sh`), the paper.
+5. Re-check the open upstream items weekly: Turso #11595, DataFusion #27236, DuckDB #28552
+   (auto-merge on), PostgreSQL BUG #19826 v4, #19793, MCV patch.
