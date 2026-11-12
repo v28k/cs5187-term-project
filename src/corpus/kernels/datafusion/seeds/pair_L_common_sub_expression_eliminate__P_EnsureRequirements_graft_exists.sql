@@ -1,0 +1,3 @@
+-- composition of rule kernels L:common_sub_expression_eliminate x P:EnsureRequirements (datafusion), template graft_exists
+SELECT 16 AS c0, COALESCE (CASE WHEN TRUE THEN ARRAY[(SELECT MIN (0) FROM t2 AS a2)] ELSE ARRAY[1] END, make_array(NULL, 1)) AS c1 FROM (SELECT * FROM ti WHERE EXISTS (SELECT 1 FROM (SELECT LEAST (a1.c5, a1.c5) AS c0, 10.0::float8 AS c1 FROM t3 AS a1 WHERE a1.c1) AS kb) OR NOT EXISTS (SELECT 1 FROM (SELECT LEAST (a1.c5, a1.c5) AS c0, 10.0::float8 AS c1 FROM t3 AS a1 WHERE a1.c1) AS kb)) AS a1;
+-- pgfuzz:check kernel:graft_exists SELECT 16 AS c0, COALESCE (CASE WHEN TRUE THEN ARRAY[(SELECT MIN (0) FROM t2 AS a2)] ELSE ARRAY[1] END, make_array(NULL, 1)) AS c1 FROM ti AS a1

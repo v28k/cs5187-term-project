@@ -1,0 +1,3 @@
+-- composition of rule kernels L:propagate_empty_relation x L:replace_distinct_aggregate (datafusion), template union
+SELECT count(*) FROM (SELECT 1 AS k FROM (SELECT '2000-01-01'::date AS c0, 'NaN'::text AS c1 UNION SELECT '1999-12-31'::date AS c0, 'abc'::text AS c1) AS ka UNION ALL SELECT 2 AS k FROM (SELECT 'abc'::text AS c0 FROM t1 AS a1 WHERE FALSE) AS kb) AS u;
+-- pgfuzz:check kernel:union SELECT (SELECT count(*) FROM (SELECT '2000-01-01'::date AS c0, 'NaN'::text AS c1 UNION SELECT '1999-12-31'::date AS c0, 'abc'::text AS c1) AS ka) + (SELECT count(*) FROM (SELECT 'abc'::text AS c0 FROM t1 AS a1 WHERE FALSE) AS kb)

@@ -1,0 +1,3 @@
+-- composition of rule kernels L:propagate_empty_relation x P:FilterPushdown (datafusion), template graft_union
+SELECT 2 AS c0 FROM (SELECT * FROM t3 UNION ALL SELECT * FROM t3 WHERE (SELECT count(*) FROM (SELECT DISTINCT '0 days'::interval AS c0, make_array('a', 'b') AS c1, '1970-01-01'::date AS c2 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c3 = a2.c3)) WHERE COALESCE ((LENGTH ((SELECT STRING_AGG ('NaN'::text, ',' ORDER BY 'NaN'::text) FROM tp AS a3)) <> a2.c0), (a1.c0 IS DISTINCT FROM a2.c0))) AS kb) < 0) AS a1 WHERE FALSE GROUP BY GROUPING SETS ((a1.c0), ()) UNION SELECT 10 AS c0;
+-- pgfuzz:check kernel:graft_union SELECT 2 AS c0 FROM t3 AS a1 WHERE FALSE GROUP BY GROUPING SETS ((a1.c0), ()) UNION SELECT 10 AS c0

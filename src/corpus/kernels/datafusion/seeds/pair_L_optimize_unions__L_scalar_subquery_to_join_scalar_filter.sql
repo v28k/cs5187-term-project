@@ -1,0 +1,3 @@
+-- composition of rule kernels L:optimize_unions x L:scalar_subquery_to_join (datafusion), template scalar_filter
+SELECT count(*) FROM (SELECT '2000-01-01'::date AS c0 UNION ALL (SELECT '2024-02-29'::date AS c0 UNION ALL (SELECT '1999-12-31'::date AS c0 UNION SELECT '2024-02-29'::date AS c0))) AS ka WHERE (SELECT count(*) FROM (SELECT a1.c0 AS c0 FROM tl AS a1 WHERE (SELECT BOOL_AND (TRUE) FROM ti AS a2 WHERE (NOT (NULL::boolean <= (16 IS DISTINCT FROM a1.c0)))) UNION SELECT 100 AS c0) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT '2000-01-01'::date AS c0 UNION ALL (SELECT '2024-02-29'::date AS c0 UNION ALL (SELECT '1999-12-31'::date AS c0 UNION SELECT '2024-02-29'::date AS c0))) AS ka

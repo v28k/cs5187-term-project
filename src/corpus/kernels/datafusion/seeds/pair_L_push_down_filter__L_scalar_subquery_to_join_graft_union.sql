@@ -1,0 +1,3 @@
+-- composition of rule kernels L:push_down_filter x L:scalar_subquery_to_join (datafusion), template graft_union
+SELECT a1.c5 AS c0, 10.0::float8 AS c1 FROM (SELECT * FROM t3 UNION ALL SELECT * FROM t3 WHERE (SELECT count(*) FROM (WITH cte1 AS (SELECT 500 AS c0) SELECT FALSE AS c0, a1.c1 AS c1 FROM tp AS a1 WHERE CASE WHEN ((SELECT MAX ('1999-12-31'::date) FROM cte1 AS a2 WHERE LEAST ((a1.c0 IS NULL), TRUE)) IN (SELECT '1970-01-01'::date AS c0)) THEN FALSE ELSE TRUE END) AS kb) < 0) AS a1 WHERE a1.c1;
+-- pgfuzz:check kernel:graft_union SELECT a1.c5 AS c0, 10.0::float8 AS c1 FROM t3 AS a1 WHERE a1.c1

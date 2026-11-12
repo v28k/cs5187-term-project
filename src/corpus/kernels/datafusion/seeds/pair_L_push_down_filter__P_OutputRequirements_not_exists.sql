@@ -1,0 +1,3 @@
+-- composition of rule kernels L:push_down_filter x P:OutputRequirements (datafusion), template not_exists
+SELECT count(*) FROM (SELECT 18 AS c0, FALSE AS c1) AS ka WHERE NOT EXISTS (SELECT 1 FROM (SELECT 6 AS c0, COALESCE (CASE WHEN TRUE THEN ARRAY[(SELECT MAX (a2.c0) FROM t0 AS a2 WHERE (29 >= a2.c0))] ELSE make_array(1, 2, 3) END, make_array(NULL, 1)) AS c1 FROM tl AS a1) AS kb);
+-- pgfuzz:check kernel:not_exists SELECT CASE WHEN (SELECT count(*) FROM (SELECT 6 AS c0, COALESCE (CASE WHEN TRUE THEN ARRAY[(SELECT MAX (a2.c0) FROM t0 AS a2 WHERE (29 >= a2.c0))] ELSE make_array(1, 2, 3) END, make_array(NULL, 1)) AS c1 FROM tl AS a1) AS kb) = 0 THEN (SELECT count(*) FROM (SELECT 18 AS c0, FALSE AS c1) AS ka) ELSE 0 END

@@ -1,0 +1,3 @@
+-- composition of rule kernels L:replace_distinct_aggregate x P:EnsureRequirements (datafusion), template exists
+SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT ' '::text AS c0, 3 AS c1 ORDER BY 1) AS ka WHERE EXISTS (SELECT 1 FROM (SELECT 10 AS c0, 100 AS c1 UNION SELECT 2 AS c0, 0 AS c1) AS kb);
+-- pgfuzz:check kernel:exists SELECT CASE WHEN (SELECT count(*) FROM (SELECT 10 AS c0, 100 AS c1 UNION SELECT 2 AS c0, 0 AS c1) AS kb) > 0 THEN (SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT ' '::text AS c0, 3 AS c1 ORDER BY 1) AS ka) ELSE 0 END

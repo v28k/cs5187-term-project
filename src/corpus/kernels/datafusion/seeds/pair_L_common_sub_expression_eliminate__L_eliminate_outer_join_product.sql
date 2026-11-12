@@ -1,0 +1,3 @@
+-- composition of rule kernels L:common_sub_expression_eliminate x L:eliminate_outer_join (datafusion), template product
+SELECT count(*) FROM (SELECT a2.c5 AS c0, a2.c2 AS c1 FROM (ti AS a1 LEFT JOIN t3 AS a2 ON (a1.c1 = a2.c5)) WHERE a2.c1) AS ka CROSS JOIN (SELECT 16 AS c0, COALESCE (CASE WHEN TRUE THEN ARRAY[(SELECT MIN (0) FROM t2 AS a2)] ELSE ARRAY[1] END, make_array(NULL, 1)) AS c1 FROM ti AS a1) AS kb;
+-- pgfuzz:check kernel:product SELECT (SELECT count(*) FROM (SELECT a2.c5 AS c0, a2.c2 AS c1 FROM (ti AS a1 LEFT JOIN t3 AS a2 ON (a1.c1 = a2.c5)) WHERE a2.c1) AS ka) * (SELECT count(*) FROM (SELECT 16 AS c0, COALESCE (CASE WHEN TRUE THEN ARRAY[(SELECT MIN (0) FROM t2 AS a2)] ELSE ARRAY[1] END, make_array(NULL, 1)) AS c1 FROM ti AS a1) AS kb)

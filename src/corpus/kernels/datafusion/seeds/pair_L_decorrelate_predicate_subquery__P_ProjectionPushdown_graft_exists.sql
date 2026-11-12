@@ -1,0 +1,3 @@
+-- composition of rule kernels L:decorrelate_predicate_subquery x P:ProjectionPushdown (datafusion), template graft_exists
+SELECT make_array(NULL, 1) AS c0, '-3 hours'::interval AS c1 FROM (SELECT * FROM t2 WHERE EXISTS (SELECT 1 FROM (SELECT 38 AS c0, ARRAY[1] AS c1 FROM v0 AS a1) AS kb) OR NOT EXISTS (SELECT 1 FROM (SELECT 38 AS c0, ARRAY[1] AS c1 FROM v0 AS a1) AS kb)) AS a1 GROUP BY a1.c2 HAVING (ARRAY[1, 2, 3] IN (SELECT ARRAY[1] AS c0));
+-- pgfuzz:check kernel:graft_exists SELECT make_array(NULL, 1) AS c0, '-3 hours'::interval AS c1 FROM t2 AS a1 GROUP BY a1.c2 HAVING (ARRAY[1, 2, 3] IN (SELECT ARRAY[1] AS c0))

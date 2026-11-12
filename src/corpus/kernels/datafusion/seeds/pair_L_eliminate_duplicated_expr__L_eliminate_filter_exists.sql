@@ -1,0 +1,3 @@
+-- composition of rule kernels L:eliminate_duplicated_expr x L:eliminate_filter (datafusion), template exists
+SELECT count(*) FROM (SELECT '0'::text AS c0, 10::bigint AS c1, 2 AS c2 FROM tl AS a1 GROUP BY a1.c1, a1.c0 HAVING TRUE) AS ka WHERE EXISTS (SELECT 1 FROM (SELECT 'c4ca4238a0b923820dcc509a6f75849b'::text AS c0 ORDER BY 1, 1) AS kb);
+-- pgfuzz:check kernel:exists SELECT CASE WHEN (SELECT count(*) FROM (SELECT 'c4ca4238a0b923820dcc509a6f75849b'::text AS c0 ORDER BY 1, 1) AS kb) > 0 THEN (SELECT count(*) FROM (SELECT '0'::text AS c0, 10::bigint AS c1, 2 AS c2 FROM tl AS a1 GROUP BY a1.c1, a1.c0 HAVING TRUE) AS ka) ELSE 0 END

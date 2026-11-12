@@ -1,0 +1,3 @@
+-- composition of rule kernels P:OutputRequirements x P:ProjectionPushdown (datafusion), template union
+SELECT count(*) FROM (SELECT 1 AS k FROM (SELECT '2000-01-01'::date AS c0 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c3, a1.c0 UNION ALL (SELECT '2024-01-01'::date AS c0 UNION SELECT '2000-01-01'::date AS c0)) AS ka UNION ALL SELECT 2 AS k FROM (SELECT 2 AS c0) AS kb) AS u;
+-- pgfuzz:check kernel:union SELECT (SELECT count(*) FROM (SELECT '2000-01-01'::date AS c0 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c3, a1.c0 UNION ALL (SELECT '2024-01-01'::date AS c0 UNION SELECT '2000-01-01'::date AS c0)) AS ka) + (SELECT count(*) FROM (SELECT 2 AS c0) AS kb)

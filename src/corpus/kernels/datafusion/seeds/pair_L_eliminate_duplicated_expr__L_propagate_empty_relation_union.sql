@@ -1,0 +1,3 @@
+-- composition of rule kernels L:eliminate_duplicated_expr x L:propagate_empty_relation (datafusion), template union
+SELECT count(*) FROM (SELECT 1 AS k FROM (SELECT 2 AS c0 FROM t3 AS a1 WHERE FALSE GROUP BY GROUPING SETS ((a1.c0), ()) UNION SELECT 10 AS c0) AS ka UNION ALL SELECT 2 AS k FROM (SELECT 'c4ca4238a0b923820dcc509a6f75849b'::text AS c0 ORDER BY 1, 1) AS kb) AS u;
+-- pgfuzz:check kernel:union SELECT (SELECT count(*) FROM (SELECT 2 AS c0 FROM t3 AS a1 WHERE FALSE GROUP BY GROUPING SETS ((a1.c0), ()) UNION SELECT 10 AS c0) AS ka) + (SELECT count(*) FROM (SELECT 'c4ca4238a0b923820dcc509a6f75849b'::text AS c0 ORDER BY 1, 1) AS kb)

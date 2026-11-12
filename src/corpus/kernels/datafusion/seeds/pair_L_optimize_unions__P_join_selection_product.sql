@@ -1,0 +1,3 @@
+-- composition of rule kernels L:optimize_unions x P:join_selection (datafusion), template product
+SELECT count(*) FROM (SELECT 6 AS c0, make_array(NULL, 1) AS c1 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c0 = a2.c0))) AS ka CROSS JOIN (SELECT '2000-01-01'::date AS c0 UNION ALL (SELECT '2024-02-29'::date AS c0 UNION ALL (SELECT '1999-12-31'::date AS c0 UNION SELECT '2024-02-29'::date AS c0))) AS kb;
+-- pgfuzz:check kernel:product SELECT (SELECT count(*) FROM (SELECT 6 AS c0, make_array(NULL, 1) AS c1 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c0 = a2.c0))) AS ka) * (SELECT count(*) FROM (SELECT '2000-01-01'::date AS c0 UNION ALL (SELECT '2024-02-29'::date AS c0 UNION ALL (SELECT '1999-12-31'::date AS c0 UNION SELECT '2024-02-29'::date AS c0))) AS kb)

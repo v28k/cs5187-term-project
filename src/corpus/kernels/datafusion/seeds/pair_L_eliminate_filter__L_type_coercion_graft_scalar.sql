@@ -1,0 +1,3 @@
+-- composition of rule kernels L:eliminate_filter x L:type_coercion (datafusion), template graft_scalar
+SELECT '2024-12-31'::date AS c0 UNION ALL (SELECT '2024-01-01'::date AS c0 FROM (SELECT * FROM t4 WHERE (SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT make_array(NULL, 1) AS c0, 0.0::numeric AS c1 UNION SELECT ARRAY[1] AS c0, 0.5::numeric AS c1) AS kb) >= 0) AS a1 WHERE TRUE UNION ALL (SELECT '2024-02-29'::date AS c0 UNION SELECT '1999-12-31'::date AS c0));
+-- pgfuzz:check kernel:graft_scalar SELECT '2024-12-31'::date AS c0 UNION ALL (SELECT '2024-01-01'::date AS c0 FROM t4 AS a1 WHERE TRUE UNION ALL (SELECT '2024-02-29'::date AS c0 UNION SELECT '1999-12-31'::date AS c0))

@@ -1,0 +1,3 @@
+-- composition of rule kernels L:optimize_projections x P:aggregate_statistics (datafusion), template graft_scalar
+SELECT a1.c5 AS c0, 10.0::float8 AS c1 FROM (SELECT * FROM t3 WHERE (SELECT count(*) FROM (SELECT '0'::text AS c0, 3 AS c1, GREATEST (1000::bigint, COALESCE (NULLIF (1000::bigint, (SELECT COUNT (*) FROM tl AS a2)), 1000::bigint)) AS c2, a1.c1 AS c3 FROM tp AS a1) AS kb) >= 0) AS a1;
+-- pgfuzz:check kernel:graft_scalar SELECT a1.c5 AS c0, 10.0::float8 AS c1 FROM t3 AS a1

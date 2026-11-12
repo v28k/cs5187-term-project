@@ -1,0 +1,3 @@
+-- composition of rule kernels L:scalar_subquery_to_join x P:OutputRequirements (datafusion), template exists
+SELECT count(*) FROM (SELECT 18 AS c0, FALSE AS c1) AS ka WHERE EXISTS (SELECT 1 FROM (SELECT a1.c0 AS c0 FROM tl AS a1 WHERE (SELECT BOOL_AND (TRUE) FROM ti AS a2 WHERE (NOT (NULL::boolean <= (16 IS DISTINCT FROM a1.c0)))) UNION SELECT 100 AS c0) AS kb);
+-- pgfuzz:check kernel:exists SELECT CASE WHEN (SELECT count(*) FROM (SELECT a1.c0 AS c0 FROM tl AS a1 WHERE (SELECT BOOL_AND (TRUE) FROM ti AS a2 WHERE (NOT (NULL::boolean <= (16 IS DISTINCT FROM a1.c0)))) UNION SELECT 100 AS c0) AS kb) > 0 THEN (SELECT count(*) FROM (SELECT 18 AS c0, FALSE AS c1) AS ka) ELSE 0 END

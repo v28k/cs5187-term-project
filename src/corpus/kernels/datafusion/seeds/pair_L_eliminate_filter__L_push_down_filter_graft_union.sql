@@ -1,0 +1,3 @@
+-- composition of rule kernels L:eliminate_filter x L:push_down_filter (datafusion), template graft_union
+SELECT 6 AS c0, COALESCE (CASE WHEN TRUE THEN ARRAY[(SELECT MAX (a2.c0) FROM t0 AS a2 WHERE (29 >= a2.c0))] ELSE make_array(1, 2, 3) END, make_array(NULL, 1)) AS c1 FROM (SELECT * FROM tl UNION ALL SELECT * FROM tl WHERE (SELECT count(*) FROM (SELECT '0'::text AS c0, 10::bigint AS c1, 2 AS c2 FROM tl AS a1 GROUP BY a1.c1, a1.c0 HAVING TRUE) AS kb) < 0) AS a1;
+-- pgfuzz:check kernel:graft_union SELECT 6 AS c0, COALESCE (CASE WHEN TRUE THEN ARRAY[(SELECT MAX (a2.c0) FROM t0 AS a2 WHERE (29 >= a2.c0))] ELSE make_array(1, 2, 3) END, make_array(NULL, 1)) AS c1 FROM tl AS a1

@@ -1,0 +1,3 @@
+-- composition of rule kernels L:eliminate_duplicated_expr x L:replace_distinct_aggregate (datafusion), template cte_twice
+WITH ka AS (SELECT 'c4ca4238a0b923820dcc509a6f75849b'::text AS c0 ORDER BY 1, 1), kb AS (SELECT '2000-01-01'::date AS c0, 'NaN'::text AS c1 UNION SELECT '1999-12-31'::date AS c0, 'abc'::text AS c1) SELECT (SELECT count(*) FROM ka) + (SELECT count(*) FROM kb) + (SELECT count(*) FROM ka);
+-- pgfuzz:check kernel:cte_twice SELECT 2 * (SELECT count(*) FROM (SELECT 'c4ca4238a0b923820dcc509a6f75849b'::text AS c0 ORDER BY 1, 1) AS ka) + (SELECT count(*) FROM (SELECT '2000-01-01'::date AS c0, 'NaN'::text AS c1 UNION SELECT '1999-12-31'::date AS c0, 'abc'::text AS c1) AS kb)

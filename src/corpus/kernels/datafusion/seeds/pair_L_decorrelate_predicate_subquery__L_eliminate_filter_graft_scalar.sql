@@ -1,0 +1,3 @@
+-- composition of rule kernels L:decorrelate_predicate_subquery x L:eliminate_filter (datafusion), template graft_scalar
+SELECT '0'::text AS c0, 10::bigint AS c1, 2 AS c2 FROM (SELECT * FROM tl WHERE (SELECT count(*) FROM (WITH cte1 AS (SELECT DISTINCT (-1) AS c0, (1.0 / 3)::float8 AS c1 FROM t2 AS a1 WHERE (NOT EXISTS (SELECT 7 AS c0, 1.0::float8 AS c1))) SELECT 1.5::numeric AS c0, FALSE AS c1 FROM t2 AS a2 WHERE (('2024-12-31'::date = '2000-01-01'::date) OR ((ABS (3))::bigint >= LEAST (10::bigint, (SELECT COUNT (*) FROM cte1 AS a3))))) AS kb) >= 0) AS a1 GROUP BY a1.c1, a1.c0 HAVING TRUE;
+-- pgfuzz:check kernel:graft_scalar SELECT '0'::text AS c0, 10::bigint AS c1, 2 AS c2 FROM tl AS a1 GROUP BY a1.c1, a1.c0 HAVING TRUE

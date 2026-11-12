@@ -1,0 +1,3 @@
+-- composition of rule kernels L:optimize_unions x P:aggregate_statistics (datafusion), template scalar_filter
+SELECT count(*) FROM (SELECT '%'::text AS c0 INTERSECT (SELECT 'a'::text AS c0 UNION (SELECT '[1,10)'::text AS c0 UNION SELECT 'x%'::text AS c0))) AS ka WHERE (SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT '_'::text AS c0, (SELECT COUNT (*) FROM t1 AS a2) AS c1, 0::bigint AS c2 FROM t2 AS a1 INTERSECT SELECT 'a'::text AS c0, 1000::bigint AS c1, 100::bigint AS c2) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT '%'::text AS c0 INTERSECT (SELECT 'a'::text AS c0 UNION (SELECT '[1,10)'::text AS c0 UNION SELECT 'x%'::text AS c0))) AS ka

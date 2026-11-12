@@ -1,0 +1,886 @@
+{
+ "engine": "datafusion",
+ "version": "55.0.0",
+ "rules": [
+  "L:resolve_grouping_function",
+  "L:type_coercion",
+  "L:resolve_lambda_variables",
+  "L:rewrite_set_comparison",
+  "L:optimize_unions",
+  "L:unions_to_filter",
+  "L:simplify_expressions",
+  "L:replace_distinct_aggregate",
+  "L:eliminate_join",
+  "L:decorrelate_predicate_subquery",
+  "L:scalar_subquery_to_join",
+  "L:decorrelate_lateral_join",
+  "L:extract_equijoin_predicate",
+  "L:eliminate_duplicated_expr",
+  "L:eliminate_filter",
+  "L:eliminate_cross_join",
+  "L:eliminate_limit",
+  "L:propagate_empty_relation",
+  "L:filter_null_join_keys",
+  "L:eliminate_outer_join",
+  "L:push_down_limit",
+  "L:push_down_filter",
+  "L:single_distinct_aggregation_to_group_by",
+  "L:eliminate_group_by_constant",
+  "L:common_sub_expression_eliminate",
+  "L:extract_leaf_expressions",
+  "L:push_down_leaf_projections",
+  "L:optimize_projections",
+  "P:OutputRequirements",
+  "P:aggregate_statistics",
+  "P:join_selection",
+  "P:LimitedDistinctAggregation",
+  "P:FilterPushdown",
+  "P:WindowTopN",
+  "P:EnsureRequirements",
+  "P:CombinePartialFinalAggregate",
+  "P:OptimizeAggregateOrder",
+  "P:ProjectionPushdown",
+  "P:LimitAggregation",
+  "P:LimitPushPastWindows",
+  "P:HashJoinBuffering",
+  "P:LimitPushdown",
+  "P:TopKRepartition",
+  "P:PushdownSort",
+  "P:EnsureCooperative",
+  "P:FilterPushdown(Post)",
+  "P:SanityCheckPlan"
+ ],
+ "probed_queries": 342,
+ "fires": {
+  "L:Invalid": 1,
+  "L:Optimizer": 46,
+  "L:common_sub_expression_eliminate": 30,
+  "L:decorrelate_predicate_subquery": 13,
+  "L:eliminate_cross_join": 10,
+  "L:eliminate_duplicated_expr": 25,
+  "L:eliminate_filter": 147,
+  "L:eliminate_join": 17,
+  "L:eliminate_outer_join": 11,
+  "L:extract_equijoin_predicate": 72,
+  "L:optimize_projections": 235,
+  "L:optimize_unions": 7,
+  "L:propagate_empty_relation": 98,
+  "L:push_down_filter": 129,
+  "L:replace_distinct_aggregate": 69,
+  "L:scalar_subquery_to_join": 3,
+  "L:simplify_expressions": 279,
+  "L:type_coercion": 256,
+  "P:CombinePartialFinalAggregate": 51,
+  "P:EnsureRequirements": 190,
+  "P:FilterPushdown": 1,
+  "P:OutputRequirements": 260,
+  "P:ProjectionPushdown": 120,
+  "P:aggregate_statistics": 17,
+  "P:join_selection": 72
+ },
+ "never_fired": [
+  "L:decorrelate_lateral_join",
+  "L:eliminate_group_by_constant",
+  "L:eliminate_limit",
+  "L:extract_leaf_expressions",
+  "L:filter_null_join_keys",
+  "L:push_down_leaf_projections",
+  "L:push_down_limit",
+  "L:resolve_grouping_function",
+  "L:resolve_lambda_variables",
+  "L:rewrite_set_comparison",
+  "L:single_distinct_aggregation_to_group_by",
+  "L:unions_to_filter",
+  "P:EnsureCooperative",
+  "P:FilterPushdown(Post)",
+  "P:HashJoinBuffering",
+  "P:LimitAggregation",
+  "P:LimitPushPastWindows",
+  "P:LimitPushdown",
+  "P:LimitedDistinctAggregation",
+  "P:OptimizeAggregateOrder",
+  "P:PushdownSort",
+  "P:SanityCheckPlan",
+  "P:TopKRepartition",
+  "P:WindowTopN"
+ ],
+ "kernels": {
+  "L:optimize_projections": [
+   {
+    "rule": "L:optimize_projections",
+    "setup": [],
+    "query": "WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT a1.c1 AS c0, 100.0::float8 AS c1 FROM t0 AS a1, generate_series (10, 1) AS a2 (c0) GROUP BY GROUPING SETS ((a1.c1), ())",
+    "tokens": 71,
+    "tokens_before": 140,
+    "fired": [
+     "L:optimize_projections",
+     "L:simplify_expressions",
+     "P:EnsureRequirements",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "L:optimize_projections",
+    "setup": [],
+    "query": "SELECT a1.c5 AS c0, 10.0::float8 AS c1 FROM t3 AS a1",
+    "tokens": 16,
+    "tokens_before": 62,
+    "fired": [
+     "L:optimize_projections",
+     "L:simplify_expressions",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "L:simplify_expressions": [
+   {
+    "rule": "L:simplify_expressions",
+    "setup": [],
+    "query": "SELECT TRUE AS c0, 1.5::numeric AS c1",
+    "tokens": 10,
+    "tokens_before": 140,
+    "fired": [
+     "L:simplify_expressions",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "L:simplify_expressions",
+    "setup": [],
+    "query": "SELECT '_'::text AS c0, '2000-01-01'::date AS c1",
+    "tokens": 12,
+    "tokens_before": 62,
+    "fired": [
+     "L:simplify_expressions",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "L:type_coercion": [
+   {
+    "rule": "L:type_coercion",
+    "setup": [],
+    "query": "SELECT 10::bigint AS c0, FALSE AS c1, make_array('a', 'b') AS c2, make_array(NULL, 1) AS c3",
+    "tokens": 28,
+    "tokens_before": 140,
+    "fired": [
+     "L:simplify_expressions",
+     "L:type_coercion",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "L:type_coercion",
+    "setup": [],
+    "query": "WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT make_array(NULL, 1) AS c0, 0.0::numeric AS c1 UNION SELECT ARRAY[1] AS c0, 0.5::numeric AS c1",
+    "tokens": 58,
+    "tokens_before": 229,
+    "fired": [
+     "L:replace_distinct_aggregate",
+     "L:simplify_expressions",
+     "L:type_coercion",
+     "P:EnsureRequirements",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "P:EnsureRequirements": [
+   {
+    "rule": "P:EnsureRequirements",
+    "setup": [],
+    "query": "WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT ' '::text AS c0, 3 AS c1 ORDER BY 1",
+    "tokens": 42,
+    "tokens_before": 140,
+    "fired": [
+     "L:simplify_expressions",
+     "P:EnsureRequirements",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "P:EnsureRequirements",
+    "setup": [],
+    "query": "SELECT LEAST (a1.c5, a1.c5) AS c0, 10.0::float8 AS c1 FROM t3 AS a1 WHERE a1.c1",
+    "tokens": 27,
+    "tokens_before": 62,
+    "fired": [
+     "L:optimize_projections",
+     "L:push_down_filter",
+     "L:simplify_expressions",
+     "P:EnsureRequirements",
+     "P:OutputRequirements",
+     "P:ProjectionPushdown"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "P:OutputRequirements": [
+   {
+    "rule": "P:OutputRequirements",
+    "setup": [],
+    "query": "SELECT 2 AS c0",
+    "tokens": 4,
+    "tokens_before": 140,
+    "fired": [
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "P:OutputRequirements",
+    "setup": [],
+    "query": "SELECT 18 AS c0, FALSE AS c1",
+    "tokens": 8,
+    "tokens_before": 62,
+    "fired": [
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "L:push_down_filter": [
+   {
+    "rule": "L:push_down_filter",
+    "setup": [],
+    "query": "SELECT a1.c5 AS c0, 10.0::float8 AS c1 FROM t3 AS a1 WHERE a1.c1",
+    "tokens": 20,
+    "tokens_before": 62,
+    "fired": [
+     "L:optimize_projections",
+     "L:push_down_filter",
+     "L:simplify_expressions",
+     "P:OutputRequirements",
+     "P:ProjectionPushdown"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "L:push_down_filter",
+    "setup": [],
+    "query": "SELECT 6 AS c0, COALESCE (CASE WHEN TRUE THEN ARRAY[(SELECT MAX (a2.c0) FROM t0 AS a2 WHERE (29 >= a2.c0))] ELSE make_array(1, 2, 3) END, make_array(NULL, 1)) AS c1 FROM tl AS a1",
+    "tokens": 59,
+    "tokens_before": 194,
+    "fired": [
+     "L:common_sub_expression_eliminate",
+     "L:optimize_projections",
+     "L:push_down_filter",
+     "L:simplify_expressions",
+     "L:type_coercion",
+     "P:EnsureRequirements",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "L:common_sub_expression_eliminate": [
+   {
+    "rule": "L:common_sub_expression_eliminate",
+    "setup": [],
+    "query": "SELECT 16 AS c0, COALESCE (CASE WHEN TRUE THEN ARRAY[(SELECT MIN (0) FROM t2 AS a2)] ELSE ARRAY[1] END, make_array(NULL, 1)) AS c1 FROM ti AS a1",
+    "tokens": 45,
+    "tokens_before": 194,
+    "fired": [
+     "L:common_sub_expression_eliminate",
+     "L:optimize_projections",
+     "L:simplify_expressions",
+     "L:type_coercion",
+     "P:CombinePartialFinalAggregate",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "L:common_sub_expression_eliminate",
+    "setup": [],
+    "query": "SELECT CASE a1.c4 WHEN make_array(1, 2, 3, 4) THEN 5e-324::float8 WHEN a1.c4 THEN 0.0::float8 ELSE 0.5::float8 END AS c0 FROM (t3 AS a1 INNER JOIN ti AS a2 ON (a1.c0 = a2.c0)) UNION ALL SELECT 100.0::float8 AS c0",
+    "tokens": 64,
+    "tokens_before": 140,
+    "fired": [
+     "L:common_sub_expression_eliminate",
+     "L:extract_equijoin_predicate",
+     "L:optimize_projections",
+     "L:simplify_expressions",
+     "L:type_coercion",
+     "P:EnsureRequirements",
+     "P:OutputRequirements",
+     "P:ProjectionPushdown",
+     "P:join_selection"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "L:extract_equijoin_predicate": [
+   {
+    "rule": "L:extract_equijoin_predicate",
+    "setup": [],
+    "query": "SELECT 3 AS c0, ARRAY[1] AS c1 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c3 = a2.c3))",
+    "tokens": 31,
+    "tokens_before": 194,
+    "fired": [
+     "L:extract_equijoin_predicate",
+     "L:optimize_projections",
+     "L:simplify_expressions",
+     "P:OutputRequirements",
+     "P:join_selection"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "L:extract_equijoin_predicate",
+    "setup": [],
+    "query": "SELECT '2000-01-01'::date AS c0 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a1.c0, a2.c0 UNION ALL (SELECT '2024-02-29'::date AS c0 UNION SELECT '1999-12-31'::date AS c0)",
+    "tokens": 52,
+    "tokens_before": 137,
+    "fired": [
+     "L:extract_equijoin_predicate",
+     "L:optimize_projections",
+     "L:replace_distinct_aggregate",
+     "L:simplify_expressions",
+     "P:EnsureRequirements",
+     "P:OutputRequirements",
+     "P:join_selection"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "P:ProjectionPushdown": [
+   {
+    "rule": "P:ProjectionPushdown",
+    "setup": [],
+    "query": "SELECT 38 AS c0, ARRAY[1] AS c1 FROM v0 AS a1",
+    "tokens": 15,
+    "tokens_before": 194,
+    "fired": [
+     "L:optimize_projections",
+     "L:simplify_expressions",
+     "P:EnsureRequirements",
+     "P:OutputRequirements",
+     "P:ProjectionPushdown"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "P:ProjectionPushdown",
+    "setup": [],
+    "query": "SELECT '2000-01-01'::date AS c0 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c3, a1.c0 UNION ALL (SELECT '2024-01-01'::date AS c0 UNION SELECT '2000-01-01'::date AS c0)",
+    "tokens": 52,
+    "tokens_before": 137,
+    "fired": [
+     "L:extract_equijoin_predicate",
+     "L:optimize_projections",
+     "L:replace_distinct_aggregate",
+     "L:simplify_expressions",
+     "P:EnsureRequirements",
+     "P:OutputRequirements",
+     "P:ProjectionPushdown",
+     "P:join_selection"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "P:join_selection": [
+   {
+    "rule": "P:join_selection",
+    "setup": [],
+    "query": "SELECT 6 AS c0, make_array(NULL, 1) AS c1 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c0 = a2.c0))",
+    "tokens": 33,
+    "tokens_before": 194,
+    "fired": [
+     "L:extract_equijoin_predicate",
+     "L:optimize_projections",
+     "L:simplify_expressions",
+     "L:type_coercion",
+     "P:OutputRequirements",
+     "P:join_selection"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "P:join_selection",
+    "setup": [],
+    "query": "SELECT '2000-01-01'::date AS c0 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c0 = a2.c0)) GROUP BY a2.c0, a2.c3 UNION ALL (SELECT '2024-01-01'::date AS c0 UNION SELECT '2024-01-01'::date AS c0)",
+    "tokens": 52,
+    "tokens_before": 137,
+    "fired": [
+     "L:eliminate_join",
+     "L:extract_equijoin_predicate",
+     "L:optimize_projections",
+     "L:replace_distinct_aggregate",
+     "L:simplify_expressions",
+     "P:EnsureRequirements",
+     "P:OutputRequirements",
+     "P:join_selection"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "L:eliminate_filter": [
+   {
+    "rule": "L:eliminate_filter",
+    "setup": [],
+    "query": "SELECT '2024-12-31'::date AS c0 UNION ALL (SELECT '2024-01-01'::date AS c0 FROM t4 AS a1 WHERE TRUE UNION ALL (SELECT '2024-02-29'::date AS c0 UNION SELECT '1999-12-31'::date AS c0))",
+    "tokens": 39,
+    "tokens_before": 137,
+    "fired": [
+     "L:eliminate_filter",
+     "L:optimize_projections",
+     "L:optimize_unions",
+     "L:replace_distinct_aggregate",
+     "L:simplify_expressions",
+     "P:EnsureRequirements",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "L:eliminate_filter",
+    "setup": [],
+    "query": "SELECT '0'::text AS c0, 10::bigint AS c1, 2 AS c2 FROM tl AS a1 GROUP BY a1.c1, a1.c0 HAVING TRUE",
+    "tokens": 31,
+    "tokens_before": 367,
+    "fired": [
+     "L:eliminate_filter",
+     "L:optimize_projections",
+     "L:simplify_expressions",
+     "P:EnsureRequirements",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "L:optimize_unions": [
+   {
+    "rule": "L:optimize_unions",
+    "setup": [],
+    "query": "SELECT '2000-01-01'::date AS c0 UNION ALL (SELECT '2024-02-29'::date AS c0 UNION ALL (SELECT '1999-12-31'::date AS c0 UNION SELECT '2024-02-29'::date AS c0))",
+    "tokens": 33,
+    "tokens_before": 137,
+    "fired": [
+     "L:optimize_unions",
+     "L:replace_distinct_aggregate",
+     "L:simplify_expressions",
+     "P:EnsureRequirements",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "L:optimize_unions",
+    "setup": [],
+    "query": "SELECT '%'::text AS c0 INTERSECT (SELECT 'a'::text AS c0 UNION (SELECT '[1,10)'::text AS c0 UNION SELECT 'x%'::text AS c0))",
+    "tokens": 31,
+    "tokens_before": 176,
+    "fired": [
+     "L:optimize_unions",
+     "L:replace_distinct_aggregate",
+     "L:simplify_expressions",
+     "P:CombinePartialFinalAggregate",
+     "P:EnsureRequirements",
+     "P:OutputRequirements",
+     "P:join_selection"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "L:replace_distinct_aggregate": [
+   {
+    "rule": "L:replace_distinct_aggregate",
+    "setup": [],
+    "query": "SELECT 10 AS c0, 100 AS c1 UNION SELECT 2 AS c0, 0 AS c1",
+    "tokens": 17,
+    "tokens_before": 137,
+    "fired": [
+     "L:replace_distinct_aggregate",
+     "P:EnsureRequirements",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "L:replace_distinct_aggregate",
+    "setup": [],
+    "query": "SELECT '2000-01-01'::date AS c0, 'NaN'::text AS c1 UNION SELECT '1999-12-31'::date AS c0, 'abc'::text AS c1",
+    "tokens": 25,
+    "tokens_before": 117,
+    "fired": [
+     "L:replace_distinct_aggregate",
+     "L:simplify_expressions",
+     "P:EnsureRequirements",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "L:eliminate_duplicated_expr": [
+   {
+    "rule": "L:eliminate_duplicated_expr",
+    "setup": [],
+    "query": "SELECT 10.0::float8 AS c0 UNION SELECT 0.5::float8 AS c0 ORDER BY 1, 1",
+    "tokens": 18,
+    "tokens_before": 140,
+    "fired": [
+     "L:eliminate_duplicated_expr",
+     "L:replace_distinct_aggregate",
+     "L:simplify_expressions",
+     "P:EnsureRequirements",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "L:eliminate_duplicated_expr",
+    "setup": [],
+    "query": "SELECT 'c4ca4238a0b923820dcc509a6f75849b'::text AS c0 ORDER BY 1, 1",
+    "tokens": 11,
+    "tokens_before": 61,
+    "fired": [
+     "L:eliminate_duplicated_expr",
+     "L:simplify_expressions",
+     "P:EnsureRequirements",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "P:CombinePartialFinalAggregate": [
+   {
+    "rule": "P:CombinePartialFinalAggregate",
+    "setup": [],
+    "query": "WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT MIN (CASE WHEN (SELECT BOOL_AND (FALSE) FROM tp AS a2) THEN a1.c0 ELSE a1.c0 END) AS c0, 5e-324::float8 AS c1 FROM t0 AS a1 GROUP BY CUBE (a1.c0)",
+    "tokens": 75,
+    "tokens_before": 283,
+    "fired": [
+     "L:optimize_projections",
+     "L:simplify_expressions",
+     "P:CombinePartialFinalAggregate",
+     "P:EnsureRequirements",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "P:CombinePartialFinalAggregate",
+    "setup": [],
+    "query": "SELECT ' '::text AS c0, 0.0::float8 AS c1, 'abc'::text AS c2 FROM tp AS a1 WHERE (('2000-01-01'::date BETWEEN '1970-01-01'::date AND '1970-01-01'::date) OR (EXTRACT (MICROSECONDS FROM (SELECT MIN ('2000-01-01 00:00:00+00'::timestamptz) FROM t3 AS a2)) IS NULL))",
+    "tokens": 61,
+    "tokens_before": 163,
+    "fired": [
+     "L:optimize_projections",
+     "L:push_down_filter",
+     "L:simplify_expressions",
+     "P:CombinePartialFinalAggregate",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "L:propagate_empty_relation": [
+   {
+    "rule": "L:propagate_empty_relation",
+    "setup": [],
+    "query": "SELECT 2 AS c0 FROM t3 AS a1 WHERE FALSE GROUP BY GROUPING SETS ((a1.c0), ()) UNION SELECT 10 AS c0",
+    "tokens": 29,
+    "tokens_before": 117,
+    "fired": [
+     "L:eliminate_filter",
+     "L:optimize_projections",
+     "L:propagate_empty_relation",
+     "L:replace_distinct_aggregate",
+     "P:EnsureRequirements",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "L:propagate_empty_relation",
+    "setup": [],
+    "query": "SELECT 'abc'::text AS c0 FROM t1 AS a1 WHERE FALSE",
+    "tokens": 12,
+    "tokens_before": 61,
+    "fired": [
+     "L:eliminate_filter",
+     "L:propagate_empty_relation",
+     "L:simplify_expressions",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "L:decorrelate_predicate_subquery": [
+   {
+    "rule": "L:decorrelate_predicate_subquery",
+    "setup": [],
+    "query": "SELECT make_array(NULL, 1) AS c0, '-3 hours'::interval AS c1 FROM t2 AS a1 GROUP BY a1.c2 HAVING (ARRAY[1, 2, 3] IN (SELECT ARRAY[1] AS c0))",
+    "tokens": 45,
+    "tokens_before": 197,
+    "fired": [
+     "L:decorrelate_predicate_subquery",
+     "L:eliminate_filter",
+     "L:optimize_projections",
+     "L:propagate_empty_relation",
+     "L:push_down_filter",
+     "L:simplify_expressions",
+     "L:type_coercion",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "L:decorrelate_predicate_subquery",
+    "setup": [],
+    "query": "WITH cte1 AS (SELECT DISTINCT (-1) AS c0, (1.0 / 3)::float8 AS c1 FROM t2 AS a1 WHERE (NOT EXISTS (SELECT 7 AS c0, 1.0::float8 AS c1))) SELECT 1.5::numeric AS c0, FALSE AS c1 FROM t2 AS a2 WHERE (('2024-12-31'::date = '2000-01-01'::date) OR ((ABS (3))::bigint >= LEAST (10::bigint, (SELECT COUNT (*) FROM cte1 AS a3))))",
+    "tokens": 100,
+    "tokens_before": 243,
+    "fired": [
+     "L:decorrelate_predicate_subquery",
+     "L:eliminate_filter",
+     "L:optimize_projections",
+     "L:push_down_filter",
+     "L:replace_distinct_aggregate",
+     "L:simplify_expressions",
+     "L:type_coercion",
+     "P:EnsureRequirements",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "L:eliminate_join": [
+   {
+    "rule": "L:eliminate_join",
+    "setup": [],
+    "query": "WITH cte1 AS (SELECT DISTINCT a2.c0 AS c0, (1.0 / 3)::float8 AS c1 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c3 = a2.c3))) SELECT 1.5::numeric AS c0, TRUE AS c1 FROM t4 AS a3 WHERE (('2024-12-31'::date = '2000-01-01'::date) OR ((ABS (3))::bigint >= LEAST (10::bigint, (SELECT COUNT (*) FROM cte1 AS a4))))",
+    "tokens": 98,
+    "tokens_before": 243,
+    "fired": [
+     "L:eliminate_join",
+     "L:extract_equijoin_predicate",
+     "L:optimize_projections",
+     "L:push_down_filter",
+     "L:replace_distinct_aggregate",
+     "L:simplify_expressions",
+     "L:type_coercion",
+     "P:EnsureRequirements",
+     "P:OutputRequirements",
+     "P:ProjectionPushdown",
+     "P:join_selection"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "L:eliminate_join",
+    "setup": [],
+    "query": "WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT a2.c1 AS c0, a1.c1 AS c1 FROM (ti AS a1 JOIN (t2 AS a2 JOIN v0 AS a3 ON (a2.c0 = a3.n)) ON ((a1.c0 = a3.c0) AND FALSE))",
+    "tokens": 81,
+    "tokens_before": 217,
+    "fired": [
+     "L:eliminate_join",
+     "L:propagate_empty_relation",
+     "L:simplify_expressions",
+     "P:OutputRequirements"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "P:aggregate_statistics": [
+   {
+    "rule": "P:aggregate_statistics",
+    "setup": [],
+    "query": "SELECT '0'::text AS c0, 3 AS c1, GREATEST (1000::bigint, COALESCE (NULLIF (1000::bigint, (SELECT COUNT (*) FROM tl AS a2)), 1000::bigint)) AS c2, a1.c1 AS c3 FROM tp AS a1",
+    "tokens": 55,
+    "tokens_before": 238,
+    "fired": [
+     "L:common_sub_expression_eliminate",
+     "L:optimize_projections",
+     "L:simplify_expressions",
+     "P:OutputRequirements",
+     "P:ProjectionPushdown",
+     "P:aggregate_statistics"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "P:aggregate_statistics",
+    "setup": [],
+    "query": "WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT '_'::text AS c0, (SELECT COUNT (*) FROM t1 AS a2) AS c1, 0::bigint AS c2 FROM t2 AS a1 INTERSECT SELECT 'a'::text AS c0, 1000::bigint AS c1, 100::bigint AS c2",
+    "tokens": 78,
+    "tokens_before": 447,
+    "fired": [
+     "L:optimize_projections",
+     "L:replace_distinct_aggregate",
+     "L:simplify_expressions",
+     "P:EnsureRequirements",
+     "P:OutputRequirements",
+     "P:ProjectionPushdown",
+     "P:aggregate_statistics",
+     "P:join_selection"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "L:eliminate_cross_join": [
+   {
+    "rule": "L:eliminate_cross_join",
+    "setup": [],
+    "query": "SELECT 100 AS c0, 1.5::numeric AS c1, 5 AS c2, 0::bigint AS c3 FROM (ti AS a1 INNER JOIN (t4 AS a2 JOIN t4 AS a3 ON (a2.c0 = a3.c0)) ON ((a1.c0 = a3.c0) AND TRUE)) GROUP BY a1.c1",
+    "tokens": 66,
+    "tokens_before": 188,
+    "fired": [
+     "L:eliminate_cross_join",
+     "L:eliminate_join",
+     "L:extract_equijoin_predicate",
+     "L:optimize_projections",
+     "L:simplify_expressions",
+     "P:EnsureRequirements",
+     "P:OutputRequirements",
+     "P:ProjectionPushdown",
+     "P:join_selection"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "L:eliminate_cross_join",
+    "setup": [],
+    "query": "WITH cte1 AS (SELECT ARRAY['1'::text] AS c0, '2000-01-01 00:00:00+00'::timestamptz AS c1, a1.c0 AS c2 FROM tp AS a1, generate_series (10, 5) AS a2 (c0) WHERE (a2.c0 > a1.c0) GROUP BY ROLLUP (a1.c0)) SELECT '_'::text AS c0, 1000::bigint AS c1, 100::bigint AS c2 INTERSECT SELECT '[1,10)'::text AS c0, 0::bigint AS c1, (NULL::bigint + 10::bigint) AS c2 FROM cte1 AS a3 GROUP BY a3.c2",
+    "tokens": 112,
+    "tokens_before": 447,
+    "fired": [
+     "L:eliminate_cross_join",
+     "L:optimize_projections",
+     "L:push_down_filter",
+     "L:replace_distinct_aggregate",
+     "L:simplify_expressions",
+     "L:type_coercion",
+     "P:CombinePartialFinalAggregate",
+     "P:EnsureRequirements",
+     "P:OutputRequirements",
+     "P:ProjectionPushdown",
+     "P:join_selection"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "L:eliminate_outer_join": [
+   {
+    "rule": "L:eliminate_outer_join",
+    "setup": [],
+    "query": "WITH cte1 AS (SELECT DISTINCT ROUND ((42.5::numeric - NULL::numeric), 2) AS c0, a1.n AS c1, '_'::text AS c2 FROM (v0 AS a1 FULL JOIN t1 AS a2 ON (a1.c0 = a2.c0)) WHERE (FALSE <= (a2.c0 BETWEEN 2 AND 3))) SELECT a3.c0 AS c0, 'a'::text AS c1, (CASE WHEN FALSE THEN '7 days'::interval ELSE GREATEST ('7 days'::interval, (SELECT MIN ('1 day'::interval) FROM cte1 AS a4 WHERE TRUE)) END + '1 year 2 months 3 days 4 hours 5 minutes 6.789 seconds'::interval) AS c2 FROM generate_series (5, 10) AS a3 (c0)",
+    "tokens": 134,
+    "tokens_before": 341,
+    "fired": [
+     "L:eliminate_filter",
+     "L:eliminate_outer_join",
+     "L:extract_equijoin_predicate",
+     "L:optimize_projections",
+     "L:push_down_filter",
+     "L:replace_distinct_aggregate",
+     "L:simplify_expressions",
+     "L:type_coercion",
+     "P:EnsureRequirements",
+     "P:OutputRequirements",
+     "P:ProjectionPushdown",
+     "P:join_selection"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "L:eliminate_outer_join",
+    "setup": [],
+    "query": "SELECT a2.c5 AS c0, a2.c2 AS c1 FROM (ti AS a1 LEFT JOIN t3 AS a2 ON (a1.c1 = a2.c5)) WHERE a2.c1",
+    "tokens": 37,
+    "tokens_before": 104,
+    "fired": [
+     "L:eliminate_outer_join",
+     "L:extract_equijoin_predicate",
+     "L:optimize_projections",
+     "L:push_down_filter",
+     "P:OutputRequirements",
+     "P:ProjectionPushdown",
+     "P:join_selection"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "L:scalar_subquery_to_join": [
+   {
+    "rule": "L:scalar_subquery_to_join",
+    "setup": [],
+    "query": "SELECT a1.c0 AS c0 FROM tl AS a1 WHERE (SELECT BOOL_AND (TRUE) FROM ti AS a2 WHERE (NOT (NULL::boolean <= (16 IS DISTINCT FROM a1.c0)))) UNION SELECT 100 AS c0",
+    "tokens": 46,
+    "tokens_before": 177,
+    "fired": [
+     "L:eliminate_filter",
+     "L:eliminate_outer_join",
+     "L:optimize_projections",
+     "L:propagate_empty_relation",
+     "L:push_down_filter",
+     "L:replace_distinct_aggregate",
+     "L:scalar_subquery_to_join",
+     "L:simplify_expressions",
+     "L:type_coercion",
+     "P:CombinePartialFinalAggregate",
+     "P:EnsureRequirements",
+     "P:OutputRequirements",
+     "P:ProjectionPushdown",
+     "P:join_selection"
+    ],
+    "reduced_on_tree": true
+   },
+   {
+    "rule": "L:scalar_subquery_to_join",
+    "setup": [],
+    "query": "WITH cte1 AS (SELECT 500 AS c0) SELECT FALSE AS c0, a1.c1 AS c1 FROM tp AS a1 WHERE CASE WHEN ((SELECT MAX ('1999-12-31'::date) FROM cte1 AS a2 WHERE LEAST ((a1.c0 IS NULL), TRUE)) IN (SELECT '1970-01-01'::date AS c0)) THEN FALSE ELSE TRUE END",
+    "tokens": 68,
+    "tokens_before": 225,
+    "fired": [
+     "L:decorrelate_predicate_subquery",
+     "L:eliminate_filter",
+     "L:eliminate_outer_join",
+     "L:optimize_projections",
+     "L:propagate_empty_relation",
+     "L:push_down_filter",
+     "L:scalar_subquery_to_join",
+     "L:simplify_expressions",
+     "P:EnsureRequirements",
+     "P:OutputRequirements",
+     "P:ProjectionPushdown",
+     "P:aggregate_statistics",
+     "P:join_selection"
+    ],
+    "reduced_on_tree": true
+   }
+  ],
+  "P:FilterPushdown": [
+   {
+    "rule": "P:FilterPushdown",
+    "setup": [],
+    "query": "SELECT DISTINCT '0 days'::interval AS c0, make_array('a', 'b') AS c1, '1970-01-01'::date AS c2 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c3 = a2.c3)) WHERE COALESCE ((LENGTH ((SELECT STRING_AGG ('NaN'::text, ',' ORDER BY 'NaN'::text) FROM tp AS a3)) <> a2.c0), (a1.c0 IS DISTINCT FROM a2.c0))",
+    "tokens": 87,
+    "tokens_before": 314,
+    "fired": [
+     "L:common_sub_expression_eliminate",
+     "L:extract_equijoin_predicate",
+     "L:optimize_projections",
+     "L:push_down_filter",
+     "L:replace_distinct_aggregate",
+     "L:simplify_expressions",
+     "L:type_coercion",
+     "P:CombinePartialFinalAggregate",
+     "P:EnsureRequirements",
+     "P:FilterPushdown",
+     "P:OutputRequirements",
+     "P:ProjectionPushdown",
+     "P:join_selection"
+    ],
+    "reduced_on_tree": true
+   }
+  ]
+ }
+}
