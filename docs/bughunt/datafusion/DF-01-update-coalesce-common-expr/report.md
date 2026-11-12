@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **ready to file: issue + fix PR** (not filed) |
+| Status | **filed** 8 Nov 2026: issue [#27235](https://github.com/apache/datafusion/issues/27235), PR [#27236](https://github.com/apache/datafusion/pull/27236) (validated by a contributor) |
 | Target | Apache DataFusion (https://github.com/apache/datafusion) |
 | Kind | valid UPDATE / DELETE rejected with an internal schema error (an optimizer artefact leaks into DML planning) |
 | Affected | **`main` bc86321 (8 Nov 2026, 57.0.0-dev), `datafusion-cli` built from source**; datafusion-python 55.0.0 |
@@ -62,4 +62,4 @@ alias names, 2024); `UPDATE coalesce created:>2026-05-01` → nothing related. W
 ## Files
 
 `issue.md` (bug report form fields), `pr.md` (PR template sections), `fix.patch`, `tests.slt.diff` (the test part of
-the patch), `repro.sql`, `variants.sql`, `steps.md`.
+the patch), `repro.sql`, `variants.sql`.

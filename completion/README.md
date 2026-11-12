@@ -61,15 +61,3 @@ Generalized fuzzer (branch `generalized` of <https://github.com/v28k/cs5187-term
 | Turso | aggregate in `IN (SELECT ...)` next to a window function (misuse error or panic) | [#11796](https://github.com/tursodatabase/turso/issues/11796) / [#11797](https://github.com/tursodatabase/turso/pull/11797) | **open** (filed 13 Nov) |
 
 Also filed on 13 Nov: DataFusion DF-02 (scalar subquery inside `VALUES`), with a fix.
-
-Updated 12 Nov 2026: BUG #19802 fixed upstream (now seven fixed), DuckDB fix approved, BUG #19826 v4 sent.
-The paper, the final presentation, the short class talk and the complete project document were rebuilt
-with these states. `slides/class_talk.*` (the earlier 7-minute class talk) is kept as presented.
-
-## Steps only the team can do before 13 Nov 2026, 23:59 IST
-
-1. Each member reads the "Statement of Contributions" at the end of the paper and confirms it (it is signed with our three names).
-2. Upload [`paper_source.zip`](paper_source.zip) to Overleaf (New Project -> Upload Project) and share the project with the instructor.
-3. Publish `main` to the course repository <https://github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi>.
-4. Post on Teams: the Overleaf link, [`paper.pdf`](paper.pdf), the repository link and the reproduction command (`sudo bash scripts/reproduce.sh`).
-5. Book the final-presentation slot (Calendly).

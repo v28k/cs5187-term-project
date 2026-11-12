@@ -1,13 +1,12 @@
-# T-08: Turso, aggregate in `IN (SELECT ...)` together with a window function
+# T-08: issue and pull request as filed
 
-**Status:** filed on 13 Nov 2026: issue [#11796](https://github.com/tursodatabase/turso/issues/11796), PR [#11797](https://github.com/tursodatabase/turso/pull/11797). Validated on Turso `main` 38b7d9de1 (12 Nov 2026). Fix and
-regression test ready. Searched the Turso issues on 12 Nov 2026 for "misuse of aggregate" and
+**Status:** filed on 13 Nov 2026: issue [#11796](https://github.com/tursodatabase/turso/issues/11796), PR [#11797](https://github.com/tursodatabase/turso/pull/11797). Validated on Turso `main` 38b7d9de1 (12 Nov 2026). Before filing we searched the Turso issues on 12 Nov 2026 for "misuse of aggregate" and
 "aggregate called in scalar context": no report of this case.
 
 **Related, but not the same:** open PR tursodatabase/turso#11597 ("reject extension aggregates
 where no aggregate is computed"). It would turn the `median()` panic into the same wrong
 "misuse of aggregate" error that `max()` gives. Our query does compute an aggregate, so it
-must not be rejected at all. Mention it in the issue (text below already does).
+must not be rejected at all.
 
 **Found by:** the crash oracle (the worker process died with a Rust panic) in the 11 Nov hunt
 against pyturso 0.8.3. Failure `3308362ffef6`: a 1.7 kB generated query using

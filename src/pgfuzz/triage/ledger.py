@@ -75,7 +75,7 @@ def build(root: str | Path) -> dict[str, Any]:
             pid = rep.parent.name
             if pid in (filed or {}):
                 links = {k: v for k, v in filed[pid].items() if k != "state"}
-                status = "filed: " + ", ".join(f"[{k}]({v})" for k, v in links.items())
+                status = "filed" + (": " + ", ".join(f"[{k}]({v})" for k, v in links.items()) if links else "")
                 if filed[pid].get("state"):
                     status += f"; {filed[pid]['state']}"
             packages.append({"engine": eng, "id": pid, "title": title, "status": status})

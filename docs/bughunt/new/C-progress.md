@@ -26,7 +26,7 @@ through the GitHub mirror `MisterRaindrop/postgresql-github-mirror` (issues page
 
 | ID | File | One line | Confidence |
 |---|---|---|---|
-| C-01 | `C-01-dependencies-duplicate-expression-assert.md` (+ `.sql`, `.patch`) | Two WHERE clauses on the same extended-statistics expression (`(b + 1) = 2 AND (b + 1) IN (2, 3)`, or `(c IS TRUE) AND (c IS TRUE)`) fail an incorrect Assert in `dependencies_clauselist_selectivity()`; backend crash on every cassert build; master and 18.6 affected, code from PG 14 | **High**: 3/3 on master, 3/3 on 18.6 cassert, root cause in source, patch passes all 239 regression tests. Assertion-only (release builds fine). Not filed yet. |
+| C-01 | `C-01-dependencies-duplicate-expression-assert.md` (+ `.sql`, `.patch`) | Two WHERE clauses on the same extended-statistics expression (`(b + 1) = 2 AND (b + 1) IN (2, 3)`, or `(c IS TRUE) AND (c IS TRUE)`) fail an incorrect Assert in `dependencies_clauselist_selectivity()`; backend crash on every cassert build; master and 18.6 affected, code from PG 14 | **High**: 3/3 on master, 3/3 on 18.6 cassert, root cause in source, patch passes all 239 regression tests. Assertion-only (release builds fine). Filed with a patch; fixed upstream in b0392c26. |
 
 ## 3. Candidates
 

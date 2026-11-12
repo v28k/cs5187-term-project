@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **ready to file: issue + fix PR** (not filed) |
+| Status | **filed** 13 Nov 2026 (issue and fix PR on apache/datafusion) |
 | Target | Apache DataFusion (https://github.com/apache/datafusion) |
 | Kind | INTERNAL error on a valid query (DataFusion itself says "likely caused by a bug in DataFusion's code") |
 | Affected | **`main` bc86321 (8 Nov 2026, 57.0.0-dev), `datafusion-cli` built from source**; datafusion-python 55.0.0 (DataFusion 55, where physical scalar-subquery evaluation is new) |
@@ -56,4 +56,4 @@ none about VALUES. Web search → only the source file and PR #21240's review (d
 
 ## Files
 
-`issue.md`, `pr.md`, `fix.patch`, `tests.slt.diff`, `repro.sql`, `steps.md`.
+`issue.md`, `pr.md`, `fix.patch`, `tests.slt.diff`, `repro.sql`.

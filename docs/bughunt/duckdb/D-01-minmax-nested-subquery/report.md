@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **ready to file: issue + fix PR** (not filed) |
+| Status | **filed** 8 Nov 2026: issue [#28551](https://github.com/duckdb/duckdb/issues/28551), PR [#28552](https://github.com/duckdb/duckdb/pull/28552) (approved by a maintainer, auto-merge on) |
 | Target | DuckDB (https://github.com/duckdb/duckdb) |
 | Kind | valid query rejected with an internal-style error; **regression in 2.0.0** for LIST/STRUCT/ARRAY arguments |
 | Severity | medium: any `min`/`max`/`min(x, n)`/`max(x, n)` whose argument is a nested value computed with a subquery (scalar subquery, correlated subquery, `EXISTS` inside `CASE`) fails |
@@ -93,4 +93,3 @@ reproducer above. Known-bug entry: `src/known_bugs/duckdb.yaml` (`duckdb-D01`).
 - `fix.patch`: `git format-patch` of the fix + test against `main` d4eea3f208
 - `test_minmax_subquery_argument.test`: the test in the patch
 - `repro.sql`: all variants
-- `steps.md`: what to do, in order

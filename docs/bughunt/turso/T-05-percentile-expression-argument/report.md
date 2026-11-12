@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **ready to file: issue + fix PR** (not filed) |
+| Status | **filed** 8 Nov 2026: issue [#11594](https://github.com/tursodatabase/turso/issues/11594), PR [#11595](https://github.com/tursodatabase/turso/pull/11595) (in review) |
 | Target | Turso (https://github.com/tursodatabase/turso) |
 | Kind | wrong result (NULL instead of a value) and a bogus error; differential oracle Turso vs SQLite 3.54.1 |
 | Affected | pyturso 0.8.3; **`main` 9b71df9ab (7 Nov 2026), `tursodb` built from source on 8 Nov 2026** |
@@ -70,15 +70,14 @@ argument registers. `git log` of `main` to 9b71df9ab: no change to the External 
 ## Files
 
 `issue.md` (issue body; Turso has no issue template), `pr.md` (PR title and body in Turso's PR template),
-`fix.patch`, `percentile-expression-argument.sqltest` (the test in the patch), `repro.sql`, `steps.md`.
+`fix.patch`, `percentile-expression-argument.sqltest` (the test in the patch), `repro.sql`.
 
 ## Follow-up after review (8 Nov 2026)
 
 The PR (tursodatabase/turso#11595, head 79d092a) got one review finding: SQLite's percentile aggregates reject a
 non-NULL TEXT or BLOB value ("input to <name>() is not numeric"), Turso read numeric-looking text as a number. Fixed
 in one more commit, "core: reject non-numeric input to percentile aggregates" (`followup-nonnumeric.patch`), with 5
-more sqltest cases; the full sqlite-sqltests corpus (12707 passed), `cargo fmt --check` and clippy pass. Details:
-`followup-review.md`.
+more sqltest cases; the full sqlite-sqltests corpus (12707 passed), `cargo fmt --check` and clippy pass.
 
 ## Second follow-up after review (PR head fcfc80b)
 
@@ -86,5 +85,4 @@ Two more review findings, both fixed in one commit on top of fcfc80b, "core: sha
 validate it like SQLite" (`followup-fraction.patch`): percentile, percentile_cont and percentile_disc share one
 step with the fraction's upper bound as a parameter, and the fraction is validated exactly as SQLite's `percentStep`
 does (NULL, non-numeric or out-of-range fraction is an error with SQLite's wording, also for rows whose value is NULL;
-the fraction must not change across rows). `core/percentile.rs` shrinks by 25 lines. Details and test results:
-`followup-review.md`.
+the fraction must not change across rows). `core/percentile.rs` shrinks by 25 lines.

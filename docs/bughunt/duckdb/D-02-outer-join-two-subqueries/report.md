@@ -41,7 +41,7 @@ the child only exposes `#[48.0]`). We did not build DuckDB to confirm the exact 
 
 - DuckDB `main` up to d4eea3f208 (6 Nov 2026): related recent fixes 57a6875edf "Fix internal error with correlated IN
   under a mark join", b0320d7a00, d2f0487a96; none covers this pattern (it still fails on the nightly).
-- Before filing: search https://github.com/duckdb/duckdb/issues?q=%22Failed+to+bind+column+reference%22+join+subquery before filing.
+- Duplicate search: https://github.com/duckdb/duckdb/issues?q=%22Failed+to+bind+column+reference%22+join+subquery before filing.
 
 ## Files
 
