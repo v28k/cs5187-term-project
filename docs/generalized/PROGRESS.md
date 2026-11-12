@@ -64,12 +64,21 @@ Later the same day:
   whole probe fail; (3) on DuckDB a failed reset skipped the ROLLBACK and left later probes in
   an aborted transaction. Kernel numbers before these fixes are void; the corpora in
   `src/corpus/kernels/` are re-mined.
-- Kernels: SQLite 16/30 rules (32 kernels, 8 from Turso's SQLite-compatible tests; the
-  grammar never fired `BalancedMerge`, the tests did), 118 pairs, 88 co-fire, 293 seeds, 0
-  violations. DuckDB 31/48 (60 kernels; 5 rules only from DuckDB's optimizer tests), 464 pairs,
-  364 co-fire, 1283 seeds, 0 violations. Transfer SQLite -> DuckDB: 25/32 kernels run, 11 DuckDB
-  rules fire, none that the DuckDB grammar does not reach; DuckDB -> SQLite: 5/60 run.
-- Kernel campaigns (2 arms x 3 trials x 15 min, SQLite and DuckDB): see below.
+- A fourth probe bug: the SQLite probe reset a test case's own `PRAGMA automatic_index` /
+  `reverse_unordered_selects` to the defaults after the first rule, so one such PRAGMA made 29 of
+  30 rules look as if they fired (the plain campaign arm showed "30 rules", 12 of them exactly
+  12 times). Fixed; SQLite kernels re-mined.
+- Kernels (after all fixes): SQLite: grammar fires 16 of 30 rules; 17 rules with kernels (33
+  kernels), 136 pairs, 123 co-fire, 400 seeds, 0 violations. DuckDB: grammar 28 of 48, its
+  optimizer tests 5 more; 31 rules with kernels (60), 464 pairs, 364 co-fire, 1283 seeds, 0
+  violations. Transfer SQLite -> DuckDB: 29/33 run, 13 DuckDB rules, none new; DuckDB -> SQLite
+  5/60 run. DataFusion: suite mining killed by a test that exhausts memory in-process (Rust
+  aborts on allocation failure); grammar-only mining instead. Panics seen in DataFusion 55.0.0 on
+  its own `main` tests (`aggregate_skip_partial`, `array_concat`) are fixed on main: not bugs.
+- Kernel campaigns (2 arms x 3 trials x 15 min): DuckDB rule pairs 307 -> 386 (A12 1.00,
+  p 0.10), rules 31 -> 33, 3 rules only with kernels, similar test-case counts; SQLite rule
+  pairs 86 -> 182, rules 17 -> 21, but twice the test cases. One TLP false positive (QUALIFY with
+  a window function) fixed. `docs/generalized/results/rq8_kernels_2026-11-12.md`.
 
 - BUG #19826 (PostgreSQL, main branch package): reviewed Tom Lane's v3 on master b0496e3
   (243/243 regression tests); v4 fixes the commonX/commonY entries of the old direct
