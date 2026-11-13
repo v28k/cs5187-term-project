@@ -100,4 +100,5 @@ Turso's development branch: `scripts/build_turso_main.sh` builds `pyturso` from 
 | `scripts/` | builds, evaluation (`scripts/eval/`), baselines, benchmark and coverage scripts |
 | `docs/generalized/` | design, future work, ledger, results, paper outline |
 | `docs/bughunt/` | one package per bug (report, reproducer, fix, regression test, filing steps) |
-| `paper/`, `runs/`, `triage/`, `docs/` (others) | the course project, as on `main` |
+| `paper/` | the final paper, [`paper/paper.pdf`](paper/paper.pdf); LaTeX source in `paper-source/` |
+| `runs/`, `triage/`, `docs/` (others) | the course project, as on `main` |

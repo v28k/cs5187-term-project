@@ -5,7 +5,7 @@
 | `short_talk.pdf` | slides (Beamer, 9 slides) |
 | `short_talk.pptx` | editable PowerPoint version of the same slides (same design; every text box, table and diagram shape can be edited) |
 | `short_talk_notes.pdf` | speaker notes: who says what, with timings |
-| `short_talk.tex`, `common.tex`, `arch_main.tex`, `arch_gen.tex`, `Makefile` | LaTeX source (`make` builds slides and notes); `short_talk_source.zip` is the same for Overleaf |
+| `short_talk.tex`, `common.tex`, `arch_main.tex`, `arch_gen.tex`, `Makefile` | LaTeX source (`make` builds slides and notes); `short_talk_source.zip` is the same as one archive |
 
 | # | Slide | Speaker | Time |
 |---|---|---|---|
