@@ -14,7 +14,7 @@
 \note{VENU. We built a dynamic-analysis tool, a fuzzer, for PostgreSQL that looks for wrong
 results, not only crashes, and then generalized it to four more SQL engines. We will spend most
 of the time on how the tool works and how it found its bugs: eleven PostgreSQL bugs reported, nine
-fixed upstream, six with our patches; three more fixes filed to DuckDB, Turso and DataFusion.}
+fixed upstream, six with our patches; five more bugs reported with fixes to DuckDB, Turso and DataFusion.}
 
 \begin{frame}{The problem: bugs that do not crash}
 \begin{columns}[T]
@@ -335,9 +335,9 @@ Engine & Bug type & How it was found & State \\
 \midrule
 Turso & wrong result / spurious error & Turso-vs-SQLite differential oracle; reduced to one aggregate call; root cause: arguments read from non-consecutive registers & \wa{filed with fix} \#11594 / PR \#11595 \\
 DuckDB & internal error (2.0.0 regression) & internal-error oracle on the nightly build; a regression since 2.0.0; root cause: the binder copies an expression that cannot be copied & \ok{approved by a maintainer} \#28551 / PR \#28552 \\
-DataFusion & internal error in DML & internal-error oracle; root cause: common-subexpression elimination leaks a plan-only column into DML planning & \wa{filed with fix} \#27235 / PR \#27236 \\
-DataFusion & internal error (planning order) & internal-error oracle & fix ready \\
-Turso & panic / spurious error & worker caught a Rust panic; reduced to an aggregate in \texttt{IN (SELECT ...)} next to a window function; still on the newest \texttt{main} & fix ready \\
+DataFusion & internal error in DML & internal-error oracle; root cause: common-subexpression elimination leaks a plan-only column into DML planning & \wa{filed with fix}, validated by a contributor; \#27235 / PR \#27236 \\
+DataFusion & internal error (planning order) & internal-error oracle; a scalar subquery in \texttt{VALUES} was evaluated before it ran & \wa{filed with fix} (13 Nov) \\
+Turso & panic / spurious error & worker caught a Rust panic; reduced to an aggregate in \texttt{IN (SELECT ...)} next to a window function; still on the newest \texttt{main} & \wa{filed with fix} \#11796 / PR \#11797 \\
 Turso, DuckDB & panic, rejected join, bind error & worker caught a Rust panic / error; bisection on \texttt{main} & fixed upstream before we filed \\
 \bottomrule
 \end{tabularx}
@@ -348,7 +348,8 @@ Turso, DuckDB & panic, rejected join, bind error & worker caught a Rust panic / 
 \note{GOWTHAM. Same pipeline as for PostgreSQL. The Turso bug was found only by comparing with
 SQLite; the others by the internal-error oracle. Before filing, we re-checked each one on the
 engine's newest code built from source; three had already been fixed, which we found by
-bisection. The three filed pull requests are open and awaiting review.}
+bisection. Five are filed with a fix; the DuckDB one is approved by a maintainer, the others are
+in review. One script reproduces all five on the released versions.}
 
 \section{Wrap-up}
 
@@ -397,7 +398,7 @@ bisection. The three filed pull requests are open and awaiting review.}
 \begin{columns}[T]
 \column{0.24\textwidth}\centering{\Huge\textbf{11}}\\\small \pg bugs reported
 \column{0.24\textwidth}\centering{\Huge\ok{9}}\\\small fixed upstream (6 our patches)
-\column{0.24\textwidth}\centering{\Huge\textbf{3}}\\\small more fixes filed (DuckDB, Turso, DataFusion)
+\column{0.24\textwidth}\centering{\Huge\textbf{5}}\\\small more bugs reported with fixes (DuckDB, Turso, DataFusion)
 \column{0.24\textwidth}\centering{\Huge\textbf{36.7\%}}\\\small backend lines (random 22.2\%)
 \end{columns}
 \bigskip

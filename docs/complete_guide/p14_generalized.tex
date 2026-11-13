@@ -9,9 +9,11 @@ derivation trees, the metamorphic oracles and the triage stay the same. New are
 an engine abstraction, dialect overlays with an overlay miner, optimizer-rule
 firing as feedback and coverage, Z3 data synthesis, learned normalizers for
 cross-engine comparison, engine test suites as seeds, and an autonomous loop
-from campaign to filing package. Short campaigns found seven bugs; three were
-fixed upstream before we reported them, and for three we filed an issue and a
-pull request with a fix and a regression test (DuckDB's approved by a maintainer, the other two in review). A later Turso bug (T-08) is ready to file with a fix.
+from campaign to filing package, and rule kernels composed in pairs. The campaigns
+found fourteen bugs; nine were already fixed on the engines' development branches
+when we checked, and for the other five we filed an issue and a pull request with a
+fix and a regression test (DuckDB's approved by a maintainer, the others in review).
+\file{scripts/reproduce\_generalized.sh} reproduces all five in one command.
 \end{keybox}
 
 \section{Why generalize, and what had to change}
@@ -170,15 +172,19 @@ with 19{,}602 statements, of which 83\% execute; DuckDB's optimizer tests give
 \small
 \begin{tabularx}{\linewidth}{@{}p{0.1\linewidth}p{0.36\linewidth}p{0.17\linewidth}X@{}}
 \toprule
-Id & Bug & Upstream & State (9 Nov 2026) \\
+Id & Bug & Upstream & State (13 Nov 2026) \\
 \midrule
-T-05 & Turso: \texttt{percentile\_disc}/\texttt{percentile\_cont} with an expression as the value argument give NULL or a bogus range error & issue \#11594, PR \#11595 & filed with fix; \textbf{open} \\
-D-01 & DuckDB: \texttt{min}/\texttt{max} over a nested value computed by a subquery fail with ``Cannot copy BoundSubqueryExpression'' (2.0.0 regression) & issue \#28551, PR \#28552 & filed with fix; \textbf{open} \\
-DF-01 & DataFusion: \texttt{UPDATE}/\texttt{DELETE} that repeat an expression fail with ``No field named \_\_common\_expr\_1'' & issue \#27235, PR \#27236 & filed with fix; \textbf{open} \\
-DF-02 & DataFusion: scalar subquery inside \texttt{VALUES}: ``ScalarSubqueryExpr evaluated before the subquery was executed'' & -- & fix written and tested; ready to file \\
+T-05 & Turso: \texttt{percentile\_disc}/\texttt{percentile\_cont} with an expression as the value argument give NULL or a bogus range error & issue \#11594, PR \#11595 & filed with fix; \textbf{open}, in review \\
+D-01 & DuckDB: \texttt{min}/\texttt{max} over a nested value computed by a subquery fail with ``Cannot copy BoundSubqueryExpression'' (2.0.0 regression) & issue \#28551, PR \#28552 & filed with fix; \textbf{approved} by a maintainer (auto-merge, 2.0 backport) \\
+DF-01 & DataFusion: \texttt{UPDATE}/\texttt{DELETE} that repeat an expression fail with ``No field named \_\_common\_expr\_1'' & issue \#27235, PR \#27236 & filed with fix; \textbf{open}, validated by a contributor \\
+T-08 & Turso: an aggregate in \texttt{IN (SELECT ...)} next to a window function is rejected as ``misuse of aggregate''; with \texttt{median()} the process panics & issue \#11796, PR \#11797 & filed with fix; \textbf{open} \\
+DF-02 & DataFusion: scalar subquery inside \texttt{VALUES}: ``ScalarSubqueryExpr evaluated before the subquery was executed'' & issue and PR, 13 Nov 2026 & filed with fix; \textbf{open} \\
 T-01 & Turso: \texttt{FULL JOIN} on an \texttt{INTEGER PRIMARY KEY} rejected & -- & fixed upstream before we reported it \\
 T-02 & Turso: panic in window planning (window function over a column-free call, referenced twice in \texttt{ORDER BY}) & -- & fixed upstream before we reported it (found by bisection) \\
 D-02 & DuckDB: outer-join / \texttt{MERGE} condition with two subqueries: ``Failed to bind column reference'' & -- & fixed upstream before we reported it \\
+T-06 & Turso: a runtime error inside \texttt{BEGIN} silently ends the transaction (state-restoration oracle) & -- & fixed upstream before we reported it \\
+T-07 & Turso: a correlated subquery in \texttt{HAVING} reads a grouping column as NULL & -- & fixed upstream before we reported it \\
+DF $\times$4 & DataFusion 55.0.0: decimal \texttt{round} comparison, \texttt{UNION} nullability, \texttt{CUBE} with small batches, \texttt{array\_has\_all} with NULL & -- & fixed on \texttt{main} after 55.0.0 \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -241,20 +247,46 @@ the projected expression before the assignments and filters are passed to the
 table. \textbf{Tests}: new cases in \file{dml_update.slt} and
 \file{dml_delete.slt}; all 546 sqllogictest files, clippy and fmt pass.
 
-\subsection{DF-02: DataFusion, scalar subquery in VALUES (ready to file)}
+\subsection{DF-02: DataFusion, scalar subquery in VALUES}
 \texttt{VALUES ((SELECT 1), 5)} fails with an internal error because the
 \texttt{VALUES} operator evaluates its expressions at planning time, before any
 subquery has run. The fix plans such rows as projections over a one-row source,
-evaluated inside \texttt{ScalarSubqueryExec}. DataFusion limits non-committers
-to three open PRs and a first contribution is best kept to one PR at a time, so we file it after DF-01.
+evaluated inside \texttt{ScalarSubqueryExec}. Filed on 13 November 2026 with the
+fix and new sqllogictest cases.
+
+\subsection{T-08: Turso, aggregate in an IN-subquery operand next to a window function}
+\begin{lstlisting}[language=SQL]
+CREATE TABLE t (x INTEGER);
+INSERT INTO t VALUES (1), (3);
+SELECT max(x) IN (SELECT 1), count(*) OVER () FROM t;     -- SQLite: 0|1
+-- Turso: Parse error: misuse of aggregate function max()
+SELECT median(x) IN (SELECT 2), count(*) OVER () FROM t;  -- Turso: the process panics
+\end{lstlisting}
+\textbf{Found by} the crash oracle (a worker panic) on pyturso 0.8.3; still on
+Turso \texttt{main} 38b7d9de1. \textbf{Cause}: with a window function,
+\texttt{rewrite\_terminal\_expr} (\file{core/translate/window.rs}) moves a result
+expression that holds a subquery into the window's source subquery and marks the
+new column as containing no aggregates, so the aggregate in it is translated as a
+scalar call. \textbf{Fix}: mark the column as containing aggregates when the
+expression contains one of the query's aggregates. \textbf{Tests}: a new
+\texttt{.sqltest} with 6 cases; the SQLite conformance tests (12{,}726 passed; the
+2 failures need 2.2~GB of free disk) and Turso's own suites pass. Issue \#11796,
+PR \#11797.
 
 \paragraph{Filing rules we follow.} We file every report ourselves, with a
 reproducer, a fix and a regression test in the engine's own format. Patches carry
 Venu Kummari as author.
 
-\section{Evaluation design (scripts ready; runs are future work)}
+\section{Evaluation}
 
 \begin{itemize}
+  \item \textbf{Rule kernels} (run 12 Nov 2026; \file{docs/generalized/results/}):
+    3 trials $\times$ 15 minutes per arm, plain grammar against grammar plus composed
+    kernels. Optimizer-rule pairs reached (medians): DuckDB 307 $\to$ 386, DataFusion
+    241 $\to$ 276, SQLite 86 $\to$ 182. Every kernel trial beats every plain one
+    ($\hat{A}_{12}=1.00$; with three trials per arm the smallest possible $p$ is 0.1).
+    Per 1000 test cases the gain holds on DataFusion (14.6 $\to$ 19.2) and DuckDB
+    (21.7 $\to$ 25.9); on SQLite it comes mostly from kernels running faster.
   \item \file{scripts/eval/make_configs.py} writes 11 configurations from the
     engine configs: rule feedback and targeting off/on, data synthesis off/on and
     suite seeds off/on (each for DuckDB, SQLite and DataFusion), and DuckDB vs
@@ -266,13 +298,14 @@ Venu Kummari as author.
   \item \file{scripts/bench/}: a DuckDB re-injected bug benchmark; 334 candidate
     fix commits since May 2026 were mined from DuckDB's history.
 \end{itemize}
-The full runs take about four days on one 4-core machine; they and the
-improvements are listed on branch \texttt{generalized}.
+The full runs of the eleven configurations take about four days on one 4-core
+machine and are future work.
 
 \section{Commands}
 \begin{lstlisting}
 cd src && pip install -r requirements.txt     # duckdb, apsw, pyturso, datafusion, z3-solver
-python -m pytest -q                            # 192 tests (1 skipped without z3)
+python -m pytest -q                            # 205 tests (1 skipped without z3)
+bash ../scripts/reproduce_generalized.sh        # the five filed bugs: 5 of 5
 python -m pgfuzz -q sample configs/duckdb.yaml -n 600 --execute --quiet-stats
 python -m pgfuzz run configs/datafusion.yaml
 python -m pgfuzz hunt configs/duckdb.yaml configs/datafusion.yaml --budget 600
