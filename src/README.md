@@ -272,7 +272,7 @@ results/<experiment>/
 
 The field-level schema is in `pgfuzz/runlog/schema.py`. `python -m pgfuzz validate`
 enforces it. `results/` is git-ignored. Copy the final experiment directory used
-for the paper into `paper-source/data/`, as `paper-source/data/README.md` requires.
+for the paper into `paper/data/`, as `paper/data/README.md` requires.
 
 ## Workflow for a found failure
 

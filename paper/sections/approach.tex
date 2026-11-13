@@ -56,8 +56,8 @@ statement fails (rate $\eta=0.1$, bounded to $[0.2,5]$). Some literals are taken
 from a \emph{data profile}, which contains the minimum, maximum and quantiles of
 every column together with edge values of each type, such as $-0$, NaN,
 $\pm$Infinity and the empty array. This way, generated predicates select a
-real share of the rows. Grammar-based generation itself is not new; what the
-later steps need from it are the types, the scoping builtins and the node
+real share of the rows. We do not claim grammar-based generation as new; what
+the later steps need from it are the types, the scoping builtins and the node
 spans.
 
 \subsection{Step 2: Attach Oracles as Tree Rewrites}
@@ -65,7 +65,8 @@ spans.
 
 Once a query is derived, \tool picks at most one metamorphic check for it and
 stores it with the test case as a pair of queries that must return the same
-multiset. All of these checks are built on the derivation tree.
+multiset. The oracles themselves come from prior work, which we cite with each;
+what is new is that all of them are built on the derivation tree.
 
 \paragraph{Partitioning and counting.} \emph{TLP on \texttt{WHERE}} chooses a
 \texttt{SELECT} whose result is used as a multiset, which can be the query
@@ -151,7 +152,8 @@ repetition, or replaces a subtree with the smallest derivation of the same rule
 and type, and replays the trees through the generator, which re-binds names,
 aliases and types. As a result, every candidate is valid SQL, and the server's
 time is spent only on checking whether the failure is still there. \emph{Token
-reduction} comes next: delta debugging~\cite{zeller2002dd} removes statements,
+reduction} comes next. We do not claim this step as new: delta
+debugging~\cite{zeller2002dd} removes statements,
 then clauses, list items and parenthesised groups level by level over the
 parenthesis tree~\cite{misherghi2006hdd}, and finally single tokens. A step is
 kept only if the same failure still occurs, meaning the same assertion, the same

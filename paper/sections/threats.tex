@@ -1,11 +1,18 @@
 \section{Threats to Validity}
 \label{sec:threats}
 
-\paragraph{Internal validity.} We tried to make the arms comparable: every arm
-runs 5 trials with the same per-trial seeds on the same build, schema, executor,
-oracles and budget; each trial has its own server; a metamorphic mismatch counts
-only if it repeats; and every candidate is reproduced three times before triage.
-Still, five trials are few. Differences with $p$ above 0.008 are effect sizes,
+\paragraph{Internal validity.} Randomness and server state can make one arm
+look better than another by chance. To reduce this we used the following guards:
+\begin{itemize}
+  \item every arm runs 5 trials with the same per-trial seeds on the same build,
+    schema, executor, oracles and budget;
+  \item each trial has its own server;
+  \item a metamorphic mismatch counts only if it repeats; and
+  \item every candidate is reproduced three times before triage.
+\end{itemize}
+Non-determinism remains: 28 of the 93 candidates (30\%) did not reproduce in
+three re-runs and are counted as flaky (Section~\ref{sec:rq2}). Also, five
+trials are few. Differences with $p$ above 0.008 are effect sizes,
 not significant results, and several of our conclusions rest on them.
 
 Our own oracles can also be wrong. Eleven false-positive classes reached
@@ -28,8 +35,10 @@ of 9 relations and one set of row-level security policies that we chose
 ourselves. Bugs that need other data shapes, extensions or concurrent sessions
 are out of reach. The 23 benchmark bugs are recent fixes with regression tests,
 which may favour features that recent \pg development touched. The LLM results
-hold for free-tier Gemini Flash models on 10 commits; we store every prompt and
-response so that the run can be replayed.
+hold for free-tier Gemini Flash models on 10 commits. We did the LLM run only
+once, so we cannot report the run-to-run variation of the model; we store every
+prompt and response so that the run can be replayed. Testing more systems,
+schemas and models is future work.
 
 \paragraph{Construct validity.} Coverage measures which code ran, not whether
 an oracle could have noticed a bug there. A bug ``found'' in \rqref{3} means

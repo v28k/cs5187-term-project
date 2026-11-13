@@ -33,10 +33,9 @@ correct answer is NULL. The folded constant gives a wrong answer under
 outer joins, where unmatched rows carry NULLs. We reproduced the bug on release
 18.6 and on master. \tool found it with a typed rewrite of the derivation tree,
 by wrapping the range in a scalar subquery, within the first 150 test cases that
-used this rewrite. The example is not an isolated case: when we put back 23
-recent fixes from \pg master (Section~\ref{sec:rq3}), 20 of them changed what a
-query returns, and only 9 could be seen by a fuzzer that only watches for
-crashes. The closest previous work is query plan guidance~\cite{ba2023qpg},
+used this rewrite. This is not a single case. When we put back 23 recent fixes
+from \pg master (Section~\ref{sec:rq3}), 20 of them changed what a query
+returns, and only 9 could be seen by a fuzzer that only watches for crashes. The closest previous work is query plan guidance~\cite{ba2023qpg},
 which steers a generator toward new plan shapes using SQLancer's oracles, and
 Fuzz4All~\cite{xia2024fuzz4all}, which uses a large language model (LLM) as the
 generator. Neither connects the generator to the code that changed.
@@ -63,17 +62,19 @@ does.}
 \label{fig:motivating}
 \end{figure}
 
-To close this gap we built \tool, a grammar-aware fuzzer for \pg based on three
-ideas. First, a \emph{typed grammar} generates SQL as derivation trees in which
-every node knows its type and its place in the query
-(Section~\ref{sec:grammar}). Second, the oracles work on the tree rather than on
-the text: TLP and NoREC can be applied at any query level, alongside typed
-expression rewrites, a row-level security check, and plan-variant and
-cross-version oracles (Section~\ref{sec:oracles}). Third, the grammar is
-extended from recent commits: an LLM reads a commit and proposes grammar
-alternatives, seed queries and new equivalence rewrites, and a \gate accepts
-them only if the server runs them, they execute the lines the commit changed,
-and no rewrite changes a result (Section~\ref{sec:llm}). Around these ideas,
+We present \tool, a grammar-aware fuzzer for \pg built on three ideas:
+\begin{enumerate}
+  \item A \emph{typed grammar} generates SQL as derivation trees in which every
+    node knows its type and its place in the query (Section~\ref{sec:grammar}).
+  \item The oracles rewrite the tree, not the text: TLP and NoREC at any query
+    level, typed expression rewrites, a row-level security check, and
+    plan-variant and cross-version oracles (Section~\ref{sec:oracles}).
+  \item The grammar is extended from recent commits: an LLM reads a commit and
+    proposes grammar alternatives, seed queries and equivalence rewrites, and a
+    \gate accepts them only if the server runs them, they execute the changed
+    lines, and no rewrite changes a result (Section~\ref{sec:llm}).
+\end{enumerate}
+Around these ideas,
 \tool reduces every finding on its derivation tree and its tokens, localizes a
 wrong result to a planner path or to a rewrite that is always applied, and drafts
 the upstream report (Section~\ref{sec:triage}).
@@ -93,7 +94,7 @@ limits a wrong-result fuzzer: a generator that reaches more of SQL also reaches
 more of the corner cases where two ``equivalent'' queries are in fact not
 equivalent.
 
-In summary, this paper makes the following contributions:
+\paragraph{Contributions.} This paper makes the following contributions:
 \begin{itemize}
   \item a typed \pg grammar whose derivation trees are used for generation,
     mutation, metamorphic rewriting and reduction (Section~\ref{sec:approach});
@@ -107,6 +108,7 @@ In summary, this paper makes the following contributions:
     patches), released together with the tool and all data
     (Section~\ref{sec:data}).
 \end{itemize}
-The rest of the paper defines the problem (Section~\ref{sec:problem}), describes
+The rest of the paper gives the background (Section~\ref{sec:background}) and
+defines the problem (Section~\ref{sec:problem}), describes
 the approach and its implementation (Sections~\ref{sec:approach}
 and~\ref{sec:impl}), and then reports the evaluation (Section~\ref{sec:eval}).
