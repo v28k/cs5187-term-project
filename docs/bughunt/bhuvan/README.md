@@ -10,9 +10,9 @@ reproduce each, and their upstream status. Part of CS-5187 project A3
 |---|---|---|
 | Grammar fuzzer | `python -m pgfuzz run configs/*.yaml` | typed, scope-aware SQL; differential plan oracle + metamorphic oracles |
 | Cross-version differential | `src/xversion/joinfuzz.py`, `joinfuzz2.py` | same query on master vs 18.6, results compared as multisets |
-| Metamorphic fuzzer | `src/xversion/metafuzz.py` | TLP + NoREC oracles |
+| Metamorphic oracles | `src/pgfuzz/grammar/rewrite.py` | TLP, NoREC and expression rewrites on derivation trees |
 | Differential (hunter B/C) | `docs/bughunt/scripts/*.py` | code-reading + differential testing of recent features |
-| Manual audit + probes | `bughunt/audit/`, `bughunt/audit2/` | 23 Oct 2026 correctness audit |
+| Manual audit + probes | [`audits/`](audits/), [`audits/audit2/`](audits/audit2/) | 23 Oct 2026 correctness audit |
 
 ## Bugs (summary)
 
@@ -22,7 +22,7 @@ reproduce each, and their upstream status. Part of CS-5187 project A3
 | BUG-02 range containment NULL | metamorphic oracle `expr:scalar_sub` | **BUG #19793** | filed 23 Oct (Venu) with a patch; open |
 | BUG #19766 shm_toc_insert assert | grammar fuzzer | **#19766** | reply sent (Bhuvan) |
 | extended-stats non-finite MCV | manual test + code reading | pgsql-hackers | patch submitted (Bhuvan) |
-| B-01 FULL JOIN NOT NULL folding | hunter B `fz2.py` | — | skipped (root cause in progress: hackers thread 7400) |
+| B-01 FULL JOIN NOT NULL folding | hunter B `docs/bughunt/scripts/B-fz2.py` | — | skipped (root cause in progress: hackers thread 7400) |
 | C-01 duplicate-expression assert | hunter C fuzzers | pgsql-bugs | **fixed**: our patch, `b0392c26` (David Rowley), back-patched to 14 |
 | AUDIT-F1 NOT IN anti-join cast | audit + probes + fuzzers | pgsql-bugs | **fixed**: our patch, `b7eee09e` (Richard Guo) |
 | AUDIT-F2 IGNORE NULLS hang | audit2 session | pgsql-bugs | **fixed**: our patch, `69b20fdd` (Tatsuo Ishii) |
@@ -94,7 +94,7 @@ reproduce each, and their upstream status. Part of CS-5187 project A3
 - **Evidence:** `evidence/bug02-*`.
 
 ### 5. B-01 — FULL JOIN NOT NULL folding (PG19 regression)
-- **Found by:** hunter B differential fuzzer (`fz2.py`), master vs 18.6.
+- **Found by:** hunter B differential fuzzer (`docs/bughunt/scripts/B-fz2.py`), master vs 18.6.
 - **Status:** skipped — same root cause is an open pgsql-hackers item (commitfest 7400, in progress).
 - **Report:** `../new/B-01-full-join-notnull-folding.md`, `../new/B-01-*`.
 
