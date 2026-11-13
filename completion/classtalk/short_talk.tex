@@ -13,7 +13,7 @@
 \maketitle
 \note{VENU (15 s). Good afternoon. We built a fuzzer, a dynamic-analysis tool that writes test
 queries for PostgreSQL and decides by itself when an answer is wrong. Then we generalized it to
-four more SQL engines. Nine PostgreSQL bugs reported, seven fixed upstream, five with our patches;
+four more SQL engines. Eleven PostgreSQL bugs reported, nine fixed upstream, six with our patches;
 three more fixes filed to DuckDB, Turso and DataFusion.}
 
 \begin{frame}{Target and problem}
@@ -61,7 +61,7 @@ and on release 18.6. Four: triage shrinks the failure on the tree and finds whic
 rewrite flips it. Five: an LLM reads recent commits and proposes grammar, but PostgreSQL decides
 what enters.}
 
-\begin{frame}{Arbor: all nine bugs and how they were found}
+\begin{frame}{Arbor: all eleven bugs and how they were found}
 \scriptsize
 \begin{tabularx}{\linewidth}{@{}L{0.18\linewidth}L{0.24\linewidth}YL{0.17\linewidth}@{}}
 \toprule
@@ -76,15 +76,17 @@ hang & hang oracle & timeout and cancel ignored & \ok{fixed, our patch} \\
 internal error & internal-error oracle (\texttt{XX000}) & ``should not happen'' error & \ok{fixed} \#19802 \\
 wrong result & $e\rightarrow(\mathrm{SELECT}\ e)$ rewrite & sub-select blocked a simplification & \wa{open} \#19793 \\
 bad estimate & CERT oracle & estimate rose under a restriction & \wa{open} (patch) \\
+wrong result & plan-variant oracle & NULL serially, 1 in parallel (\texttt{corr()}) & \ok{fixed, our patch} \#19826 \\
+internal error & internal-error oracle on newer master & Memoize ``subplan's variable'' error & \ok{fixed} \#19828 \\
 \bottomrule
 \end{tabularx}
 
 \smallskip
-\small\textbf{9 reported, 7 fixed upstream (5 with our patches), 2 under review.} The tool rediscovers all 9 in one 150-second run.
+\small\textbf{11 reported, 9 fixed upstream (6 with our patches), 2 under review.} The tool rediscovers the first 9 in one 150-second run.
 \end{frame}
 \note{BHUVAN (30 s). Read the middle column: every oracle found something. Two bugs came only from
 comparing with the last release, one only from the sub-select rewrite, one only from the hang
-oracle, one only from the estimate oracle. Seven are fixed upstream; five of the fixes are our
+oracle, one only from the estimate oracle. Nine are fixed upstream; six of the fixes are our
 patches.}
 
 \begin{frame}{Arbor: three bugs in detail}
@@ -186,8 +188,8 @@ regression test and pass the engine's full test suite.}
 
 \begin{frame}{Results and conclusion}
 \begin{columns}[T]
-\column{0.24\textwidth}\centering{\Huge\textbf{9}}\\\scriptsize \pg bugs reported
-\column{0.24\textwidth}\centering{\Huge\ok{7}}\\\scriptsize fixed upstream (5 our patches)
+\column{0.24\textwidth}\centering{\Huge\textbf{11}}\\\scriptsize \pg bugs reported
+\column{0.24\textwidth}\centering{\Huge\ok{9}}\\\scriptsize fixed upstream (6 our patches)
 \column{0.24\textwidth}\centering{\Huge\textbf{3}}\\\scriptsize fixes filed to DuckDB, Turso, DataFusion
 \column{0.24\textwidth}\centering{\Huge\textbf{36.7\%}}\\\scriptsize backend lines (random 22.2\%)
 \end{columns}

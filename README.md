@@ -28,11 +28,11 @@ grammar from recent PostgreSQL commits with an LLM behind a server-side validati
 
 ## Headline result
 
-Arbor found **nine PostgreSQL bugs** that we reported upstream: **seven are fixed upstream, five of
-them with our patches**, and the other two are under review with our patches. One command reproduces the fuzzer finding all
-nine in a 150-second run (section "One-command reproduction").
+Arbor found **eleven PostgreSQL bugs** that we reported upstream: **nine are fixed upstream, six of
+them with our patches**, and the other two are under review with our patches. One command reproduces
+the fuzzer finding the first nine in a 150-second run (section "One-command reproduction").
 
-## Upstream bug reports and their state (12 Nov 2026)
+## Upstream bug reports and their state (13 Nov 2026)
 
 | # | Bug | Upstream report | State |
 |---|---|---|---|
@@ -45,11 +45,11 @@ nine in a 150-second run (section "One-command reproduction").
 | 7 | `MERGE` into a partitioned table: "SubPlan found with no parent plan" | [BUG #19802](https://www.postgresql.org/message-id/19802-ef50a8f1a4b5deee@postgresql.org) | **merged**: fixed in `7a5559a6` (Tender Wang, committed by Dean Rasheed), back-patched to 15 |
 | 8 | `range @> NULL` folded to a constant (wrong result in 17, 18, master) | [BUG #19793](https://www.postgresql.org/message-id/19793-16d3a1bf33dff0fb@postgresql.org) | **open**: reported with a patch |
 | 9 | `pg_restore_extended_stats` accepts non-finite MCV frequencies | pgsql-hackers ([our patch](docs/bughunt/bhuvan/patches/0001-Reject-non-finite-MCV-frequencies-in-pg_restore_exte.patch)) | **open**: patch submitted |
+| 10 | `corr()`/`regr_*()` of a constant input differ under partial aggregation | [BUG #19826](https://postgr.es/m/19826-4b769cb5342fdfe7@postgresql.org) | **merged**: our patch, [`ef1b7404`](https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=ef1b740441) committed by Tom Lane, back-patched to 19 |
+| 11 | Memoize: "plan should not reference subplan's variable" with a correlated `ALL`/`ANY` sublink (master regression) | BUG #19828 (pgsql-bugs, with our patch) | **fixed**: [`45ff0b4a`](https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=45ff0b4a31) (Richard Guo, for a separate report of the same error), back-patched to 14 |
 
-Further reports: BUG #19826 (`corr()` and the `regr_*()` functions under partial aggregation; our
-patch was reviewed and revised by Tom Lane, v3, and our v4 with the tests he asked for was sent on
-12 Nov; all versions in `docs/bughunt/new/`), a Memoize/sublink error (`docs/bughunt/new/E-02-*`), and an independent
-reproducer for BUG #19766. Reproducers and patches: [`docs/bughunt/`](docs/bughunt/).
+Also: an independent reproducer for BUG #19766. Patch versions for BUG #19826 (v1 to v4) and the
+BUG #19828 report: `docs/bughunt/new/`. Reproducers and patches: [`docs/bughunt/`](docs/bughunt/).
 
 Generalized fuzzer (branch `generalized`), each filed with a fix and a regression test:
 
@@ -124,7 +124,7 @@ Tool manual: [`src/README.md`](src/README.md). Never commit API keys.
 * Base: PostgreSQL master `26bd08fb`, assertions on; 5 trials x 1 h per arm.
 * **RQ1** typed grammar 36.7% of backend lines vs 22.2% for random mutation; 99% vs 26% valid statements; oracles double the plan shapes.
 * **RQ2** 93 triaged candidates: 8 real, 15 duplicates of real bugs, 42 false positives (from a few classes, all fixed), 28 flaky.
-  Nine bugs reported upstream (table above).
+  Eleven bugs reported upstream (table above).
 * **RQ3** benchmark of 23 reverted fixes: the best arm found 2 of 20 observable bugs in 1 h; none of the 8 wrong-result bugs.
 * **RQ4** LLM extension: +5 SQL features, no coverage gain, 4 of 10 commits accepted.
 * **Deviation from the plan:** the LLM was Google Gemini Flash (free tier) through the tool's manual mode;

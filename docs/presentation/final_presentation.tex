@@ -13,8 +13,8 @@
 \maketitle
 \note{VENU. We built a dynamic-analysis tool, a fuzzer, for PostgreSQL that looks for wrong
 results, not only crashes, and then generalized it to four more SQL engines. We will spend most
-of the time on how the tool works and how it found its bugs: nine PostgreSQL bugs reported, seven
-fixed upstream, five with our patches; three more fixes filed to DuckDB, Turso and DataFusion.}
+of the time on how the tool works and how it found its bugs: eleven PostgreSQL bugs reported, nine
+fixed upstream, six with our patches; three more fixes filed to DuckDB, Turso and DataFusion.}
 
 \begin{frame}{The problem: bugs that do not crash}
 \begin{columns}[T]
@@ -237,6 +237,8 @@ hang & hang oracle & query outlived the timeout and ignored cancel & \ok{fixed, 
 internal error & internal-error oracle (\texttt{XX000}) & grammar arm, \texttt{MERGE} on partitioned tables & \ok{fixed} \#19802 \\
 wrong result (constant folding) & expression rewrite $e\rightarrow(\mathrm{SELECT}\ e)$ & the sub-select blocked a planner simplification; results differed & \wa{open} \#19793 \\
 bad estimate & CERT oracle & a restriction raised the row estimate (1000 $\rightarrow 10^{100}$) & \wa{open} (patch) \\
+wrong result (parallel aggregation) & plan-variant oracle & \texttt{corr()} of a constant: NULL serially, 1 in parallel & \ok{fixed, our patch} \#19826 \\
+internal error (master regression) & internal-error oracle, run on newer master & ``plan should not reference subplan's variable'' & \ok{fixed} \#19828 \\
 \bottomrule
 \end{tabularx}
 \end{frame}
@@ -263,13 +265,13 @@ tool in one 150-second run.}
 \small
 \begin{itemize}
   \item Example: the cross-version oracle flagged a difference; reduction left one function call; localization: ``version''; the root cause: the string terminator was copied into the output; our patch was committed.
-  \item \textbf{Result: 9 reported, 7 fixed upstream (5 with our patches), 2 under review with our patches.}
+  \item \textbf{Result: 11 reported, 9 fixed upstream (6 with our patches), 2 under review with our patches.}
   \item One command reproduces the headline: \texttt{sudo bash scripts/reproduce.sh} $\Rightarrow$ ``Known bugs reproduced: 9 of 9''.
 \end{itemize}
 \end{frame}
 \note{VENU. Every bug went through the same steps; only the first box differs. The tool does
 everything up to localization automatically; root cause and patch are our work, and maintainers
-committed five of our patches.}
+committed six of our patches.}
 
 \section{The generalized fuzzer}
 
@@ -393,8 +395,8 @@ bisection. The three filed pull requests are open and awaiting review.}
 
 \begin{frame}{Conclusion}
 \begin{columns}[T]
-\column{0.24\textwidth}\centering{\Huge\textbf{9}}\\\small \pg bugs reported
-\column{0.24\textwidth}\centering{\Huge\ok{7}}\\\small fixed upstream (5 our patches)
+\column{0.24\textwidth}\centering{\Huge\textbf{11}}\\\small \pg bugs reported
+\column{0.24\textwidth}\centering{\Huge\ok{9}}\\\small fixed upstream (6 our patches)
 \column{0.24\textwidth}\centering{\Huge\textbf{3}}\\\small more fixes filed (DuckDB, Turso, DataFusion)
 \column{0.24\textwidth}\centering{\Huge\textbf{36.7\%}}\\\small backend lines (random 22.2\%)
 \end{columns}
