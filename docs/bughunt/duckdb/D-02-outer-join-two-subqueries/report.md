@@ -45,7 +45,7 @@ the child only exposes `#[48.0]`). We did not build DuckDB to confirm the exact 
 
 ## Files
 
-`issue.md`, `repro.sql`, `outer_join_two_subqueries.test` (sqllogictest for `test/sql/subquery/scalar/`), `steps.md`.
+`issue.md`, `repro.sql`, `outer_join_two_subqueries.test` (sqllogictest for `test/sql/subquery/scalar/`).
 
 ## Re-check on `main` (8 Nov 2026): fixed upstream
 
