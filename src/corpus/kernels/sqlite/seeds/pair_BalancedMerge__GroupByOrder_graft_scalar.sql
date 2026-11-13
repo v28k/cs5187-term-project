@@ -1,0 +1,3 @@
+-- composition of rule kernels BalancedMerge x GroupByOrder (sqlite), template graft_scalar
+WITH cte1 AS MATERIALIZED (SELECT DISTINCT TRUE AS c0, a1.c0 AS c1 FROM v0 AS a1 ORDER BY 1, 2) SELECT CAST(' ' AS TEXT) AS c0 FROM (SELECT * FROM cte1 WHERE (SELECT count(*) FROM (SELECT NULL UNION SELECT 1 UNION SELECT 2 UNION SELECT NULL) AS kb) >= 0) AS a2 EXCEPT SELECT CAST('a' AS TEXT) AS c0;
+-- pgfuzz:check kernel:graft_scalar WITH cte1 AS MATERIALIZED (SELECT DISTINCT TRUE AS c0, a1.c0 AS c1 FROM v0 AS a1 ORDER BY 1, 2) SELECT CAST(' ' AS TEXT) AS c0 FROM cte1 AS a2 EXCEPT SELECT CAST('a' AS TEXT) AS c0

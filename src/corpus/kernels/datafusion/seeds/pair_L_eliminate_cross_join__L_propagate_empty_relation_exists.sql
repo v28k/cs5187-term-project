@@ -1,0 +1,3 @@
+-- composition of rule kernels L:eliminate_cross_join x L:propagate_empty_relation (datafusion), template exists
+SELECT count(*) FROM (SELECT 100 AS c0, 1.5::numeric AS c1, 5 AS c2, 0::bigint AS c3 FROM (ti AS a1 INNER JOIN (t4 AS a2 JOIN t4 AS a3 ON (a2.c0 = a3.c0)) ON ((a1.c0 = a3.c0) AND TRUE)) GROUP BY a1.c1) AS ka WHERE EXISTS (SELECT 1 FROM (SELECT 'abc'::text AS c0 FROM t1 AS a1 WHERE FALSE) AS kb);
+-- pgfuzz:check kernel:exists SELECT CASE WHEN (SELECT count(*) FROM (SELECT 'abc'::text AS c0 FROM t1 AS a1 WHERE FALSE) AS kb) > 0 THEN (SELECT count(*) FROM (SELECT 100 AS c0, 1.5::numeric AS c1, 5 AS c2, 0::bigint AS c3 FROM (ti AS a1 INNER JOIN (t4 AS a2 JOIN t4 AS a3 ON (a2.c0 = a3.c0)) ON ((a1.c0 = a3.c0) AND TRUE)) GROUP BY a1.c1) AS ka) ELSE 0 END

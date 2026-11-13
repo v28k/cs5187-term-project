@@ -1,0 +1,191 @@
+From 0cbd88aefb8c307d19601055bdcedb4e8b847a0d Mon Sep 17 00:00:00 2001
+From: Venu Kummari <v.kummari@iitg.ac.in>
+Date: Sun, 8 Nov 2026 08:23:52 +0000
+Subject: [PATCH] fix: inline common subexpressions in UPDATE assignments and
+ DML filters
+
+UPDATE and DELETE failed with "Schema error: No field named
+__common_expr_1" when the SET expressions or the WHERE clause repeated an
+expression, e.g. `UPDATE t SET c0 = COALESCE(c0, 0)` on an INT column.
+Common subexpression elimination moves the repeated expression into a
+projection below, but the assignments and filters handed to the table
+provider must only reference the table's own columns.
+
+Replace references to projected columns with the expressions that compute
+them before the assignments and filters reach the provider.
+---
+ datafusion/core/src/physical_planner.rs       | 54 +++++++++++++++++--
+ .../sqllogictest/test_files/dml_delete.slt    | 23 ++++++++
+ .../sqllogictest/test_files/dml_update.slt    | 35 ++++++++++++
+ 3 files changed, 107 insertions(+), 5 deletions(-)
+
+diff --git a/datafusion/core/src/physical_planner.rs b/datafusion/core/src/physical_planner.rs
+index dc81c9b..8cb65fe 100644
+--- a/datafusion/core/src/physical_planner.rs
++++ b/datafusion/core/src/physical_planner.rs
+@@ -2818,8 +2818,10 @@ fn extract_dml_filters(
+             LogicalPlan::Filter(filter) => {
+                 // Split AND predicates into individual expressions
+                 for predicate in split_conjunction(&filter.predicate) {
+-                    if predicate_is_on_target_multi(predicate, allowed_refs)? {
+-                        filters.push(predicate.clone());
++                    let predicate =
++                        inline_projected_columns(predicate.clone(), &filter.input)?;
++                    if predicate_is_on_target_multi(&predicate, allowed_refs)? {
++                        filters.push(predicate);
+                     }
+                 }
+             }
+@@ -2965,8 +2967,12 @@ fn extract_update_assignments(input: &Arc<LogicalPlan>) -> Result<Vec<(String, E
+                 // Only include if it's not just a column reference to itself
+                 // (those are columns that aren't being updated)
+                 if !is_identity_assignment(&alias.expr, &column_name) {
++                    let expr = inline_projected_columns(
++                        (*alias.expr).clone(),
++                        &projection.input,
++                    )?;
+                     // Strip qualifiers from the assignment expression
+-                    let stripped_expr = strip_column_qualifiers((*alias.expr).clone())?;
++                    let stripped_expr = strip_column_qualifiers(expr)?;
+                     assignments.push((column_name, stripped_expr));
+                 }
+             }
+@@ -2979,8 +2985,11 @@ fn extract_update_assignments(input: &Arc<LogicalPlan>) -> Result<Vec<(String, E
+                     if let Expr::Alias(alias) = expr {
+                         let column_name = alias.name.clone();
+                         if !is_identity_assignment(&alias.expr, &column_name) {
+-                            let stripped_expr =
+-                                strip_column_qualifiers((*alias.expr).clone())?;
++                            let expr = inline_projected_columns(
++                                (*alias.expr).clone(),
++                                &projection.input,
++                            )?;
++                            let stripped_expr = strip_column_qualifiers(expr)?;
+                             assignments.push((column_name, stripped_expr));
+                         }
+                     }
+@@ -2994,6 +3003,41 @@ fn extract_update_assignments(input: &Arc<LogicalPlan>) -> Result<Vec<(String, E
+     Ok(assignments)
+ }
+ 
++/// Replace references to columns computed by projections in the DML input
++/// (such as the `__common_expr` columns added by common subexpression
++/// elimination) with the expressions that compute them, so that an assignment
++/// or a filter only references columns of the target table.
++fn inline_projected_columns(mut expr: Expr, mut input: &LogicalPlan) -> Result<Expr> {
++    loop {
++        input = match input {
++            LogicalPlan::Projection(projection) => {
++                let replacements: HashMap<Column, Expr> = projection
++                    .schema
++                    .columns()
++                    .into_iter()
++                    .zip(projection.expr.iter().map(|e| e.clone().unalias()))
++                    .collect();
++                expr = expr
++                    .transform(|e| match &e {
++                        Expr::Column(col) => match replacements.get(col) {
++                            Some(replacement) => {
++                                Ok(Transformed::yes(replacement.clone()))
++                            }
++                            None => Ok(Transformed::no(e)),
++                        },
++                        _ => Ok(Transformed::no(e)),
++                    })
++                    .map(|t| t.data)?;
++                projection.input.as_ref()
++            }
++            LogicalPlan::Filter(filter) => filter.input.as_ref(),
++            LogicalPlan::Sort(sort) => sort.input.as_ref(),
++            LogicalPlan::Limit(limit) => limit.input.as_ref(),
++            _ => return Ok(expr),
++        };
++    }
++}
++
+ /// Check if an assignment is an identity assignment (column = column)
+ /// These are columns that are not being modified in the UPDATE
+ fn is_identity_assignment(expr: &Expr, column_name: &str) -> bool {
+diff --git a/datafusion/sqllogictest/test_files/dml_delete.slt b/datafusion/sqllogictest/test_files/dml_delete.slt
+index 7a59846..4c66be0 100644
+--- a/datafusion/sqllogictest/test_files/dml_delete.slt
++++ b/datafusion/sqllogictest/test_files/dml_delete.slt
+@@ -299,6 +299,29 @@ SELECT * FROM test_delete_false;
+ statement ok
+ DROP TABLE test_delete_false;
+ 
++# Repeated expressions in the WHERE clause: common subexpression elimination
++# computes them once in a projection below the filter, and the table provider
++# must still receive a predicate over the table's own columns
++statement ok
++CREATE TABLE test_delete_cse(c0 INT, c1 VARCHAR);
++
++statement ok
++INSERT INTO test_delete_cse VALUES (1, 'a'), (NULL, 'b'), (7, 'c');
++
++query I
++DELETE FROM test_delete_cse WHERE COALESCE(c0, 0) > 0 AND COALESCE(c0, 0) < 5;
++----
++1
++
++query IT rowsort
++SELECT * FROM test_delete_cse;
++----
++7 c
++NULL b
++
++statement ok
++DROP TABLE test_delete_cse;
++
+ # Test the same statements with the optimizer switched off
+ # With `max_passes = 0` no rule rewrites the subquery into a semi join and no
+ # rule folds an always-false predicate, so the whole WHERE clause reaches the
+diff --git a/datafusion/sqllogictest/test_files/dml_update.slt b/datafusion/sqllogictest/test_files/dml_update.slt
+index 9d3ecf2..fba2fa7 100644
+--- a/datafusion/sqllogictest/test_files/dml_update.slt
++++ b/datafusion/sqllogictest/test_files/dml_update.slt
+@@ -423,6 +423,41 @@ SELECT * FROM test_update_false;
+ statement ok
+ DROP TABLE test_update_false;
+ 
++# Repeated expressions in the assignments and in the WHERE clause: common
++# subexpression elimination computes them once in a projection below, and the
++# table provider must still receive expressions over the table's own columns
++# (the INT column is cast to BIGINT twice to match the literal)
++statement ok
++CREATE TABLE test_update_cse(c0 INT, c1 VARCHAR, c2 BIGINT);
++
++statement ok
++INSERT INTO test_update_cse VALUES (1, 'a', 10), (NULL, 'b', 20), (7, 'c', 30);
++
++query I
++UPDATE test_update_cse SET c0 = COALESCE(c0, 0);
++----
++3
++
++query I
++UPDATE test_update_cse SET c2 = COALESCE(c0, 0) + COALESCE(c0, 0) WHERE c1 <> 'c';
++----
++2
++
++query I
++UPDATE test_update_cse SET c1 = 'z' WHERE COALESCE(c0, 0) > 0 AND COALESCE(c0, 0) < 5;
++----
++1
++
++query ITI rowsort
++SELECT * FROM test_update_cse;
++----
++0 b 0
++1 z 2
++7 c 30
++
++statement ok
++DROP TABLE test_update_cse;
++
+ # Test the same statements with the optimizer switched off
+ # With `max_passes = 0` no rule rewrites the subquery into a semi join and no
+ # rule folds an always-false predicate, so the whole WHERE clause reaches the
+-- 
+2.43.0
+

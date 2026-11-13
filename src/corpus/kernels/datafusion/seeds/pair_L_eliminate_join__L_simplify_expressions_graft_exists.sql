@@ -1,0 +1,3 @@
+-- composition of rule kernels L:eliminate_join x L:simplify_expressions (datafusion), template graft_exists
+WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT a2.c1 AS c0, a1.c1 AS c1 FROM ((SELECT * FROM ti WHERE EXISTS (SELECT 1 FROM (SELECT '_'::text AS c0, '2000-01-01'::date AS c1) AS kb) OR NOT EXISTS (SELECT 1 FROM (SELECT '_'::text AS c0, '2000-01-01'::date AS c1) AS kb)) AS a1 JOIN (t2 AS a2 JOIN v0 AS a3 ON (a2.c0 = a3.n)) ON ((a1.c0 = a3.c0) AND FALSE));
+-- pgfuzz:check kernel:graft_exists WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT a2.c1 AS c0, a1.c1 AS c1 FROM (ti AS a1 JOIN (t2 AS a2 JOIN v0 AS a3 ON (a2.c0 = a3.n)) ON ((a1.c0 = a3.c0) AND FALSE))

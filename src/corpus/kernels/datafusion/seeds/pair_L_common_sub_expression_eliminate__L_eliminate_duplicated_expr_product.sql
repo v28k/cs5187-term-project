@@ -1,0 +1,3 @@
+-- composition of rule kernels L:common_sub_expression_eliminate x L:eliminate_duplicated_expr (datafusion), template product
+SELECT count(*) FROM (SELECT 10.0::float8 AS c0 UNION SELECT 0.5::float8 AS c0 ORDER BY 1, 1) AS ka CROSS JOIN (SELECT 16 AS c0, COALESCE (CASE WHEN TRUE THEN ARRAY[(SELECT MIN (0) FROM t2 AS a2)] ELSE ARRAY[1] END, make_array(NULL, 1)) AS c1 FROM ti AS a1) AS kb;
+-- pgfuzz:check kernel:product SELECT (SELECT count(*) FROM (SELECT 10.0::float8 AS c0 UNION SELECT 0.5::float8 AS c0 ORDER BY 1, 1) AS ka) * (SELECT count(*) FROM (SELECT 16 AS c0, COALESCE (CASE WHEN TRUE THEN ARRAY[(SELECT MIN (0) FROM t2 AS a2)] ELSE ARRAY[1] END, make_array(NULL, 1)) AS c1 FROM ti AS a1) AS kb)

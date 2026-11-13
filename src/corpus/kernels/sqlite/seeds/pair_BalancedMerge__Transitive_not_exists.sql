@@ -1,0 +1,3 @@
+-- composition of rule kernels BalancedMerge x Transitive (sqlite), template not_exists
+SELECT count(*) FROM (SELECT a2.c2 AS c0, a3.c1 AS c1, a1.c1 AS c2, 10 AS c3 FROM (ti AS a1 INNER JOIN (t1 AS a2 JOIN t0 AS a3 ON ((a2.c0 = a3.c0) AND FALSE)) ON (a1.c0 = a3.c0))) AS ka WHERE NOT EXISTS (SELECT 1 FROM (SELECT NULL UNION SELECT 1 UNION SELECT 2 UNION SELECT NULL) AS kb);
+-- pgfuzz:check kernel:not_exists SELECT CASE WHEN (SELECT count(*) FROM (SELECT NULL UNION SELECT 1 UNION SELECT 2 UNION SELECT NULL) AS kb) = 0 THEN (SELECT count(*) FROM (SELECT a2.c2 AS c0, a3.c1 AS c1, a1.c1 AS c2, 10 AS c3 FROM (ti AS a1 INNER JOIN (t1 AS a2 JOIN t0 AS a3 ON ((a2.c0 = a3.c0) AND FALSE)) ON (a1.c0 = a3.c0))) AS ka) ELSE 0 END

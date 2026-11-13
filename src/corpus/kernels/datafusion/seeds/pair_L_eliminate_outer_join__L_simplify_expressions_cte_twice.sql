@@ -1,0 +1,3 @@
+-- composition of rule kernels L:eliminate_outer_join x L:simplify_expressions (datafusion), template cte_twice
+WITH ka AS (SELECT a2.c5 AS c0, a2.c2 AS c1 FROM (ti AS a1 LEFT JOIN t3 AS a2 ON (a1.c1 = a2.c5)) WHERE a2.c1), kb AS (SELECT TRUE AS c0, 1.5::numeric AS c1) SELECT (SELECT count(*) FROM ka) + (SELECT count(*) FROM kb) + (SELECT count(*) FROM ka);
+-- pgfuzz:check kernel:cte_twice SELECT 2 * (SELECT count(*) FROM (SELECT a2.c5 AS c0, a2.c2 AS c1 FROM (ti AS a1 LEFT JOIN t3 AS a2 ON (a1.c1 = a2.c5)) WHERE a2.c1) AS ka) + (SELECT count(*) FROM (SELECT TRUE AS c0, 1.5::numeric AS c1) AS kb)

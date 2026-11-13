@@ -1,0 +1,19 @@
+# SQLite / Turso dialect data (see pgfuzz/grammar/dialect.py and engine literal/fill tables)
+cast_style: function
+cast_types: {int: INTEGER, bigint: INTEGER, numeric: NUMERIC, float8: REAL, text: TEXT, boolean: BOOLEAN,
+             date: TEXT, timestamptz: TEXT, jsonb: TEXT, varchar: TEXT, int4: INTEGER}
+functions: {GREATEST: MAX, LEAST: MIN}
+series_from: "(WITH RECURSIVE s(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM s WHERE x < {n}) SELECT x FROM s) AS g"
+literals:
+  tstz: ["'2024-02-29 12:34:56'", "'1970-01-01 00:00:00'", "'1999-12-31 23:59:59.999'", "'2000-01-01 00:00:00'",
+         "'2024-01-01 00:00:00'"]
+  date: ["'2024-02-29'", "'1970-01-01'", "'2000-01-01'", "'2024-01-01'", "'2024-12-31'", "'1999-12-31'"]
+  jsonb: ["'{}'", "'{\"k\": 1, \"a\": [1, 2]}'", "'{\"k\": 0, \"a\": [3, 4, 5]}'", "'{\"k\": 2, \"a\": [0]}'",
+          "'{\"k\": -1, \"a\": [1, 2, 3]}'"]
+fill:
+  text: ["(x % 13)::text", "lower(hex(x * 2654435761 % 4294967296))", "substr('abababab', 1, (x % 4) * 2)", "char(65 + x % 26)"]
+  jsonb: ["json_object('k', x % 10, 'a', json_array(x, x % 3))"]
+  date: ["date('2024-01-01', '+' || x || ' days')", "date('2024-01-01', '+' || (x % 10) || ' days')"]
+  tstz: ["datetime('2024-01-01 00:00:00', '+' || x || ' hours')"]
+# rewrites that are not equivalences in SQLite: dates/timestamps are text, so d + 0 is a number
+rewrite_exclude: ["date:plus_zero", "tstz:plus_zero"]

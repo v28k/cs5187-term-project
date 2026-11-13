@@ -1,0 +1,3 @@
+-- composition of rule kernels PropagateConst x PushDown (sqlite), template graft_union
+SELECT CAST('A' AS TEXT) AS c0 FROM (SELECT * FROM v0 UNION ALL SELECT * FROM v0 WHERE (SELECT count(*) FROM (WITH cte1 AS (SELECT '{"k": -1, "a": [1, 2, 3]}' AS c0) SELECT CAST(5e-324 AS REAL) AS c0, 2 AS c1, (SELECT MIN (a2.c3) FROM (t4 AS a2 JOIN t4 AS a3 ON (a2.c0 = a3.c0)) WHERE (a2.c0 = 10)) AS c2 FROM t0 AS a1 UNION SELECT CAST(0.5 AS REAL) AS c0, 16 AS c1, CAST(0.0 AS NUMERIC) AS c2) AS kb) < 0) AS a1 WHERE (NOT (((SELECT MIN (a2.c0) FROM t3 AS a2) - 54) > (-8)));
+-- pgfuzz:check kernel:graft_union SELECT CAST('A' AS TEXT) AS c0 FROM v0 AS a1 WHERE (NOT (((SELECT MIN (a2.c0) FROM t3 AS a2) - 54) > (-8)))

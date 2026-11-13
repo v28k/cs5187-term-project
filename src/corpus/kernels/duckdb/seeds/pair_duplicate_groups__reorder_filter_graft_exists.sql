@@ -1,0 +1,3 @@
+-- composition of rule kernels duplicate_groups x reorder_filter (duckdb), template graft_exists
+SELECT 2.25::numeric AS c0, '0'::text AS c1, (SELECT COUNT (*) FROM (SELECT * FROM t4 WHERE EXISTS (SELECT 1 FROM (SELECT ((COUNT (DISTINCT a1.c1) % 1000)::int - 1) AS c0, a1.c1 AS c1, 'A'::text AS c2, 1::bigint AS c3 FROM tl AS a1 GROUP BY a1.c1) AS kb) OR NOT EXISTS (SELECT 1 FROM (SELECT ((COUNT (DISTINCT a1.c1) % 1000)::int - 1) AS c0, a1.c1 AS c1, 'A'::text AS c2, 1::bigint AS c3 FROM tl AS a1 GROUP BY a1.c1) AS kb)) AS a1 WHERE ((a1.c3 <= 2.25::numeric) OR (a1.c0 IS NULL))) AS c2;
+-- pgfuzz:check kernel:graft_exists SELECT 2.25::numeric AS c0, '0'::text AS c1, (SELECT COUNT (*) FROM t4 AS a1 WHERE ((a1.c3 <= 2.25::numeric) OR (a1.c0 IS NULL))) AS c2

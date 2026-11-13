@@ -32,9 +32,12 @@ def cmd_run(a: argparse.Namespace) -> int:
         for fc, t in p.todo:
             print(f"  would run {fc.name} trial {t} (seed {cfg.trial_seed(t)})")
         return 0
+    from pgfuzz.core.procs import lead_process_group
+
+    lead_process_group()  # Ctrl-C / kill stops every worker, including engine workers
     try:
         run_experiment(cfg, jobs=a.jobs, only=only, trials=a.trials, fresh=a.fresh)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, SystemExit):
         print("\ninterrupted; finished trials are kept, re-run the same command to resume", file=sys.stderr)
         return 130
     if not a.no_report:
@@ -48,6 +51,19 @@ def cmd_report(a: argparse.Namespace) -> int:
 
     out = build_report(a.experiment_dir, a.out, plots=not a.no_plots)
     print(f"report: {out / 'report.md'}")
+    return 0
+
+
+def cmd_learn_normalizers(a: argparse.Namespace) -> int:
+    """Probe a cross-engine pair, learn normalizers and guards, report held-out precision."""
+    import yaml
+
+    from pgfuzz.normalizers.infer import learn_from_config
+
+    learned, report = learn_from_config(a.config, a.name, a.n, a.seed, a.records, a.depth or None, a.guard_rate)
+    print(json.dumps({"normalize": learned.normalize, "guards": learned.guards, **report}, indent=1, default=str))
+    if a.out:
+        Path(a.out).write_text(yaml.safe_dump(learned.to_dict(), sort_keys=False), encoding="utf-8")
     return 0
 
 
@@ -168,6 +184,12 @@ def cmd_sample(a: argparse.Namespace) -> int:
     ex.start()
     t0 = time.monotonic()
     bugs = 0
+    import collections
+    import re as _re
+
+    n_ok = n_err = q_ok = q_all = 0
+    errs: collections.Counter[str] = collections.Counter()
+    examples: dict[str, tuple[str, str]] = {}
     try:
         for i in range(a.n):
             tc = gen.next_testcase()
@@ -175,6 +197,18 @@ def cmd_sample(a: argparse.Namespace) -> int:
                 break
             tc.id = i
             res = ex.execute(tc)
+            k = int(tc.meta.get("synth", 0))     # synthesized rows (C3) are not generated statements
+            for sql, r in zip(tc.statements[k:], res.statements[k:]):
+                is_q = sql.lstrip()[:6].upper() in ("SELECT", "WITH  ", "VALUES") or sql.lstrip()[:4].upper() == "WITH"
+                q_all += is_q
+                if r.status.value == "ok":
+                    n_ok += 1
+                    q_ok += is_q
+                elif r.status.value == "error":
+                    n_err += 1
+                    m = _re.sub(r'"[^"]*"|\'[^\']*\'|\d+', "?", (r.message or "").split("\n")[0])[:110]
+                    errs[m] += 1
+                    examples.setdefault(m, (sql[:20000], (r.message or "")[:300]))
             cls = oracle.classify(res)
             if cls.is_bug_candidate and hasattr(gen, "failure_meta"):
                 tc.meta.update(gen.failure_meta(tc) or {})
@@ -195,6 +229,22 @@ def cmd_sample(a: argparse.Namespace) -> int:
     stats["elapsed_s"] = round(time.monotonic() - t0, 1)
     stats["bug_candidates"] = bugs
     stats["executor"] = dict(getattr(ex, "diff_stats", {}) or {})
+    stats["validity"] = {"statements_ok": n_ok, "statements_error": n_err,
+                         "statement_valid_rate": round(n_ok / max(1, n_ok + n_err), 4),
+                         "queries": q_all, "query_valid_rate": round(q_ok / max(1, q_all), 4)}
+    stats["top_errors"] = errs.most_common(a.errors)
+    if a.examples:
+        stats["error_examples"] = {m: examples[m] for m, _ in errs.most_common(a.errors)}
+    if a.quiet_stats:
+        stats = {k: stats[k] for k in ("validity", "top_errors", "bug_candidates", "elapsed_s", "error_examples")
+                 if k in stats}
+    if a.mine_overlay:
+        from pgfuzz.grammar.miner import mine, render_overlay
+
+        found = mine(gen, a.mine_min_uses, a.mine_max_ok)
+        Path(a.mine_overlay).write_text(render_overlay(found, Path(a.config).stem), encoding="utf-8")
+        stats["mined_overlay"] = {"path": a.mine_overlay, "directives": sum(1 for d in found if d["key"]),
+                                  "alternatives": len(found)}
     print(json.dumps(stats, indent=1))
     return 0
 
@@ -425,6 +475,76 @@ def cmd_profile(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_hunt(a: argparse.Namespace) -> int:
+    from pgfuzz.agent.hunt import hunt
+
+    s = hunt(a.configs, a.budget, a.out, jobs=a.jobs, repeat=a.repeat, max_triage=a.max_triage)
+    n = sum(len(e["packages"]) for e in s["engines"].values())
+    print(f"hunt: {len(s['engines'])} campaigns, {n} packages -> {a.out}/HUNT.md")
+    return 0
+
+
+def cmd_package(a: argparse.Namespace) -> int:
+    from pgfuzz.agent.package import make_package
+
+    for t in a.triage_dirs:
+        print(make_package(a.engine, t, a.out))
+    return 0
+
+
+def cmd_import_tests(a: argparse.Namespace) -> int:
+    from pgfuzz.agent.suites import import_suite
+
+    st = import_suite(a.paths, a.out, max_statements=a.max_statements, max_files=a.max_files)
+    print(json.dumps(st))
+    return 0
+
+
+def cmd_ledger(a: argparse.Namespace) -> int:
+    from pgfuzz.triage.ledger import build, render
+
+    text = render(build(a.root))
+    if a.out:
+        Path(a.out).write_text(text, encoding="utf-8")
+    print(text)
+    return 0
+
+
+def cmd_kernels(a: argparse.Namespace) -> int:
+    from pgfuzz.rules import kernels as K
+
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    if a.transfer_from:
+        src = json.loads(Path(a.transfer_from).read_text(encoding="utf-8"))
+        tr = K.transfer(src, a.config, name=a.name, mem_limit_gb=a.mem_gb)
+        (out / "transfer.json").write_text(json.dumps(tr, indent=1), encoding="utf-8")
+        print(json.dumps({k: tr[k] for k in ("source", "target", "kernels", "ran", "fired_any", "errors")}
+                         | {"target_rules_reached": len(tr["target_rules_reached"]),
+                            "target_rules": len(tr["target_rules"])}, indent=1))
+        return 0
+    if a.from_json:
+        mined = json.loads(Path(a.from_json).read_text(encoding="utf-8"))
+    else:
+        mined = K.mine(a.config, n=a.n, seed=a.seed, per_rule=a.per_rule, budget=a.budget, name=a.name,
+                       mem_limit_gb=a.mem_gb)
+        K.save(mined, out / "kernels.json")
+    if a.from_suite:
+        files = sorted(Path(a.from_suite).rglob("*.sql")) if Path(a.from_suite).is_dir() else [Path(a.from_suite)]
+        mined = K.mine_suite(a.config, files, mined, per_rule=a.per_rule, name=a.name, max_queries=a.suite_queries,
+                             mem_limit_gb=a.mem_gb)
+        K.save(mined, out / "kernels.json")
+        print(json.dumps({"suite": mined["suite_stats"], "never_fired_after_suite": mined["never_fired_after_suite"]}))
+    st = K.compose(a.config, mined, out / "seeds", per_pair=a.per_pair, seed=a.seed, name=a.name)
+    (out / "compose.json").write_text(json.dumps(st, indent=1), encoding="utf-8")
+    nk = sum(len(v) for v in mined["kernels"].values())
+    print(json.dumps({"engine": mined["engine"], "rules": len(mined["rules"]), "rules_with_kernel": len(mined["kernels"]),
+                      "kernels": nk, "never_fired": mined["never_fired"], "pairs_tried": st["pairs_tried"],
+                      "pairs_cofired": st["pairs_cofired"], "seeds": st["seeds"], "invalid": st["invalid"],
+                      "violations": len(st["violations"]), "out": str(out)}, indent=1))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="pgfuzz", description="Evaluation harness for grammar-aware PostgreSQL fuzzing")
     ap.add_argument("-v", "--verbose", action="count", default=1, help="-v info (default), -vv debug")
@@ -447,6 +567,18 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out")
     p.add_argument("--no-plots", action="store_true")
     p.set_defaults(fn=cmd_report)
+
+    p = sub.add_parser("learn-normalizers", help="infer value normalizers and guards for a cross-engine pair (C4)")
+    p.add_argument("config")
+    p.add_argument("--name", help="config (arm) whose generator to use (default: the first)")
+    p.add_argument("-n", type=int, default=400, help="number of probe test cases")
+    p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--out", help="write the learned rules here (YAML)")
+    p.add_argument("--records", help="also save the probe records here (JSON lines)")
+    p.add_argument("--depth", type=int, default=5, help="grammar depth of the probes (small probes; 0: config's)")
+    p.add_argument("--guard-rate", type=float, default=0.5,
+                   help="minimum share of a feature's comparisons that must disagree for it to become a guard")
+    p.set_defaults(fn=cmd_learn_normalizers)
 
     p = sub.add_parser("validate", help="check run logs against the log format")
     p.add_argument("path", help="trial directory or experiment directory")
@@ -496,6 +628,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--execute", action="store_true", help="run them on the configured executor")
     p.add_argument("--out", help="directory for bug-candidate test cases")
+    p.add_argument("--errors", type=int, default=25, help="how many top error messages to show")
+    p.add_argument("--examples", action="store_true", help="show one failing statement per error message")
+    p.add_argument("--quiet-stats", action="store_true", help="show only validity, top errors, candidates")
+    p.add_argument("--mine-overlay", metavar="PATH", help="(with --execute) write a draft overlay of failing alternatives (A3)")
+    p.add_argument("--mine-min-uses", type=int, default=20)
+    p.add_argument("--mine-max-ok", type=float, default=0.1)
     p.set_defaults(fn=cmd_sample)
 
     p = sub.add_parser("llm", help="commit-directed grammar extension (Grammar + LLM arm)")
@@ -546,6 +684,51 @@ def main(argv: list[str] | None = None) -> int:
     q.add_argument("--repeat", type=int, default=2)
     q.add_argument("--out")
     p.set_defaults(fn=cmd_bench)
+
+    p = sub.add_parser("hunt", help="autonomous round: campaigns per engine, triage of new failures, package drafts")
+    p.add_argument("configs", nargs="+")
+    p.add_argument("--budget", type=float, default=3600, help="seconds per campaign")
+    p.add_argument("--out", default="results/hunt")
+    p.add_argument("-j", "--jobs", type=int, default=2, help="campaigns in parallel")
+    p.add_argument("--repeat", type=int, default=3)
+    p.add_argument("--max-triage", type=int, default=20)
+    p.set_defaults(fn=cmd_hunt)
+
+    p = sub.add_parser("package", help="filing-package draft (native regression test, report) from triage output")
+    p.add_argument("engine", choices=["duckdb", "sqlite", "turso", "datafusion", "postgres"])
+    p.add_argument("triage_dirs", nargs="+")
+    p.add_argument("--out", default="results/packages")
+    p.set_defaults(fn=cmd_package)
+
+    p = sub.add_parser("import-tests", help="engine test suites (.test/.slt/.sqltest) -> seed .sql files (C6)")
+    p.add_argument("paths", nargs="+", help="test files or directories")
+    p.add_argument("--out", required=True, help="seed directory (use as generator.params.seeds)")
+    p.add_argument("--max-statements", type=int, default=200)
+    p.add_argument("--max-files", type=int)
+    p.set_defaults(fn=cmd_import_tests)
+
+    p = sub.add_parser("kernels", help="mine rule kernels (minimal firing witnesses) and compose them into seeds")
+    p.add_argument("config")
+    p.add_argument("--name", help="config (arm) whose generator to use (default: the first)")
+    p.add_argument("-n", type=int, default=300, help="generated test cases to mine from")
+    p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--per-rule", type=int, default=2, help="kernels to keep per rule")
+    p.add_argument("--budget", type=int, default=80, help="reduction runs per kernel")
+    p.add_argument("--per-pair", type=int, default=2, help="composition templates per rule pair")
+    p.add_argument("--from-json", help="compose from an existing kernels.json instead of mining")
+    p.add_argument("--from-suite", help="also mine kernels for rules without one from imported engine tests "
+                   "(a directory of .sql files written by 'pgfuzz import-tests')")
+    p.add_argument("--suite-queries", type=int, default=20000, help="max suite queries to probe")
+    p.add_argument("--mem-gb", type=float, default=3.0, help="address-space cap of the mining process (0: none)")
+    p.add_argument("--transfer-from", help="kernels.json mined on another engine: run its kernels on this "
+                   "config's engine and map source rules to the rules they fire here (writes transfer.json)")
+    p.add_argument("--out", required=True)
+    p.set_defaults(fn=cmd_kernels)
+
+    p = sub.add_parser("ledger", help="precision ledger per engine x oracle from docs/bughunt (D4)")
+    p.add_argument("--root", default="../docs/bughunt")
+    p.add_argument("--out", help="also write the markdown here")
+    p.set_defaults(fn=cmd_ledger)
 
     a = ap.parse_args(argv)
     _setup_logging(0 if a.quiet else a.verbose)

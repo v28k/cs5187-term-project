@@ -1,0 +1,41 @@
+# Known Turso bugs found by this fuzzer (format: pgfuzz/eval/known_bugs.py). Packages: docs/bughunt/turso/.
+bugs:
+  - id: turso-T02
+    title: "panic in window planning: window function over a column-free call referenced twice in ORDER BY"
+    source: "docs/bughunt/turso/T-02-window-arg-call-order-by-twice/ (not filed)"
+    affected: "pyturso 0.8.3 (0.8.x branch); not main"
+    fixed_in: "merge 8f1f6ee83 (Turso main, 16 Oct 2026)"
+    match:
+      outcome: crash
+      message_regex: "window\\.rs:(3428|3564)"
+  - id: turso-T05
+    title: "percentile_disc/percentile_cont with an expression as the value argument: NULL or bogus error"
+    source: "tursodatabase/turso#11594, PR #11595 (filed 8 Nov 2026)"
+    affected: "pyturso 0.8.3, main 9b71df9ab, main 38b7d9de1"
+    fixed_in: "open (PR #11595)"
+    match:
+      outcome: wrong_result
+      sql_regex: "(?i)\\b(percentile_disc|percentile_cont|percentile|median)\\s*\\("
+  - id: turso-T06
+    title: "runtime error inside BEGIN ends the transaction: later statements commit, ROLLBACK fails"
+    source: "docs/bughunt/FINDINGS_2026-11.md (not filed: fixed on main)"
+    affected: "pyturso 0.8.3; not main 0c9fe0dd9"
+    fixed_in: "Turso main before 11 Nov 2026 (error_forces_txn_rollback in core/vdbe/mod.rs)"
+    match:
+      outcome: wrong_result
+      message_regex: "state_restore"
+  - id: turso-T08
+    title: "aggregate in IN (SELECT ...) with a window function: misuse error, or panic for extension aggregates"
+    source: "tursodatabase/turso#11796, PR #11797 (filed 13 Nov 2026)"
+    affected: "pyturso 0.8.3; main 38b7d9de1"
+    fixed_in: "open (PR #11797)"
+    match:
+      message_regex: "aggregate called in scalar context"
+  - id: turso-5545
+    title: "bare column next to min()/max() is read from another row than the min/max row"
+    source: "tursodatabase/turso#5545 (open; PRs #10530, #10544)"
+    affected: "pyturso 0.8.3, main 38b7d9de1"
+    fixed_in: "open upstream"
+    match:
+      outcome: wrong_result
+      sql_regex: "(?is)^\\s*SELECT\\b(?!.*\\bGROUP\\s+BY\\b).*\\b(MIN|MAX)\\s*\\("

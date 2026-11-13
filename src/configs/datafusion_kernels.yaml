@@ -1,0 +1,53 @@
+# Rule kernels in campaigns (RQ8). Arm 1 = plain grammar, arm 2 = the same plus composed kernel seeds
+# (corpus/kernels/datafusion: pgfuzz kernels configs/datafusion.yaml -n 400).
+# Apache DataFusion target (python bindings 55.0.0; pgfuzz/targets/datafusion_executor.py).
+#   python -m pgfuzz sample configs/datafusion.yaml -n 300 --execute --seed 1
+experiment: datafusion_kernels
+output_dir: ../results
+trials: 3
+seed: 7401
+budget:
+  seconds: 900
+coverage_interval_s: 100000
+snapshot_interval_s: 30
+log_sql: failures
+max_repros: 3
+max_harness_errors: 50
+known_bugs: ../known_bugs/datafusion.yaml
+
+executor:
+  plugin: pgfuzz.targets.datafusion_executor:DataFusionExecutor
+  params:
+    setup_sql: "{config_dir}/../corpus/datafusion/schema.sql"
+    statement_timeout_ms: 5000
+    differential: {per_query: 2}
+    metamorphic: true
+    rule_feedback: {prob: 0.3, overhead: 0.25}
+
+configs:
+  - name: grammar_mm
+    label: Grammar+Oracles
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        overlays: ["{config_dir}/../grammar/overlays/datafusion.pgg"]
+        dialect_data: "{config_dir}/../grammar/overlays/datafusion.data.yaml"
+        schema: "{config_dir}/../corpus/datafusion/schema.yaml"
+        mm_prob: 0.5
+        plan_guidance: false
+        bandit: 0.1
+  - name: grammar_kernels
+    label: Grammar+Oracles+Kernels
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        overlays: ["{config_dir}/../grammar/overlays/datafusion.pgg"]
+        dialect_data: "{config_dir}/../grammar/overlays/datafusion.data.yaml"
+        schema: "{config_dir}/../corpus/datafusion/schema.yaml"
+        mm_prob: 0.5
+        plan_guidance: false
+        bandit: 0.1
+        seeds: "{config_dir}/../corpus/kernels/datafusion/seeds"
+        seed_prob: 0.2

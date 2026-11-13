@@ -1,0 +1,3 @@
+-- composition of rule kernels L:eliminate_join x L:optimize_projections (datafusion), template graft_scalar
+SELECT a1.c5 AS c0, 10.0::float8 AS c1 FROM (SELECT * FROM t3 WHERE (SELECT count(*) FROM (WITH cte1 AS (SELECT DISTINCT a2.c0 AS c0, (1.0 / 3)::float8 AS c1 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c3 = a2.c3))) SELECT 1.5::numeric AS c0, TRUE AS c1 FROM t4 AS a3 WHERE (('2024-12-31'::date = '2000-01-01'::date) OR ((ABS (3))::bigint >= LEAST (10::bigint, (SELECT COUNT (*) FROM cte1 AS a4))))) AS kb) >= 0) AS a1;
+-- pgfuzz:check kernel:graft_scalar SELECT a1.c5 AS c0, 10.0::float8 AS c1 FROM t3 AS a1

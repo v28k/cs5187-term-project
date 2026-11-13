@@ -1,0 +1,3 @@
+-- composition of rule kernels L:propagate_empty_relation x P:aggregate_statistics (datafusion), template product
+SELECT count(*) FROM (SELECT '0'::text AS c0, 3 AS c1, GREATEST (1000::bigint, COALESCE (NULLIF (1000::bigint, (SELECT COUNT (*) FROM tl AS a2)), 1000::bigint)) AS c2, a1.c1 AS c3 FROM tp AS a1) AS ka CROSS JOIN (SELECT 'abc'::text AS c0 FROM t1 AS a1 WHERE FALSE) AS kb;
+-- pgfuzz:check kernel:product SELECT (SELECT count(*) FROM (SELECT '0'::text AS c0, 3 AS c1, GREATEST (1000::bigint, COALESCE (NULLIF (1000::bigint, (SELECT COUNT (*) FROM tl AS a2)), 1000::bigint)) AS c2, a1.c1 AS c3 FROM tp AS a1) AS ka) * (SELECT count(*) FROM (SELECT 'abc'::text AS c0 FROM t1 AS a1 WHERE FALSE) AS kb)

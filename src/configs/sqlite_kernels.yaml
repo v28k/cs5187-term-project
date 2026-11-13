@@ -1,0 +1,53 @@
+# Rule kernels in campaigns (RQ: rule-pair coverage). Arm 1 = plain grammar, arm 2 = the same plus
+# composed kernel seeds (pgfuzz kernels ... --from-suite; results/kernels/sqlite_suite/seeds).
+# SQLite target (APSW, newest SQLite release, in-process worker; pgfuzz/targets/sqlite_executor.py).
+#   python -m pgfuzz sample configs/sqlite.yaml -n 300 --execute --seed 1
+experiment: sqlite_kernels
+output_dir: ../results
+trials: 3
+seed: 7201
+budget:
+  seconds: 900
+coverage_interval_s: 100000
+snapshot_interval_s: 30
+log_sql: failures
+max_repros: 3
+max_harness_errors: 50
+known_bugs: ../known_bugs/sqlite.yaml
+
+executor:
+  plugin: pgfuzz.targets.sqlite_executor:SQLiteExecutor
+  params:
+    setup_sql: "{config_dir}/../corpus/sqlite/schema.sql"
+    statement_timeout_ms: 3000
+    differential: {per_query: 2}
+    metamorphic: true
+    rule_feedback: {prob: 0.3, overhead: 0.25}
+
+configs:
+  - name: grammar_mm
+    label: Grammar+Oracles
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        overlays: ["{config_dir}/../grammar/overlays/sqlite.pgg"]
+        dialect_data: "{config_dir}/../grammar/overlays/sqlite.data.yaml"
+        schema: "{config_dir}/../corpus/sqlite/schema.yaml"
+        mm_prob: 0.5
+        plan_guidance: false
+        bandit: 0.1
+  - name: grammar_kernels
+    label: Grammar+Oracles+Kernels
+    generator:
+      plugin: pgfuzz.grammar.generator:GrammarGenerator
+      params:
+        grammar: "{config_dir}/../grammar/postgres.pgg"
+        overlays: ["{config_dir}/../grammar/overlays/sqlite.pgg"]
+        dialect_data: "{config_dir}/../grammar/overlays/sqlite.data.yaml"
+        schema: "{config_dir}/../corpus/sqlite/schema.yaml"
+        mm_prob: 0.5
+        plan_guidance: false
+        bandit: 0.1
+        seeds: "{config_dir}/../corpus/kernels/sqlite/seeds"
+        seed_prob: 0.2

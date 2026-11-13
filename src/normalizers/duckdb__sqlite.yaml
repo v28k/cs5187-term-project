@@ -1,0 +1,55 @@
+normalize:
+- float32
+- bool_int
+- integral_float
+guards:
+- fn:MIN
+- fn:FORMAT
+- fn:MAX
+stats:
+  train:
+    records: 1513
+    comparable: 1418
+    disagree: 438
+    explained_by:
+      float32: 195
+      bool_int: 194
+      integral_float: 12
+    residual_after_normalize: 37
+    residual_after_guards: 26
+    guarded_share: 0.0092
+  held_out:
+    comparable: 1398
+    disagree_rate_before: 0.3076
+    disagree_rate_after_normalize: 0.0329
+    disagree_rate_after_guards: 0.0253
+    guarded_share: 0.0114
+    residual: 35
+    residual_examples:
+    - SELECT '{}' AS c0, COALESCE (TRUE, TRUE) AS c1, JSON_OBJECT ('k', TRUE) AS c2
+      FROM v0 AS a1 ORDER BY 2 DESC, 1 DESC NULLS FIRST
+    - SELECT ROUND (CAST(1.5 AS NUMERIC), (-1)) AS c0 ORDER BY 1
+    - WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE
+      r.c0 < 5) SELECT '2024-02-29 12:34:56' AS c0, a1.c0 AS c1 FROM n1 AS a1 WHERE
+      TRUE GROUP BY a1.c0 HAVING TRUE
+    - SELECT (1 / NULLIF ((-42), 0)) AS c0, (-10) AS c1 FROM t3 AS a1 GROUP BY a1.c1
+      ORDER BY 1
+    - SELECT CONCAT_WS ('-', CAST(0.0 AS NUMERIC), CAST((1.0 / 3) AS REAL)) AS c0,
+      NULLIF (FALSE, FALSE) AS c1, 60 AS c2, CASE WHEN FALSE THEN 0 ELSE 500 END AS
+      c3 FROM t1 AS a1
+    - SELECT (500 / NULLIF (a2.c1, 0)) AS c0, 0 AS c1, CAST(1.0 AS REAL) AS c2 FROM
+      ti AS a1 FULL JOIN t1 AS a2 ON (a1.c0 = a2.c0)
+    - 'SELECT ''{"k": -1, "a": [1, 2, 3]}'' AS c0, JSON_TYPE (''{}'') AS c1, CAST(NULL
+      AS TEXT) AS c2, ((-1) % NULLIF (7, 0)) AS c3 FROM t2 AS a1 GROUP BY a1.c0, a1.c1'
+    - WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE
+      r.c0 < 20) SELECT DISTINCT 3 AS c0, CAST(42.5 AS NUMERIC) AS c1, CASE WHEN FALSE
+      THEN a1.c0 ELSE a1.c0 END AS c2 FROM n1 AS a1 ORDER BY 1 ASC
+    - SELECT CAST(100.0 AS REAL) AS c0, a1.c0 AS c1, (-1) AS c2, a1.c0 AS c3 FROM
+      n2 AS a1 GROUP BY a1.c0
+    - WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE
+      r.c0 < 100) SELECT a1.c0 AS c0, CASE WHEN TRUE THEN CAST(1000 AS INTEGER) ELSE
+      CAST(100 AS INTEGER) END AS c1 FROM rc AS a1 WHERE (CAST('A' AS TEXT) LIKE CAST('a%'
+      AS TEXT))
+  pair:
+  - 2.1.0.dev2610310630
+  - 3.54.1

@@ -1,0 +1,275 @@
+# Mined overlay draft for DuckDB 1.x: base grammar postgres.pgg, no manual overlay, 300 test cases, seed 1.
+# Validity 32.1 % without overlay -> 44.1 % with this draft (one round). Manual overlay duckdb.pgg reaches >= 95 %.
+# Each line: an alternative that almost never executes on this engine. Review, apply with
+# generator.params.overlays, sample again, and repeat until validity stops improving.
+
+# line 254: ok 0% of 101 uses: <1> SUBSTR "(" expr<text> "," expr<int> ")"
+%drop expr '<1> SUBSTR'
+# line 205: ok 0% of 82 uses: <0.4> ABS "(" expr<T> ")"
+%drop expr '<0.4> ABS'
+# line 222: ok 0% of 82 uses: <0.3> WIDTH_BUCKET "(" expr<numeric> "," "0.0" "," "100.0" "," "10" ")"
+%drop expr '<0.3> WIDTH_BUCKET'
+# line 262: ok 0% of 80 uses: <1> "(" expr<X> ")" "::" "text"
+%drop expr '<1> "(" expr<X>'
+# line 364: ok 0% of 79 uses: <1> INT4RANGE "(" LEAST "(" expr<int> "," "0" ")" "," GREATEST "(" expr<int> "," "0" ")" ")"
+%drop expr '<1> INT4RANGE'
+# line 371: ok 0% of 73 uses: <1> ARRAY "[" expr<int>{1,3/","} "]"
+%drop expr '<1> ARRAY "[" expr<int>{1,3/","}'
+# line 229: ok 0% of 67 uses: <0.5> "(" "(" expr<bigint> "%" "1000" ")" "*" "(" expr<bigint> "%" "1000" ")" ")"
+%drop expr '<0.5> "(" "(" expr<bigint>'
+# line 347: ok 0% of 66 uses: <1> JSONB_BUILD_OBJECT "(" "'k'" "," expr<*> ")"
+%drop expr '<1> JSONB_BUILD_OBJECT'
+# line 288: ok 0% of 63 uses: <0.7> "(" expr<X:key> NOT?0.3 BETWEEN SYMMETRIC?0.2 expr<X> AND expr<X> ")"
+%drop expr '<0.7> "(" expr<X:key> NOT?0.3'
+# line 289: ok 0% of 61 uses: <1> "(" expr<X:key> NOT?0.3 IN "(" expr<X>{1,4/","} ")" ")"
+%drop expr '<1> "(" expr<X:key> NOT?0.3 IN "("'
+# line 366: ok 0% of 60 uses: <0.5> "(" expr<int4range> "*" expr<int4range> ")"
+%drop expr '<0.5> "(" expr<int4range>'
+# line 220: ok 0% of 58 uses: <0.5> "(" expr<bigint> "%" "1000" ")" "::" "int"
+%drop expr '<0.5> "(" expr<bigint>'
+# line 329: ok 0% of 57 uses: <1> "(" expr<tstz> ("+" | "-") expr<interval> ")"
+%drop expr '<1> "(" expr<tstz>'
+# line 214: ok 0% of 56 uses: <0.3> ARRAY_LENGTH "(" expr<X:arr> "," "1" ")"
+%drop expr '<0.3> ARRAY_LENGTH'
+# line 216: ok 0% of 52 uses: <0.5> LOWER "(" expr<int4range> ")"
+%drop expr '<0.5> LOWER'
+# line 302: ok 0% of 52 uses: <0.3> "(" expr<jsonb> "@?" jsonpath ")"
+%drop expr '<0.3> "(" expr<jsonb> "@?"'
+# line 314: ok 0% of 52 uses: ">="
+%drop cmp '">="'
+# line 290: ok 0% of 51 uses: <1> "(" expr<X:key> NOT?0.3 IN in_sub<X> ")"
+%drop expr '<1> "(" expr<X:key> NOT?0.3 IN in_sub<X>'
+# line 215: ok 0% of 50 uses: <0.5> "(" expr<intarr> ")" "[" small "]"
+%drop expr '<0.5> "(" expr<intarr> ")"'
+# line 267: ok 0% of 50 uses: <0.2> TO_CHAR "(" expr<numeric> "," "'FM999990.00'" ")"
+%drop expr '<0.2> TO_CHAR'
+# line 218: ok 0% of 49 uses: <0.3> "(" expr<date> "-" expr<date> ")"
+%drop expr '<0.3> "(" expr<date>'
+# line 219: ok 0% of 49 uses: <0.3> EXTRACT "(" DAY FROM expr<date> ")" "::" "int"
+%drop expr '<0.3> EXTRACT "(" DAY'
+# line 301: ok 0% of 49 uses: <0.4> "(" expr<jsonb> "?" ("'k'" | "'a'" | "'x'") ")"
+%drop expr '<0.4> "(" expr<jsonb>'
+# line 234: ok 0% of 48 uses: <1> "(" expr<int> ")" "::" "numeric"
+%drop expr '<1> "(" expr<int> ")" "::" "numeric"'
+# line 292: ok 0% of 48 uses: <1> "(" NOT?0.3 EXISTS exists_sub ")"
+%drop expr '<1> "(" NOT?0.3'
+# line 300: ok 0% of 48 uses: <0.8> "(" expr<jsonb> ("@>" | "<@") expr<jsonb> ")"
+%drop expr '<0.8>'
+# line 258: ok 0% of 46 uses: <0.3> MD5 "(" expr<text> ")"
+%drop expr '<0.3> MD5'
+# line 237: ok 0% of 45 uses: <0.3> TRUNC "(" expr<numeric> ")"
+%drop expr '<0.3> TRUNC'
+# line 348: ok 0% of 44 uses: <0.5> JSONB_BUILD_ARRAY "(" expr<*> "," expr<*> ")"
+%drop expr '<0.5> JSONB_BUILD_ARRAY'
+# line 469: ok 0% of 44 uses: RANGE_INTERSECT_AGG "(" expr<int4range> ")"
+%drop agg RANGE_INTERSECT_AGG
+# line 261: ok 0% of 43 uses: <0.3> CONCAT_WS "(" "'-'" "," expr<*> "," expr<*> ")"
+%drop expr '<0.3> CONCAT_WS'
+# line 349: ok 0% of 43 uses: <0.7> TO_JSONB "(" expr<*> ")"
+%drop expr '<0.7> TO_JSONB'
+# line 230: ok 0% of 42 uses: <0.3> "(" "(" expr<bigint> "%" "1000" ")" "<<" ("1" | "3") ")"
+%drop expr '<0.3> "(" "("'
+# line 346: ok 0% of 42 uses: <0.5> "(" expr<jsonb> "#>" ("'{a,0}'" | "'{k}'" | "'{k,k}'") ")"
+%drop expr '<0.5> "(" expr<jsonb> "#>"'
+# line 467: ok 0% of 42 uses: @sorted_agg(ARRAY_AGG, int)
+%drop agg '@sorted_agg(ARRAY_AGG, int)'
+# line 245: ok 0% of 40 uses: <0.3> SQRT "(" ABS "(" expr<float8> ")" ")"
+%drop expr '<0.3> SQRT'
+# line 365: ok 0% of 40 uses: <0.3> INT4RANGE "(" LEAST "(" expr<int> "," "10" ")" "," GREATEST "(" expr<int> "," "10" ")" "," ("'
+%drop expr '<0.3> INT4RANGE'
+# line 314: ok 0% of 40 uses: ">"
+%drop cmp '">"'
+# line 330: ok 0% of 39 uses: <0.5> "(" expr<date> ")" "::" "timestamptz"
+%drop expr '<0.5> "(" expr<date> ")"'
+# line 356: ok 0% of 39 uses: <0.4> JSON_QUERY "(" expr<jsonb> "," jsonpath (WITH WRAPPER | WITH CONDITIONAL WRAPPER | OMIT QUOTES
+%drop expr '<0.4> JSON_QUERY'
+# line 367: ok 0% of 39 uses: <0.3> RANGE_MERGE "(" expr<int4range> "," expr<int4range> ")"
+%drop expr '<0.3> RANGE_MERGE'
+# line 175: ok 0% of 38 uses: <1> JSONB_EACH "(" jobj ")" AS @define_alias(text, jsonb)
+%drop srf_item '<1> JSONB_EACH'
+# line 381: ok 0% of 38 uses: <0.2> ARRAY_SORT "(" expr<intarr> ")"
+%drop expr '<0.2> ARRAY_SORT'
+# line 385: ok 0% of 38 uses: <1> ARRAY "[" expr<text>{1,3/","} "]"
+%drop expr '<1> ARRAY "[" expr<text>{1,3/","}'
+# line 310: ok 0% of 36 uses: <0.3> "(" ROW "(" expr<X:key> "," expr<Y:key> ")" cmp ROW "(" expr<X> "," expr<Y> ")" ")"
+%drop expr '<0.3> "(" ROW'
+# line 315: ok 0% of 36 uses: "'_'::text"
+%drop like_pat '"'"'"'_'"'"'::text"'
+# line 224: ok 0% of 35 uses: <0.2> JSON_VALUE "(" expr<jsonb> "," "'$.k'" RETURNING "int" NULL ON ERROR ")"
+%drop expr '<0.2> JSON_VALUE "(" expr<jsonb> "," "'"'"'$.k'"'"'"'
+# line 246: ok 0% of 35 uses: <0.2> CBRT "(" expr<float8> ")"
+%drop expr '<0.2> CBRT'
+# line 265: ok 0% of 35 uses: <0.3> JSONB_TYPEOF "(" expr<jsonb> ")"
+%drop expr '<0.3> JSONB_TYPEOF'
+# line 295: ok 0% of 35 uses: <0.4> "(" expr<int> "=" ANY "(" ARRAY_CAT "(" expr<intarr> "," "'{}'::int[]" ")" ")" ")"
+%drop expr '<0.4> "(" expr<int>'
+# line 305: ok 0% of 35 uses: <0.6> "(" expr<int4range> ("@>" | "&&" | "<<" | ">>" | "-|-" | "&<" | "&>") expr<int4range> ")"
+%drop expr '<0.6> "(" expr<int4range>'
+# line 376: ok 0% of 35 uses: <0.4> ARRAY in_sub<int>
+%drop expr '<0.4> ARRAY'
+# line 464: ok 0% of 35 uses: <0.5> @sorted_agg(JSON_AGG, *:key) "::" "jsonb"
+%drop agg '<0.5> @sorted_agg(JSON_AGG,'
+# line 266: ok 0% of 34 uses: <0.3> TO_CHAR "(" expr<tstz> "," "'YYYY-MM-DD HH24:MI'" ")"
+%drop expr '<0.3> TO_CHAR'
+# line 276: ok 0% of 34 uses: <0.2> NORMALIZE "(" expr<text> ")"
+%drop expr '<0.2> NORMALIZE'
+# line 294: ok 0% of 34 uses: <0.4> "(" expr<X:skey> "=" ANY "(" ARRAY "[" expr<X>{1,3/","} "]" ")" ")"
+%drop expr '<0.4> "(" expr<X:skey>'
+# line 463: ok 0% of 34 uses: <1> @sorted_agg(JSONB_AGG, *:key)
+%drop agg '<1> @sorted_agg(JSONB_AGG,'
+# line 217: ok 0% of 33 uses: <0.3> UPPER "(" expr<int4range> ")"
+%drop expr '<0.3> UPPER'
+# line 303: ok 0% of 33 uses: <0.3> "(" expr<jsonb> "@@" ("'$.k == 1'" | "'$.a[*] > 1'" | "'exists($.a)'") ")"
+%drop expr '<0.3> "(" expr<jsonb> "@@"'
+# line 350: ok 0% of 33 uses: <0.5> "(" expr<jsonb> "||" expr<jsonb> ")"
+%drop expr '<0.5> "(" expr<jsonb> "||"'
+# line 69: ok 0% of 31 uses: <2> with_clause select_core order_by?0.2
+%drop query '<2> with_clause'
+# line 223: ok 0% of 31 uses: <0.3> "(" JSONB_BUILD_OBJECT "(" "'k'" "," expr<int> ")" "->>" "'k'" ")" "::" "int"
+%drop expr '<0.3> "(" JSONB_BUILD_OBJECT'
+# line 336: ok 0% of 31 uses: <1> "(" expr<interval> ("+" | "-") expr<interval> ")"
+%drop expr '<1> "(" expr<interval>'
+# line 271: ok 0% of 30 uses: <0.2> LPAD "(" expr<text> "," small "," "'*'" ")"
+%drop expr '<0.2> LPAD'
+# line 273: ok 0% of 30 uses: <0.2> INITCAP "(" expr<text> ")"
+%drop expr '<0.2> INITCAP'
+# line 372: ok 0% of 30 uses: <0.5> "(" expr<intarr> "||" expr<int> ")"
+%drop expr '<0.5> "(" expr<intarr> "||"'
+# line 379: ok 0% of 30 uses: <0.2> TRIM_ARRAY "(" ARRAY_APPEND "(" expr<intarr> "," "1" ")" "," "1" ")"
+%drop expr '<0.2> TRIM_ARRAY'
+# line 306: ok 0% of 27 uses: <0.4> "(" expr<int4range> "@>" expr<int> ")"
+%drop expr '<0.4> "(" expr<int4range>'
+# line 373: ok 0% of 27 uses: <0.3> ARRAY_APPEND "(" expr<intarr> "," expr<int> ")"
+%drop expr '<0.3> ARRAY_APPEND "(" expr<intarr>'
+# line 176: ok 0% of 26 uses: <1> JSON_TABLE "(" expr<jsonb> "," "'$[*]'" COLUMNS "(" "c0 int PATH '$.k'," "c1 text PATH '$'" ")" 
+%drop srf_item '<1> JSON_TABLE'
+# line 274: ok 0% of 26 uses: <0.3> "(" expr<text> COLLATE '"C"' ")"
+%drop expr '<0.3> "(" expr<text> COLLATE'
+# line 378: ok 0% of 26 uses: <0.2> ARRAY_POSITIONS "(" expr<intarr> "," expr<int> ")"
+%drop expr '<0.2> ARRAY_POSITIONS'
+# line 47: ok 0% of 25 uses: <1.5> alter_table
+%drop setup_stmt '<1.5> alter_table'
+# line 374: ok 0% of 25 uses: <0.3> ARRAY_CAT "(" expr<intarr> "," expr<intarr> ")"
+%drop expr '<0.3> ARRAY_CAT'
+# line 316: ok 0% of 24 uses: "'k'"
+%drop jkey '"'"'"'k'"'"'"'
+# line 355: ok 0% of 23 uses: <0.3> JSONB_PATH_QUERY_ARRAY "(" expr<jsonb> "," jsonpath ")"
+%drop expr '<0.3> JSONB_PATH_QUERY_ARRAY'
+# line 387: ok 0% of 22 uses: <0.3> REGEXP_SPLIT_TO_ARRAY "(" expr<text> "," "'[ab]'" ")"
+%drop expr '<0.3> REGEXP_SPLIT_TO_ARRAY'
+# line 39: ok 0% of 21 uses: <4> create_index
+%drop setup_stmt '<4>'
+# line 275: ok 0% of 21 uses: <0.2> JSON_VALUE "(" expr<jsonb> "," jsonpath ")"
+%drop expr '<0.2> JSON_VALUE "(" expr<jsonb> "," jsonpath'
+# line 325: ok 0% of 20 uses: <0.3> "(" DATE_TRUNC "(" ("'month'" | "'year'" | "'week'") "," expr<date> ")" ")" "::" "date"
+%drop expr '<0.3> "(" DATE_TRUNC'
+# line 354: ok 0% of 20 uses: <0.3> JSONB_PATH_QUERY_FIRST "(" expr<jsonb> "," jsonpath ")"
+%drop expr '<0.3> JSONB_PATH_QUERY_FIRST'
+# line 209: ok 1% of 92 uses: <0.5> "(" expr<int> "%" NULLIF "(" expr<int> "," "0" ")" ")"
+%drop expr '<0.5> "(" expr<int>'
+# line 190: ok 1% of 259 uses: <0.5> CASE expr<X:key> WHEN expr<X> THEN expr<T> WHEN expr<X> THEN expr<T> ELSE expr<T> END
+%drop expr '<0.5> CASE'
+# line 194: ok 1% of 246 uses: <0.4> LEAST "(" expr<T> "," expr<T> ")"
+%drop expr '<0.4> LEAST'
+# line 228: ok 1% of 80 uses: <1> "(" expr<int> ")" "::" "bigint"
+%drop expr '<1> "(" expr<int> ")" "::" "bigint"'
+# line 210: ok 1% of 71 uses: <0.5> "(" "(" expr<int> "%" "100" ")" "*" "(" expr<int> "%" "100" ")" ")"
+%drop expr '<0.5> "(" "(" expr<int>'
+# line 282: ok 2% of 68 uses: <0.4> "(" @col(X:ord) BETWEEN @dlit(X) AND @dlit(X) ")"
+%drop expr '<0.4> "(" @col(X:ord)'
+# line 189: ok 2% of 516 uses: <1> CASE WHEN expr<bool> THEN expr<T> ELSE expr<T> END
+%drop expr '<1> CASE'
+# line 213: ok 2% of 58 uses: <0.5> CARDINALITY "(" expr<X:arr> ")"
+%drop expr '<0.5> CARDINALITY'
+# line 260: ok 2% of 56 uses: <0.5> CONCAT "(" expr<*> "," expr<*> ")"
+%drop expr '<0.5> CONCAT'
+# line 528: ok 2% of 52 uses: <3> RETURNING @items(returning_item, nowin)
+%drop returning '<3>'
+# line 204: ok 2% of 94 uses: <0.4> "(" "-" expr<T> ")"
+%drop expr '<0.4> "(" "-"'
+# line 331: ok 2% of 47 uses: <0.5> DATE_TRUNC "(" ("'day'" | "'hour'" | "'year'" | "'month'") "," expr<tstz> ")"
+%drop expr '<0.5> DATE_TRUNC'
+# line 284: ok 2% of 124 uses: <2> "(" expr<bool> OR expr<bool> ")"
+%drop expr '<2> "(" expr<bool> OR'
+# line 304: ok 2% of 42 uses: <0.3> JSON_EXISTS "(" expr<jsonb> "," jsonpath ")"
+%drop expr '<0.3> JSON_EXISTS'
+# line 212: ok 2% of 41 uses: <0.3> POSITION "(" expr<text> IN expr<text> ")"
+%drop expr '<0.3> POSITION'
+# line 236: ok 2% of 41 uses: <0.5> ROUND "(" expr<numeric> "," ("0" | "2" | "(-1)") ")"
+%drop expr '<0.5> ROUND'
+# line 202: ok 2% of 479 uses: <2> "(" expr<T> ("+" | "-") expr<T> ")"
+%drop expr '<2> "(" expr<T>'
+# line 263: ok 3% of 38 uses: <0.3> FORMAT "(" "'%s|%s'" "," expr<*> "," expr<*> ")"
+%drop expr '<0.3> FORMAT'
+# line 195: ok 3% of 437 uses: <1> scalar_sub<T>
+%drop expr '<1> scalar_sub<T>'
+# line 287: ok 3% of 37 uses: <0.7> "(" expr<X:key> IS NOT?0.5 DISTINCT FROM expr<X> ")"
+%drop expr '<0.7> "(" expr<X:key> IS'
+# line 193: ok 3% of 204 uses: <0.4> GREATEST "(" expr<T> "," expr<T> ")"
+%drop expr '<0.4> GREATEST'
+# line 314: ok 3% of 70 uses: <2> "="
+%drop cmp '<2>'
+# line 211: ok 3% of 66 uses: <1> LENGTH "(" expr<text> ")"
+%drop expr '<1> LENGTH'
+# line 251: ok 3% of 148 uses: <2> "(" expr<text> "||" expr<text> ")"
+%drop expr '<2> "(" expr<text>'
+# line 280: ok 4% of 170 uses: <4> "(" expr<X:key> cmp expr<X> ")"
+%drop expr '<4> "("'
+# line 415: ok 4% of 27 uses: <0.4> PERCENTILE_DISC "(" ("0.5" | "0" | "1" | "0.25") ")" WITHIN GROUP "(" ORDER BY expr<T> DESC?0.
+%drop agg '<0.4> PERCENTILE_DISC'
+# line 458: ok 4% of 52 uses: <2> @sorted_agg(STRING_AGG, text, "','")
+%drop agg '<2> @sorted_agg(STRING_AGG,'
+# line 316: ok 4% of 26 uses: "'a'"
+%drop jkey '"'"'"'a'"'"'"'
+# line 489: ok 4% of 75 uses: <2> MAX "(" expr<T> ")" OVER window
+%drop win '<2> MAX'
+# line 270: ok 4% of 25 uses: <0.2> SPLIT_PART "(" expr<text> "," "','" "," ("1" | "2" | "(-1)") ")"
+%drop expr '<0.2> SPLIT_PART'
+# line 191: ok 4% of 527 uses: <1> COALESCE "(" expr<T> "," expr<T> ")"
+%drop expr '<1> COALESCE'
+# line 401: ok 4% of 117 uses: <4> "(" select_core ")"
+%drop in_sub '<4>'
+# line 268: ok 4% of 47 uses: <0.3> ARRAY_TO_STRING "(" expr<textarr> "," "','" ")"
+%drop expr '<0.3> ARRAY_TO_STRING'
+# line 386: ok 4% of 22 uses: <0.5> STRING_TO_ARRAY "(" expr<text> "," "','" ")"
+%drop expr '<0.5> STRING_TO_ARRAY'
+# line 203: ok 5% of 125 uses: <0.4> "(" expr<T> "/" NULLIF "(" expr<T> "," "0" ")" ")"
+%drop expr '<0.4> "(" expr<T>'
+# line 323: ok 5% of 20 uses: <0.5> "(" expr<tstz> ")" "::" "date"
+%drop expr '<0.5> "(" expr<tstz> ")"'
+# line 286: ok 5% of 94 uses: <1.5> "(" expr<X> IS NOT?0.4 NULL ")"
+%drop expr '<1.5>'
+# line 244: ok 5% of 56 uses: <1> "(" expr<int> ")" "::" "float8"
+%drop expr '<1> "(" expr<int> ")" "::" "float8"'
+# line 255: ok 6% of 35 uses: <0.3> SUBSTR "(" expr<text> "," small "," ("1" | "3") ")"
+%drop expr '<0.3> SUBSTR'
+# line 256: ok 6% of 99 uses: <0.5> REPLACE "(" expr<text> "," expr<text> "," expr<text> ")"
+%drop expr '<0.5> REPLACE'
+# line 142: ok 6% of 49 uses: <2> derived
+%drop from_item '<2>'
+# line 259: ok 6% of 49 uses: <0.3> TRIM "(" BOTH "'a'" FROM expr<text> ")"
+%drop expr '<0.3> TRIM'
+# line 283: ok 6% of 113 uses: <2> "(" expr<bool> AND expr<bool> ")"
+%drop expr '<2> "(" expr<bool> AND'
+# line 298: ok 7% of 30 uses: <0.2> "(" expr<text> SIMILAR TO "'%(a|b)%'" ")"
+%drop expr '<0.2> "(" expr<text> SIMILAR'
+# line 187: ok 7% of 2314 uses: <8> @col(T)
+%drop expr '<8>'
+# line 235: ok 7% of 42 uses: <0.5> "(" "(" expr<numeric> "%" "100" ")" "*" "(" expr<numeric> "%" "100" ")" ")"
+%drop expr '<0.5> "(" "(" expr<numeric>'
+# line 188: ok 7% of 7420 uses: <4> @lit(T)
+%drop expr '<4> @lit(T)'
+# line 173: ok 7% of 27 uses: <1> UNNEST "(" expr<textarr> ")" AS @define_alias(text)
+%drop srf_item '<1> UNNEST "(" expr<textarr>'
+# line 314: ok 8% of 39 uses: "<"
+%drop cmp '"<"'
+# line 192: ok 8% of 226 uses: <0.4> NULLIF "(" expr<T> "," expr<T> ")"
+%drop expr '<0.4> NULLIF'
+# line 252: ok 8% of 171 uses: <1> LOWER "(" expr<text> ")"
+%drop expr '<1> LOWER'
+# line 198: ok 8% of 435 uses: <0.2> NULL "::" $T
+%drop expr '<0.2> NULL'
+# line 412: ok 9% of 101 uses: <3> MIN "(" expr<T> ")"
+%drop agg '<3> MIN'
+# line 82: ok 10% of 230 uses: <0.5> SELECT @items
+# (no unique key; edit by hand) %drop select_core ...

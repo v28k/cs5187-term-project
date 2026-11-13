@@ -268,12 +268,20 @@ class Engine:
         max_steps: int = 6000,
         max_tries: int = 4,
         null_prob: float = 0.06,
+        literals: dict[str, list[str]] | None = None,
+        fills: dict[str, list[str]] | None = None,
     ) -> None:
         self.g, self.base_schema, self.rng = grammar, schema, rng
+        # per-dialect literal / fill tables (dialect data file) override the PostgreSQL defaults
+        self.literals = {**_LITERALS, **(literals or {})}
+        self.fills = {**_FILL, **(fills or {})}
+        # row source of @fill with one column x = 1..n (dialect data "series_from")
+        self.series_from = "generate_series(1, {n}) AS g(x)"
         self.max_depth, self.soft_depth, self.max_steps, self.max_tries = max_depth, soft_depth, max_steps, max_tries
         self.null_prob = null_prob
         self.alt_hits: Counter[int] = Counter()
         self.alt_boost: dict[int, float] = {}
+        self.target_boost: dict[int, float] = {}      # rule-targeted generation (C2), on top of alt_boost
         self._nid = 0
         self._minimal = 0          # > 0 while deriving a subtree marked MINIMAL
         self.profile: Any = None   # pgfuzz.grammar.profile.Profile: literals from the data
@@ -393,7 +401,7 @@ class Engine:
         lo = min(c[2] for c in cands)
         keyed = []
         for c in rest:
-            w = c[1].weight * self.alt_boost.get(c[1].uid, 1.0)
+            w = c[1].weight * self.alt_boost.get(c[1].uid, 1.0) * self.target_boost.get(c[1].uid, 1.0)
             if depth >= self.soft_depth:
                 w *= 0.15 ** (c[2] - lo)
             if w <= 0:
@@ -584,7 +592,7 @@ class Engine:
             v = self.profile.pick(t, self.rng)     # data quantiles and interval boundaries
             if v is not None:
                 return v
-        vals = _LITERALS.get(t)
+        vals = self.literals.get(t)
         if not vals:
             return f"NULL::{self.sql_type(t)}"
         if t == "int" and self.rng.random() < 0.3:
@@ -596,7 +604,7 @@ class Engine:
         t = c.type
         if "pk" in c.flags:
             return {"int": "x", "bigint": "x::bigint", "numeric": "x::numeric", "text": "x::text"}.get(t, f"x::{self.sql_type(t)}")
-        exprs = _FILL.get(t) or [self.literal(t)]
+        exprs = self.fills.get(t) or [self.literal(t)]
         return self.rng.choice(exprs)
 
     def stats(self) -> dict[str, Any]:
@@ -923,8 +931,9 @@ def _b_fill(eng: Engine, ctx: Ctx, tv: dict, args: list[str], guide: Node | None
         sql = guide.val[1]
     else:
         n = int(args[0]) if args and args[0].isdigit() else eng.rng.choice((5, 20, 100))
-        exprs = ", ".join(eng.fill_expr(c) for c in cols)
-        sql = f"{head}{exprs} FROM generate_series(1, {n}) AS g(x)"
+        # aliased: some engines (DataFusion) need unique names for the projected expressions
+        exprs = ", ".join(f"{eng.fill_expr(c)} AS f{i}" for i, c in enumerate(cols))
+        sql = f"{head}{exprs} FROM " + eng.series_from.format(n=n)
     return Node("@fill", val=(sig, sql)), [sql]
 
 
@@ -935,7 +944,7 @@ def _wrap_col_expr(eng: Engine, it: Item, c: Column, tk: list[str]) -> list[str]
     if c.type == "numeric":
         out = ["(", "ABS", "("] + out + [")", "%", "1000", ")"]
     if c.flags & {"pk", "notnull"} or c.name == "c0":
-        fallback = _LITERALS.get(c.type, [f"NULL::{eng.sql_type(c.type)}"])[0]
+        fallback = eng.literals.get(c.type, [f"NULL::{eng.sql_type(c.type)}"])[0]
         out = ["COALESCE", "("] + out + [",", fallback, ")"]
     return out
 

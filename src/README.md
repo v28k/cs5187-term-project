@@ -33,7 +33,7 @@ pip install -r requirements.txt
 All commands run from `src/`.
 
 ```sh
-python -m pytest                                   # 151 unit tests, no database needed
+python -m pytest                                   # 205 unit tests on this branch (151 on main), no database needed
 python -m pgfuzz run configs/smoke.yaml            # whole pipeline on a simulated server, ~40 s
 python -m pgfuzz selftest configs/stage1.yaml      # acceptance checks against the real harness
 python -m pgfuzz run configs/stage1.yaml -j 4      # the real Stage 1 experiment
@@ -53,6 +53,59 @@ prints a warning when an experiment used it.
 | `selftest CONFIG` | Ten acceptance checks for the executor: SQLSTATE mapping, continuing after errors, timeouts, no state leaks, recovery after a lost connection. |
 | `replay CONFIG FILE.sql... [--repeat N] [--expect-bug]` | Runs SQL files and prints the oracle's verdict and signature. Use it to validate failures on a fresh server and to check known-bug PoCs. |
 | `features FILE.sql... [--missing] [--each]` | Shows which SQL catalog features a corpus covers. |
+
+## Generalized fuzzer: other SQL engines (branch `generalized`)
+
+The same grammar core tests **DuckDB, SQLite, Turso and Apache DataFusion**. Each engine runs
+in a spawned worker process (a crash or panic kills only the worker). Install the engine
+packages with `pip install -r requirements.txt` (duckdb, apsw, pyturso, datafusion; z3-solver
+for data synthesis).
+
+| Engine | Config | Driver | Overlay + dialect data | Rule switches |
+|---|---|---|---|---|
+| DuckDB | `configs/duckdb.yaml` (`duckdb_xv.yaml`: nightly vs release) | `pgfuzz/targets/duckdb_executor.py` | `grammar/overlays/duckdb.pgg`, `duckdb.data.yaml` | `disabled_optimizers` |
+| SQLite (APSW) | `configs/sqlite.yaml` | `pgfuzz/targets/sqlite_executor.py` | `sqlite.pgg`, `sqlite.data.yaml` | `SQLITE_TESTCTRL_OPTIMIZATIONS` bits |
+| Turso | `configs/turso.yaml` (differential against SQLite) | `pgfuzz/targets/turso_executor.py` | `sqlite.pgg` + `turso.pgg` | none (compared against SQLite) |
+| DataFusion | `configs/datafusion.yaml` | `pgfuzz/targets/datafusion_executor.py` | `datafusion.pgg`, `datafusion.data.yaml` | `EXPLAIN VERBOSE` per-rule plans, `SET datafusion.optimizer.*` |
+| DuckDB vs SQLite | `configs/duckdb_vs_sqlite.yaml` | `pgfuzz/reference/xversion_executor.py` (any two engines) | SQLite dialect | learned normalizers `normalizers/duckdb__sqlite.yaml` |
+
+Commands added for the generalized fuzzer:
+
+| Command | What it does |
+|---|---|
+| `sample CONFIG -n N --execute [--mine-overlay PATH]` | validity per engine; with `--mine-overlay`, a draft overlay of grammar alternatives that almost never execute (A3) |
+| `learn-normalizers CONFIG [-n 400] [--out F]` | probes an engine pair and infers value normalizers and query guards (C4) |
+| `import-tests DIR... --out SEEDS` | engine test suites (`.test`, `.slt`, `.sqltest`) to seed files (C6) |
+| `hunt CONFIG... --budget S [--out D]` | one autonomous round: campaign per engine, triage of new failures, package drafts, `HUNT.md` (D1) |
+| `package ENGINE TRIAGE_DIR... [--out D]` | filing-package draft with a regression test in the engine's own format (D3) |
+| `ledger [--root ../docs/bughunt]` | precision ledger per engine and oracle (D4) |
+
+Evaluation scripts: `../scripts/eval/` (configs and `run_all.sh`), `../scripts/coverage/`,
+`../scripts/baselines/`, `../scripts/bench/`. Design, status and future work:
+[`../docs/generalized/DESIGN.md`](../docs/generalized/DESIGN.md),
+[`../docs/generalized/FUTURE_WORK.md`](../docs/generalized/FUTURE_WORK.md).
+
+### Adding an engine
+
+1. **Driver** (`pgfuzz/targets/<engine>_executor.py`, about 150 lines; `datafusion_executor.py`
+   is the shortest model). Subclass `pgfuzz.targets.base.Driver` and implement `connect(setup)`
+   (returns the version), `execute(sql, fetch, max_rows)` (rows and column types),
+   `error_name(exc)` (engine error to a class name; give the engine's "internal error" class
+   the name `InternalError`), and `begin()` / `end()` (isolation between test cases). Map error
+   classes to SQLSTATEs in `sqlstate` so the oracle can tell bugs from ordinary errors.
+   Optional, for the rule-based techniques: `rules()`, `variants()`, `apply_variant()`,
+   `reset_variant()`, `explain()`, `fired()`. Then a three-line `WorkerExecutor` subclass that
+   names the driver.
+2. **Schema**: `corpus/<engine>/schema.sql` (tables and data) and `schema.yaml` (the same tables
+   for the generator).
+3. **Overlay**: start with `sample --execute --mine-overlay grammar/overlays/<engine>.pgg` on
+   the base grammar, review the mined `%drop` lines, add `%replace` / `%droptype` lines and a
+   `<engine>.data.yaml` (literals, casts, functions), and repeat until validity stops rising.
+4. **Config**: copy `configs/datafusion.yaml`, point it at the driver, schema and overlay; add
+   `known_bugs/<engine>.yaml` (empty list); check with `sample --execute` and `selftest`
+   (on in-process engines 8 of its 10 checks apply: `timeout` and `terminate` test PostgreSQL's
+   `statement_timeout` and `pg_terminate_backend`; DataFusion passes the other 8).
+5. **Tests**: a driver test in `tests/` (see `test_rule_probe.py`), then `python -m pytest -q`.
 
 ## Architecture
 

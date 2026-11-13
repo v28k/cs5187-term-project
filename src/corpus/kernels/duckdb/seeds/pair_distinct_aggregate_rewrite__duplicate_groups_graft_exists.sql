@@ -1,0 +1,3 @@
+-- composition of rule kernels distinct_aggregate_rewrite x duplicate_groups (duckdb), template graft_exists
+SELECT ((COUNT (DISTINCT a1.c1) % 1000)::int - 1) AS c0, a1.c1 AS c1, 'A'::text AS c2, 1::bigint AS c3 FROM (SELECT * FROM tl WHERE EXISTS (SELECT 1 FROM (SELECT ((COUNT (DISTINCT a1.c5) % 1000)::int - 1) AS c0, a1.c5 AS c1, 'A'::text AS c2, 0::bigint AS c3 FROM t3 AS a1 GROUP BY a1.c2, a1.c5) AS kb) OR NOT EXISTS (SELECT 1 FROM (SELECT ((COUNT (DISTINCT a1.c5) % 1000)::int - 1) AS c0, a1.c5 AS c1, 'A'::text AS c2, 0::bigint AS c3 FROM t3 AS a1 GROUP BY a1.c2, a1.c5) AS kb)) AS a1 GROUP BY a1.c1;
+-- pgfuzz:check kernel:graft_exists SELECT ((COUNT (DISTINCT a1.c1) % 1000)::int - 1) AS c0, a1.c1 AS c1, 'A'::text AS c2, 1::bigint AS c3 FROM tl AS a1 GROUP BY a1.c1

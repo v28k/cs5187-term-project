@@ -1,0 +1,3 @@
+-- composition of rule kernels L:extract_equijoin_predicate x L:scalar_subquery_to_join (datafusion), template scalar_filter
+SELECT count(*) FROM (SELECT 3 AS c0, ARRAY[1] AS c1 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c3 = a2.c3))) AS ka WHERE (SELECT count(*) FROM (WITH cte1 AS (SELECT 500 AS c0) SELECT FALSE AS c0, a1.c1 AS c1 FROM tp AS a1 WHERE CASE WHEN ((SELECT MAX ('1999-12-31'::date) FROM cte1 AS a2 WHERE LEAST ((a1.c0 IS NULL), TRUE)) IN (SELECT '1970-01-01'::date AS c0)) THEN FALSE ELSE TRUE END) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT 3 AS c0, ARRAY[1] AS c1 FROM (t4 AS a1 JOIN t4 AS a2 ON (a1.c3 = a2.c3))) AS ka

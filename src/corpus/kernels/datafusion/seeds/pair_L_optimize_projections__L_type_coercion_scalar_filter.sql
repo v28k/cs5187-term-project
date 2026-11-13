@@ -1,0 +1,3 @@
+-- composition of rule kernels L:optimize_projections x L:type_coercion (datafusion), template scalar_filter
+SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT a1.c1 AS c0, 100.0::float8 AS c1 FROM t0 AS a1, generate_series (10, 1) AS a2 (c0) GROUP BY GROUPING SETS ((a1.c1), ())) AS ka WHERE (SELECT count(*) FROM (SELECT 10::bigint AS c0, FALSE AS c1, make_array('a', 'b') AS c2, make_array(NULL, 1) AS c3) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT a1.c1 AS c0, 100.0::float8 AS c1 FROM t0 AS a1, generate_series (10, 1) AS a2 (c0) GROUP BY GROUPING SETS ((a1.c1), ())) AS ka

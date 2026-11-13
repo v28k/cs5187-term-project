@@ -1,0 +1,15 @@
+# Turso overlay on top of overlays/sqlite.pgg (features Turso does not support yet).
+
+# no parenthesised joins: left-deep join chains, a plain table on the right
+%droprule joined
+%droprule self_join
+joined @frame
+  : <5> from_item join_kind @table ON @join_eq
+  | <0.7> @table FULL JOIN @table ON @join_eq
+  | <4> from_item join_kind @table ON "(" @join_eq AND expr<bool> ")"
+  | <1> @table(t1) join_kind @table(t1) ON @join_eq
+  | <1> @table(t3) join_kind @table(t3) ON @join_eq
+  ;
+
+# ORDER BY inside aggregates is not supported yet: order-sensitive aggregates go away
+%drop agg "@sorted_agg"

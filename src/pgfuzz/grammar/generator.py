@@ -108,6 +108,12 @@ class GrammarGenerator(Generator):
         extra_grammars: list[str] | str | None = None,
         seeds: list[str] | str | None = None,
         seed_prob: float = 0.05,
+        overlays: list[str] | str | None = None,
+        dialect_data: str | None = None,
+        rule_guidance: bool = True,
+        rule_target: bool | dict[str, Any] = False,
+        data_synth: float = 0.0,
+        data_synth_max: int = 12,
         seed_cycle: bool = False,
     ) -> None:
         self.grammar_path, self.schema_path = grammar, schema
@@ -129,6 +135,9 @@ class GrammarGenerator(Generator):
         self.only_rewrite = only_rewrite
         self.reward_avg = 0.0
         self.extra_grammars = _paths(extra_grammars, "*.pgg")
+        self.overlay_paths = [overlays] if isinstance(overlays, str) else list(overlays or [])
+        self.overlay_report: dict[str, int] = {}
+        self.dialect_data = dialect_data   # YAML: literals / fill tables per type for this dialect
         self.seed_paths = _paths(seeds, "*.sql")
         self.seed_prob = float(seed_prob)
         self.seed_cycle = bool(seed_cycle)  # replay the seeds in turn instead of at random
@@ -137,6 +146,32 @@ class GrammarGenerator(Generator):
         self.seed_cases: list[list[str]] = []
         self.seed_checks: list[list[dict[str, Any]]] = []
         self.seen_plans: set[str] = set()
+        # rule-firing feedback (pgfuzz.targets.base, probe fills StatementResult.rules)
+        self.rule_guidance = bool(rule_guidance)
+        self.seen_rules: set[str] = set()
+        self.seen_rule_pairs: set[tuple[str, str]] = set()
+        self.rule_alt: dict[str, Counter[int]] = {}     # rule -> alternatives in trees where it fired
+        self.rule_probed_alt: Counter[int] = Counter()  # alternative -> probed trees containing it
+        self.rule_fires: Counter[str] = Counter()
+        self.rule_probes = 0
+        # rule-targeted generation (C2): after `stall` test cases without a new rule or rule pair,
+        # boost the alternatives most associated with a rarely fired rule for `span` test cases
+        rt = rule_target if isinstance(rule_target, dict) else ({} if rule_target else None)
+        self.rt_enabled = rt is not None
+        self.rt_stall = int((rt or {}).get("stall", 150))
+        self.rt_span = int((rt or {}).get("span", 150))
+        self.rt_max = float((rt or {}).get("max_boost", 4.0))
+        self.rt_min_probes = int((rt or {}).get("min_probes", 3))
+        self.rt_since_new = 0
+        self.rt_target: str | None = None
+        self.rt_left = 0
+        self.rt_hit = False
+        self.rt_log: Counter[str] = Counter()          # "target:<rule>" / "hit:<rule>"
+        # constraint-based data synthesis (C3): rows that make TLP / NoREC partitions non-empty
+        self.data_synth, self.data_synth_max = float(data_synth), int(data_synth_max)
+        self.synth: Any = None
+        self.synth_errors = 0
+        self.vacuity: Counter[str] = Counter()          # "<kind>:checked" / "<kind>:vacuous"
         self.corpus: list[_Entry] = []
         self.pending: dict[int, _Built] = {}
         self.seen_pairs: set[tuple[str, str]] = set()
@@ -172,8 +207,19 @@ class GrammarGenerator(Generator):
         if missing:
             raise ValueError(f"{self.grammar_path}: missing rules {missing}")
         self.start = self.start or self.grammar.start
+        dd: dict[str, Any] = {}
+        if self.dialect_data:
+            import yaml
+
+            dd = yaml.safe_load(Path(self.dialect_data).read_text(encoding="utf-8")) or {}
         self.engine = Engine(self.grammar, self.schema, self.rng, self.max_depth, self.soft_depth,
-                             null_prob=self.null_prob)
+                             null_prob=self.null_prob, literals=dd.get("literals"), fills=dd.get("fill"))
+        self._dialect_data = dd
+        if dd.get("series_from"):
+            self.engine.series_from = str(dd["series_from"])
+        from pgfuzz.grammar.dialect import Dialect
+
+        self.dialect = Dialect.from_data(dd)
         if self.profile_path:
             from pgfuzz.grammar.profile import Profile
 
@@ -187,16 +233,27 @@ class GrammarGenerator(Generator):
             for r in json.loads(Path(f).read_text(encoding="utf-8")).get("rewrites", []):
                 if r.get("type") in self.grammar.types and "{e}" in str(r.get("template", "")):
                     self.extra_rewrites.setdefault(r["type"], {})[str(r["name"])] = str(r["template"])
+        if self.data_synth > 0:
+            from pgfuzz.datasynth import DataSynth
+
+            self.synth = DataSynth(self.schema, self.rng)
         self.rewriter = Rewriter(self.grammar, self.rng, self.mm_per_query, self.mm_weights,
                                  policies=load_policies(self.rls_path), extra_rewrites=self.extra_rewrites,
-                                 only=self.only_rewrite)
+                                 only=self.only_rewrite, exclude=self._dialect_data.get("rewrite_exclude"))
 
     def _load_grammar(self) -> Grammar:
         """The base grammar plus every extra fragment (LLM arm) that still parses
         together with the ones before it; a fragment that breaks the combination is skipped."""
-        if not self.extra_grammars:
-            return load_grammar(self.grammar_path)
         text = Path(self.grammar_path).read_text(encoding="utf-8")
+        if not self.extra_grammars and not self.overlay_paths:
+            self.grammar_text = text
+            return load_grammar(self.grammar_path)
+        if self.overlay_paths:
+            from pgfuzz.grammar.overlay import apply_overlays
+
+            text, rep = apply_overlays(text, [Path(o).read_text(encoding="utf-8") for o in self.overlay_paths],
+                                       self.grammar_path)
+            self.overlay_report = rep.summary()
         for f in self.extra_grammars:
             frag = Path(f).read_text(encoding="utf-8")
             try:
@@ -207,6 +264,7 @@ class GrammarGenerator(Generator):
                 continue
             text += f"\n# ---- fragment {Path(f).name}\n" + frag
             self.fragments_loaded.append(Path(f).name)
+        self.grammar_text = text
         return parse_grammar(text, self.grammar_path)
 
     # ------------------------------------------------------------ generation
@@ -292,7 +350,7 @@ class GrammarGenerator(Generator):
             meta: dict[str, Any] = {"op": "seed"}
             if self.seed_checks[k]:
                 meta["checks"] = [dict(c) for c in self.seed_checks[k]]
-            return TestCase(list(self.seed_cases[k]), origin=self.name, meta=meta)
+            return TestCase(self._dialectize(self.seed_cases[k], meta.get("checks")), origin=self.name, meta=meta)
         built = None
         for _ in range(4):
             if self.corpus and self.rng.random() < self.mutate_prob:
@@ -312,13 +370,39 @@ class GrammarGenerator(Generator):
         self.n_testcases += 1
         meta: dict[str, Any] = {"op": built.op}
         checks = self._checks(built) if self.mm_prob > 0 else []
+        prefix = self._synthesize(built, checks)
+        if prefix:
+            meta["synth"] = len(prefix)
+            for c in checks:
+                c["stmt"] = int(c["stmt"]) + len(prefix)
         if checks:
             meta["checks"] = checks
-        tc = TestCase(built.sql, origin=self.name, meta=meta)
+        tc = TestCase(self._dialectize(prefix + built.sql, checks), origin=self.name, meta=meta)
         self.pending[id(tc)] = built
         if len(self.pending) > 64:
             self.pending.pop(next(iter(self.pending)))
         return tc
+
+    def _synthesize(self, built: _Built, checks: list[dict[str, Any]]) -> list[str]:
+        """INSERTs that put rows into every partition of the checks' predicates (C3)."""
+        if self.synth is None or not checks or self.rng.random() >= self.data_synth:
+            return []
+        out: list[str] = []
+        for c in checks:
+            if c.get("pred") and 0 <= int(c["stmt"]) < len(built.sql):
+                out += self.synth.inserts(str(c["pred"]), built.sql[int(c["stmt"])], c.get("from_sql"))
+        return out[: self.data_synth_max]
+
+    def _dialectize(self, sql: list[str], checks: list[dict[str, Any]] | None = None) -> list[str]:
+        """Engine spelling (pgfuzz.grammar.dialect) of the statements and, in place, of the checks."""
+        d = self.dialect
+        if not d.active:
+            return list(sql)
+        for c in checks or ():
+            for k in ("lhs", "rhs"):
+                if c.get(k):
+                    c[k] = d.apply(str(c[k]))
+        return [d.apply(s) for s in sql]
 
     def failure_meta(self, tc: TestCase) -> dict[str, Any]:
         """Derivation trees of a failing test case (for grammar-tree reduction in triage)."""
@@ -355,16 +439,29 @@ class GrammarGenerator(Generator):
     # ------------------------------------------------------------ feedback
     def feedback(self, fb: Feedback) -> None:
         built = self.pending.pop(id(fb.testcase), None)
-        stmt_results = fb.result.statements
-        for i, oc in enumerate(fb.statement_outcomes):
+        k = int(fb.testcase.meta.get("synth", 0))       # synthesized INSERTs come first
+        self.synth_errors += sum(oc is not Outcome.OK for oc in fb.statement_outcomes[:k])
+        stmt_results = fb.result.statements[k:]
+        outcomes = fb.statement_outcomes[k:]
+        for i, oc in enumerate(outcomes):
             self.outcomes[oc.value] += 1
             if oc is not Outcome.OK and i < len(stmt_results) and stmt_results[i].message:
                 self.errors[f"{oc.value}: {normalize_message(stmt_results[i].message)}"] += 1
+        for st in stmt_results:
+            for c in getattr(st, "checks", None) or []:
+                if c.get("kind") == "tlp_where" and c.get("status") == "ok":
+                    tag = "synth" if k else "plain"
+                    self.vacuity[f"{tag}:checked"] += 1
+                    self.vacuity[f"{tag}:empty"] += int(not c.get("lhs_rows"))
+                    parts = c.get("partitions")
+                    if parts and None not in parts:
+                        self.vacuity[f"{tag}:measured"] += 1
+                        self.vacuity[f"{tag}:vacuous"] += int(sum(1 for n in parts if n) < 2)
         if built is None:
             return
         if self.track_alternatives:
             ok_by_tree: dict[int, bool] = {}
-            for i, oc in enumerate(fb.statement_outcomes):
+            for i, oc in enumerate(outcomes):
                 if i < len(built.owners):
                     t = built.owners[i]
                     ok_by_tree[t] = ok_by_tree.get(t, True) and oc is Outcome.OK
@@ -381,14 +478,16 @@ class GrammarGenerator(Generator):
             feats |= features_of(s)
         new_pairs = feature_pairs(feats) - self.seen_pairs
         self.seen_pairs |= new_pairs
-        any_ok = any(oc is Outcome.OK for oc in fb.statement_outcomes)
+        any_ok = any(oc is Outcome.OK for oc in outcomes)
         plans = {st.plan_shape for st in stmt_results if st.plan_shape} - self.seen_plans
         self.seen_plans |= plans
-        why = ("signature" if fb.new_signature else "features" if fb.new_features
+        new_rules = self._rule_feedback(built, stmt_results)
+        why = ("signature" if fb.new_signature else "rule" if new_rules and self.rule_guidance
+               else "features" if fb.new_features
                else "pairs" if new_pairs and any_ok
                else "plan" if plans and self.plan_guidance else "")
         if self.bandit > 0:
-            self._bandit_update(built, fb, bool(why))
+            self._bandit_update(built, outcomes, bool(why))
         if not why:
             return
         if built.parent is not None:
@@ -401,15 +500,78 @@ class GrammarGenerator(Generator):
                           key=lambda k: (self.corpus[k].why == "signature", self.corpus[k].finds, -self.corpus[k].picks))
             del self.corpus[weakest]
 
+    def _rule_feedback(self, built: _Built, stmt_results: list[Any]) -> bool:
+        """Record which rules fired (and which alternatives the statement's tree used, for
+        rule-targeted generation); True if a new rule or a new pair of rules fired."""
+        new = False
+        for i, st in enumerate(stmt_results):
+            rules = getattr(st, "rules", None)
+            if rules is None:
+                continue
+            alts: set[int] = set()
+            if i < len(built.owners):
+                alts = {n.alt for _, n in built.stmts[built.owners[i]].tree.walk() if n.sym[0] not in "#@"}
+            for a in alts:
+                self.rule_probed_alt[a] += 1
+            rs = sorted(set(rules))
+            self.rule_probes += 1
+            for r in rs:
+                self.rule_fires[r] += 1
+                if r == self.rt_target:
+                    self.rt_hit = True
+                if r not in self.seen_rules:
+                    self.seen_rules.add(r)
+                    new = True
+                c = self.rule_alt.setdefault(r, Counter())
+                for a in alts:
+                    c[a] += 1
+            pairs = {(a, b) for k, a in enumerate(rs) for b in rs[k + 1:]} - self.seen_rule_pairs
+            if pairs:
+                self.seen_rule_pairs |= pairs
+                new = True
+        if self.rt_enabled:
+            self._rule_target_step(new)
+        return new
+
+    def _rule_target_step(self, new: bool) -> None:
+        """Advance rule-targeted generation by one test case."""
+        self.rt_since_new = 0 if new else self.rt_since_new + 1
+        if self.rt_target is not None:
+            self.rt_left -= 1
+            if self.rt_left > 0:
+                return
+            if self.rt_hit:
+                self.rt_log[f"hit:{self.rt_target}"] += 1
+            self.rt_target, self.engine.target_boost = None, {}
+        if self.rt_since_new < self.rt_stall or not self.rule_fires or self.rule_probes < 20:
+            return
+        # rarely fired rules first (weight ~ 1/fires), sampled so that repeated stalls rotate targets
+        rules = sorted(self.rule_fires)
+        weights = [1.0 / self.rule_fires[r] for r in rules]
+        target = self.rng.choices(rules, weights)[0]
+        base = self.rule_fires[target] / max(1, self.rule_probes)
+        boost: dict[int, float] = {}
+        for alt, n in self.rule_alt.get(target, {}).items():
+            probes = self.rule_probed_alt[alt]
+            if probes >= self.rt_min_probes:
+                lift = (n / probes) / max(base, 1e-9)
+                if lift > 1.0:
+                    boost[alt] = min(self.rt_max, lift)
+        if not boost:
+            return
+        self.engine.target_boost = boost
+        self.rt_target, self.rt_left, self.rt_hit, self.rt_since_new = target, self.rt_span, False, 0
+        self.rt_log[f"target:{target}"] += 1
+
     BOOST_MIN, BOOST_MAX = 0.2, 5.0
 
-    def _bandit_update(self, built: _Built, fb: Feedback, novel: bool) -> None:
+    def _bandit_update(self, built: _Built, outcomes: list[Outcome], novel: bool) -> None:
         """Every alternative used by a tree gets the reward of that tree: 1 if the test
         case was novel (it enters the corpus), -0.5 if the tree's statements failed, 0
         otherwise; its weight is multiplied by exp(rate * (reward - average reward)),
         clipped so that no alternative dies or dominates."""
         bad: set[int] = set()
-        for i, oc in enumerate(fb.statement_outcomes):
+        for i, oc in enumerate(outcomes):
             if i < len(built.owners) and oc is not Outcome.OK and not oc.is_bug_candidate:
                 bad.add(built.owners[i])
         rewards = []
@@ -445,15 +607,32 @@ class GrammarGenerator(Generator):
             "corpus": len(self.corpus),
             "generation_failures": self.gen_failures,
             "metamorphic_checks_built": dict(self.mm_built),
+            "data_synth": ({**self.synth.stats, "insert_errors": self.synth_errors} if self.synth else None),
+            "tlp_vacuity": self._vacuity(),
             "plan_shapes_seen": len(self.seen_plans),
+            "rules_seen": len(self.seen_rules),
+            "rule_targets": dict(self.rt_log) if self.rt_enabled else {},
+            "rule_pairs_seen": len(self.seen_rule_pairs),
             "bandit": self._bandit_stats() if self.bandit > 0 else None,
             "llm_rewrites": sum(len(v) for v in self.extra_rewrites.values()),
+            "overlay": self.overlay_report,
             "fragments_loaded": len(self.fragments_loaded),
             "fragments_rejected": self.fragments_rejected,
             "seed_cases": len(self.seed_cases),
             "corpus_reasons": dict(Counter(e.why for e in self.corpus)),
             **self.engine.stats(),
         }
+
+    def _vacuity(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for tag in ("plain", "synth"):
+            n = self.vacuity[f"{tag}:checked"]
+            if n:
+                m = self.vacuity[f"{tag}:measured"]
+                out[tag] = {"checked": n, "empty_rate": round(self.vacuity[f"{tag}:empty"] / n, 4),
+                            "measured": m,
+                            "vacuous_rate": round(self.vacuity[f"{tag}:vacuous"] / m, 4) if m else None}
+        return out
 
     def _bandit_stats(self) -> dict[str, Any]:
         b = self.engine.alt_boost
@@ -471,6 +650,9 @@ class GrammarGenerator(Generator):
                              "mutate_prob": self.mutate_prob, "max_depth": self.max_depth,
                              "setup_prob": self.setup_prob, "queries": list(self.queries),
                              "mm_prob": self.mm_prob, "mm_per_query": self.mm_per_query, "bandit": self.bandit}
+        if self.overlay_paths:
+            d["overlays"] = [Path(o).name for o in self.overlay_paths]
+            d["overlay_sha1"] = hashlib.sha1(b"".join(Path(o).read_bytes() for o in self.overlay_paths)).hexdigest()[:12]
         if self.extra_grammars or self.seed_paths:
             d["fragments"] = [Path(f).name for f in self.extra_grammars]
             d["seed_files"] = len(self.seed_paths)

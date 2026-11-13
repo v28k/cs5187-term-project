@@ -1,0 +1,3 @@
+-- composition of rule kernels BloomFilter x OrderByIdxJoin (sqlite), template graft_union
+SELECT '{"k": 2, "a": [0]}' AS c0 FROM (SELECT * FROM tp UNION ALL SELECT * FROM tp WHERE (SELECT count(*) FROM (WITH cte1 AS (SELECT 22 AS c0) SELECT a2.c1 AS c0, CAST('ß' AS TEXT) AS c1 FROM (t1 AS a1 JOIN t1 AS a2 ON (a1.c1 = a2.c1)) WHERE (a1.c0 = 3) ORDER BY 1) AS kb) < 0) AS a1 WHERE ((a1.c1, CASE WHEN FALSE THEN TRUE ELSE (CAST(1 AS INTEGER) IN (SELECT CAST(100 AS INTEGER) AS c0)) END) <> (a1.c1, TRUE)) GROUP BY a1.c0, a1.c1;
+-- pgfuzz:check kernel:graft_union SELECT '{"k": 2, "a": [0]}' AS c0 FROM tp AS a1 WHERE ((a1.c1, CASE WHEN FALSE THEN TRUE ELSE (CAST(1 AS INTEGER) IN (SELECT CAST(100 AS INTEGER) AS c0)) END) <> (a1.c1, TRUE)) GROUP BY a1.c0, a1.c1

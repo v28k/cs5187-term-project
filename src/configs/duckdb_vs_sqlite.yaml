@@ -1,0 +1,44 @@
+# Cross-engine campaign: DuckDB nightly (test, with metamorphic oracles) against SQLite 3.54.1 (reference),
+# SQLite dialect, comparisons normalised and guarded by the learned rules (C4, normalizers/duckdb__sqlite.yaml).
+#   python -m pgfuzz run configs/duckdb_vs_sqlite.yaml -j 2
+experiment: duckdb_vs_sqlite
+output_dir: ../results
+trials: 2
+seed: 7401
+budget:
+  seconds: 3600
+coverage_interval_s: 100000
+snapshot_interval_s: 30
+log_sql: failures
+max_repros: 3
+max_harness_errors: 50
+known_bugs: ../known_bugs/duckdb.yaml
+executor:
+  plugin: pgfuzz.reference.xversion_executor:CrossVersionExecutor
+  params:
+    test:
+      plugin: pgfuzz.targets.duckdb_executor:DuckDBExecutor
+      setup_sql: '{config_dir}/../corpus/common/schema.sql'
+      statement_timeout_ms: 3000
+      metamorphic: true
+    reference:
+      plugin: pgfuzz.targets.sqlite_executor:SQLiteExecutor
+      rules: false
+    learned: '{config_dir}/../normalizers/duckdb__sqlite.yaml'
+configs:
+- name: grammar_xengine
+  label: Grammar+Oracles+vsSQLite(learned)
+  generator:
+    plugin: pgfuzz.grammar.generator:GrammarGenerator
+    params:
+      grammar: '{config_dir}/../grammar/postgres.pgg'
+      overlays:
+      - '{config_dir}/../grammar/overlays/sqlite.pgg'
+      - '{config_dir}/../grammar/overlays/turso.pgg'
+      dialect_data: '{config_dir}/../grammar/overlays/sqlite.data.yaml'
+      schema: '{config_dir}/../corpus/sqlite/schema.yaml'
+      mm_prob: 0.5
+      plan_guidance: false
+      bandit: 0.1
+      max_depth: 7
+      soft_depth: 4

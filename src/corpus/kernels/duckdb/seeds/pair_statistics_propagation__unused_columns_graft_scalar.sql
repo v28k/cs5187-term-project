@@ -1,0 +1,3 @@
+-- composition of rule kernels statistics_propagation x unused_columns (duckdb), template graft_scalar
+SELECT 20 AS c0, a1.c5 AS c1, 'A'::text AS c2, 1000::bigint AS c3 FROM (SELECT * FROM t3 WHERE (SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 100) SELECT ['a', 'b']::text[] AS c0, 10.0::float8 AS c1, a1.c3 AS c2 FROM t3 AS a1 UNION ALL SELECT ARRAY['1'::text] AS c0, 10.0::float8 AS c1, '00:00:00.000001'::interval AS c2) AS kb) >= 0) AS a1 GROUP BY a1.c2, a1.c5;
+-- pgfuzz:check kernel:graft_scalar SELECT 20 AS c0, a1.c5 AS c1, 'A'::text AS c2, 1000::bigint AS c3 FROM t3 AS a1 GROUP BY a1.c2, a1.c5

@@ -1,0 +1,3 @@
+-- composition of rule kernels limit_pushdown x redundant_order_keys (duckdb), template scalar_filter
+SELECT count(*) FROM (SELECT COALESCE ((EXISTS (SELECT 10.0::numeric AS c0, 1::bigint AS c1)), TRUE) AS c0 FROM tp AS a1) AS ka WHERE (SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT TRUE AS c0, TRUE AS c1, ARRAY['1'::text] AS c2 UNION SELECT FALSE AS c0, TRUE AS c1, ARRAY['1'::text] AS c2 ORDER BY 3, 3) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT COALESCE ((EXISTS (SELECT 10.0::numeric AS c0, 1::bigint AS c1)), TRUE) AS c0 FROM tp AS a1) AS ka

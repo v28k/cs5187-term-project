@@ -1,0 +1,11 @@
+functions: {GENERATE_SERIES: generate_series, UNNEST: unnest}
+# DataFusion literal and fill tables
+literals:
+  interval: ["'1 day'::interval", "'-1 month'::interval", "'0 days'::interval", "'1 year 2 months 3 days 4 hours 5 minutes 6.789 seconds'::interval",
+             "'1 microsecond'::interval", "'-3 hours'::interval", "'7 days'::interval"]
+  textarr: ["make_array('a', 'b')", "make_array(CAST(NULL AS VARCHAR))", "ARRAY['x'::text, NULL::text]",
+            "make_array('a', 'b', 'c', 'd')", "ARRAY['1'::text]"]
+  intarr: ["make_array(1, 2, 3)", "make_array(NULL, 1)", "make_array(1, 2, 3, 4)", "ARRAY[1, 2, 3]", "ARRAY[1]"]
+fill:
+  interval: ["CAST(CAST(x AS VARCHAR) || ' minutes' AS INTERVAL)"]
+  tstz: ["(TIMESTAMP '2024-01-01 00:00:00+00' + CAST(CAST(x AS VARCHAR) || ' hours' AS INTERVAL))"]

@@ -1,0 +1,3 @@
+-- composition of rule kernels build_side_probe_side x filter_pullup (duckdb), template graft_union
+SELECT 'x%'::text AS c0 EXCEPT ALL SELECT a1.c1 AS c0 FROM (SELECT * FROM tl UNION ALL SELECT * FROM tl WHERE (SELECT count(*) FROM (SELECT ((COUNT (DISTINCT a1.c5) % 1000)::int - 1) AS c0, a1.c5 AS c1, 'A'::text AS c2, COUNT (*) AS c3 FROM t3 AS a1 GROUP BY a1.c2, a1.c5) AS kb) < 0) AS a1 WHERE (EXISTS (SELECT a1.c1 AS c0 FROM v0 AS a2 WHERE NULL::boolean));
+-- pgfuzz:check kernel:graft_union SELECT 'x%'::text AS c0 EXCEPT ALL SELECT a1.c1 AS c0 FROM tl AS a1 WHERE (EXISTS (SELECT a1.c1 AS c0 FROM v0 AS a2 WHERE NULL::boolean))

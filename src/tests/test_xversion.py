@@ -62,3 +62,31 @@ def test_comparison_stops_after_a_statement_succeeds_on_one_server_only():
             [{"status": S.ERROR, "sqlstate": "42601"}, {"status": S.OK, "rows": 1, "result_hash": "b"}])
     res = y.execute(TestCase(["SELECT 1 FROM t2 AS a1", "SELECT a1.c0 FROM t2 AS a1"]))
     assert oracle.classify(res).outcome is Outcome.WRONG_RESULT and y.xstats["compared"] == 1
+
+
+def test_learned_guards_skip_incomparable_statements(tmp_path):
+    x = _xv([{"status": S.OK, "rows": 1, "result_hash": "a"}], [{"status": S.OK, "rows": 1, "result_hash": "b"}])
+    x.guards = {"op:/"}
+    res = x.execute(TestCase(["SELECT a1.c0 / 2 FROM t0 AS a1"]))
+    assert oracle.classify(res).outcome is Outcome.OK
+    assert x.xstats["guarded"] == 1 and x.xstats["compared"] == 0
+
+
+def test_learned_rules_file_sets_normalizers_and_guards(tmp_path):
+    import yaml
+
+    p = tmp_path / "rules.yaml"
+    p.write_text(yaml.safe_dump({"normalize": ["bool_int"], "guards": ["op:/"]}))
+    test, ref = {"plugin": "x"}, {}
+    x = object.__new__(CrossVersionExecutor)
+    seen = []
+    import pgfuzz.reference.xversion_executor as xv
+
+    orig = xv._make
+    xv._make = lambda spec: seen.append(dict(spec)) or _Fake([])
+    try:
+        CrossVersionExecutor.__init__(x, test, ref, learned=str(p))
+    finally:
+        xv._make = orig
+    assert x.guards == {"op:/"}
+    assert all(s.get("normalize") == ["bool_int"] for s in seen)

@@ -1,0 +1,3 @@
+-- composition of rule kernels empty_result_pullup x window_self_join (duckdb), template scalar_filter
+SELECT count(*) FROM (SELECT '2024-01-01'::date AS c0, (MAX ('epoch'::timestamptz) OVER () + '00:00:00.000001'::interval) AS c1 FROM tp AS a1 WHERE FALSE) AS ka WHERE (SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 100) SELECT []::text[] AS c0, 100.0::float8 AS c1, '0'::interval AS c2 UNION ALL SELECT ARRAY['1'::text] AS c0, 100.0::float8 AS c1, MAX ('-1 month'::interval) OVER () AS c2 FROM tp AS a1) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (SELECT '2024-01-01'::date AS c0, (MAX ('epoch'::timestamptz) OVER () + '00:00:00.000001'::interval) AS c1 FROM tp AS a1 WHERE FALSE) AS ka

@@ -28,6 +28,8 @@ _QUOTED = re.compile(r'"(?:[^"]|"")*"|\'(?:[^\']|\'\')*\'')
 _HEX = re.compile(r"\b0x[0-9a-fA-F]+\b")
 _NUM = re.compile(r"\b\d+\b")
 _WS = re.compile(r"\s+")
+# a Rust panic (Turso, DataFusion) printed by the engine worker: its source location is a strong signature
+_RUST_PANIC = re.compile(r"panicked at ([\w./-]+\.rs):(\d+)")
 _FRAME_ADDR = re.compile(r"^#\d+\s+(?:0x[0-9a-fA-F]+\s+(?:in\s+)?)?")
 _FRAME_ARGS = re.compile(r"\s*\(.*$")
 
@@ -77,6 +79,9 @@ def compute(cls: Classification, testcase: TestCase | None = None) -> Signature:
         strength, key = "diff", f"{kind}|{d.get('variant', '?')}|{_culprit_shape(cls, testcase)}"
     elif frames:
         strength, key = "stack", f"{kind}|" + "<".join(frames)
+    elif _RUST_PANIC.search(cls.message or ""):
+        m = _RUST_PANIC.search(cls.message or "")
+        strength, key = "panic", f"{kind}|{m.group(1)}:{m.group(2)}"
     elif "assertion" in d:
         a = d["assertion"]
         strength, key = "assert", f"{kind}|{a['file']}|{normalize_message(a['expr'])}"

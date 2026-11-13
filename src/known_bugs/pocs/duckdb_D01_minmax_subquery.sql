@@ -1,0 +1,3 @@
+CREATE TABLE a (x int);
+INSERT INTO a VALUES (1), (2);
+SELECT min((SELECT [1])) FROM a;

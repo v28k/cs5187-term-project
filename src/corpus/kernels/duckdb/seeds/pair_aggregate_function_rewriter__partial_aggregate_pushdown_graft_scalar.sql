@@ -1,0 +1,3 @@
+-- composition of rule kernels aggregate_function_rewriter x partial_aggregate_pushdown (duckdb), template graft_scalar
+SELECT (NULLIF (((LIST_SUM (LIST (35 ORDER BY 35)))::int % NULLIF (500, 0)), (-42)) + (-10)) AS c0 FROM (SELECT * FROM t2 WHERE (SELECT count(*) FROM (WITH cte1 AS (SELECT GREATEST ((a1.c1 || MIN (''::text) OVER (PARTITION BY a1.c0)), 'c4ca4238a0b923820dcc509a6f75849b'::text) AS c0 FROM ti AS a1) SELECT 39 AS c0 FROM cte1 AS a2 GROUP BY GROUPING SETS ((a2.c0), ()) EXCEPT ALL SELECT 7 AS c0) AS kb) >= 0) AS a1 GROUP BY GROUPING SETS ((a1.c1), (a1.c2), ());
+-- pgfuzz:check kernel:graft_scalar SELECT (NULLIF (((LIST_SUM (LIST (35 ORDER BY 35)))::int % NULLIF (500, 0)), (-42)) + (-10)) AS c0 FROM t2 AS a1 GROUP BY GROUPING SETS ((a1.c1), (a1.c2), ())

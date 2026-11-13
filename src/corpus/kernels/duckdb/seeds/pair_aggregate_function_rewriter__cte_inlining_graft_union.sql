@@ -1,0 +1,3 @@
+-- composition of rule kernels aggregate_function_rewriter x cte_inlining (duckdb), template graft_union
+SELECT a1.c0 AS c0, a1.c0 AS c1, AVG (41) AS c2, AVG ((-1.5)::float8) AS c3 FROM (SELECT * FROM t0 UNION ALL SELECT * FROM t0 WHERE (SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT TRUE AS c0, [1, 2, 3]::int[] AS c1, 1.5::numeric AS c2, LEAST (LEAST (1.5::numeric, (SELECT MAX (100.0::numeric) FROM v0 AS a2 WHERE COALESCE (COALESCE ((a1.c0 BETWEEN 16 AND 3), TRUE), FALSE))), NULL::numeric) AS c3 FROM v0 AS a1) AS kb) < 0) AS a1 GROUP BY a1.c0;
+-- pgfuzz:check kernel:graft_union SELECT a1.c0 AS c0, a1.c0 AS c1, AVG (41) AS c2, AVG ((-1.5)::float8) AS c3 FROM t0 AS a1 GROUP BY a1.c0

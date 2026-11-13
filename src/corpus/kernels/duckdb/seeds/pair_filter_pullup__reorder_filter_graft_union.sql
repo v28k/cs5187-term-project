@@ -1,0 +1,3 @@
+-- composition of rule kernels filter_pullup x reorder_filter (duckdb), template graft_union
+SELECT 'x%'::text AS c0 EXCEPT ALL SELECT a1.c1 AS c0 FROM tl AS a1 WHERE (EXISTS (SELECT a1.c1 AS c0 FROM (SELECT * FROM v0 UNION ALL SELECT * FROM v0 WHERE (SELECT count(*) FROM (SELECT (-1) AS c0 FROM (tl AS a1 JOIN (t1 POSITIONAL JOIN t3) ON ((a1.c0 = t3.c0) AND t3.c1)) WHERE GREATEST (((t1.c2 = '{"k": -1, "a": [1, 2, 3]}'::jsonb) OR TRUE), t3.c1)) AS kb) < 0) AS a2 WHERE NULL::boolean));
+-- pgfuzz:check kernel:graft_union SELECT 'x%'::text AS c0 EXCEPT ALL SELECT a1.c1 AS c0 FROM tl AS a1 WHERE (EXISTS (SELECT a1.c1 AS c0 FROM v0 AS a2 WHERE NULL::boolean))

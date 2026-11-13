@@ -22,6 +22,7 @@ executor:
     threads: 2
     differential: {per_query: 2}
     metamorphic: true
+    rule_feedback: {prob: 0.3, overhead: 0.25}
 
 configs:
   - name: grammar_mm
@@ -30,6 +31,8 @@ configs:
       plugin: pgfuzz.grammar.generator:GrammarGenerator
       params:
         grammar: "{config_dir}/../grammar/postgres.pgg"
+        overlays: ["{config_dir}/../grammar/overlays/duckdb.pgg"]
+        dialect_data: "{config_dir}/../grammar/overlays/duckdb.data.yaml"
         schema: "{config_dir}/../corpus/duckdb/schema.yaml"
         mm_prob: 0.5
         plan_guidance: false

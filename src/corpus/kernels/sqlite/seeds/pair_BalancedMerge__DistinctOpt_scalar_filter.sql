@@ -1,0 +1,3 @@
+-- composition of rule kernels BalancedMerge x DistinctOpt (sqlite), template scalar_filter
+SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT DISTINCT CAST(1000 AS INTEGER) AS c0, a1.c0 AS c1 FROM t1 AS a1) AS ka WHERE (SELECT count(*) FROM (SELECT NULL UNION SELECT 1 UNION SELECT 2 UNION SELECT NULL) AS kb) >= 0;
+-- pgfuzz:check kernel:scalar_filter SELECT count(*) FROM (WITH RECURSIVE rc(c0) AS (SELECT 1 UNION ALL SELECT r.c0 + 1 FROM rc AS r WHERE r.c0 < 5) SELECT DISTINCT CAST(1000 AS INTEGER) AS c0, a1.c0 AS c1 FROM t1 AS a1) AS ka

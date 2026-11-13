@@ -1,0 +1,3 @@
+-- composition of rule kernels disjunctive_join_rewriter x in_clause (duckdb), template graft_exists
+SELECT TRUE AS c0, 1.5::numeric AS c1 UNION (SELECT TRUE AS c0, 0.0::numeric AS c1 UNION BY NAME SELECT LIST_CONTAINS ([NULL, 1]::int[], a1.c0) AS c0, 2.25::numeric AS c1 FROM (SELECT * FROM t3 WHERE EXISTS (SELECT 1 FROM (FROM (VALUES (1, 2)) a(x, y) JOIN (VALUES (1, 2)) c(x, y) ON a.x = c.x OR a.y = c.y) AS kb) OR NOT EXISTS (SELECT 1 FROM (FROM (VALUES (1, 2)) a(x, y) JOIN (VALUES (1, 2)) c(x, y) ON a.x = c.x OR a.y = c.y) AS kb)) AS a1);
+-- pgfuzz:check kernel:graft_exists SELECT TRUE AS c0, 1.5::numeric AS c1 UNION (SELECT TRUE AS c0, 0.0::numeric AS c1 UNION BY NAME SELECT LIST_CONTAINS ([NULL, 1]::int[], a1.c0) AS c0, 2.25::numeric AS c1 FROM t3 AS a1)

@@ -1,0 +1,3 @@
+-- composition of rule kernels OmitNoopJoin x OrderByIdxJoin (sqlite), template graft_union
+WITH cte1 AS (SELECT 22 AS c0) SELECT a2.c1 AS c0, CAST('ß' AS TEXT) AS c1 FROM (t1 AS a1 JOIN (SELECT * FROM t1 UNION ALL SELECT * FROM t1 WHERE (SELECT count(*) FROM (SELECT DISTINCT a1.n AS c0 FROM (v0 AS a1 LEFT JOIN ti AS a2 ON (a1.c0 = a2.c0)) UNION ALL SELECT CAST(100 AS INTEGER) AS c0) AS kb) < 0) AS a2 ON (a1.c1 = a2.c1)) WHERE (a1.c0 = 3) ORDER BY 1;
+-- pgfuzz:check kernel:graft_union WITH cte1 AS (SELECT 22 AS c0) SELECT a2.c1 AS c0, CAST('ß' AS TEXT) AS c1 FROM (t1 AS a1 JOIN t1 AS a2 ON (a1.c1 = a2.c1)) WHERE (a1.c0 = 3) ORDER BY 1

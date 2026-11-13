@@ -1,0 +1,3 @@
+-- composition of rule kernels empty_result_pullup x limit_pushdown (duckdb), template graft_exists
+SELECT '2024-01-01'::date AS c0, (MAX ('epoch'::timestamptz) OVER () + '00:00:00.000001'::interval) AS c1 FROM (SELECT * FROM tp WHERE EXISTS (SELECT 1 FROM (SELECT (SELECT MAX (a1.c0) FROM t4 AS a1 WHERE (EXISTS (SELECT 1::bigint AS c0))) AS c0, '2000-01-01'::date AS c1) AS kb) OR NOT EXISTS (SELECT 1 FROM (SELECT (SELECT MAX (a1.c0) FROM t4 AS a1 WHERE (EXISTS (SELECT 1::bigint AS c0))) AS c0, '2000-01-01'::date AS c1) AS kb)) AS a1 WHERE FALSE;
+-- pgfuzz:check kernel:graft_exists SELECT '2024-01-01'::date AS c0, (MAX ('epoch'::timestamptz) OVER () + '00:00:00.000001'::interval) AS c1 FROM tp AS a1 WHERE FALSE

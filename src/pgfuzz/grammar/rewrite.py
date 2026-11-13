@@ -139,6 +139,9 @@ class Check:
     rhs: str
     mask: bool = False        # mask float columns when digesting both sides
     lhs_role: str | None = None   # run the left side as this role (RLS oracle)
+    pred: str | None = None   # the WHERE predicate the check partitions on (data synthesis)
+    arms: list[str] | None = None   # TLP: the statement restricted to each partition (vacuity)
+    from_sql: str | None = None   # the FROM clause of the partitioned SELECT (join conditions)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -302,8 +305,12 @@ class Rewriter:
     def __init__(self, grammar: Grammar, rng: random.Random, per_query: int = 1,
                  weights: dict[str, float] | None = None, query_rules: tuple[str, ...] = ("query",),
                  policies: dict[str, str] | None = None,
-                 extra_rewrites: dict[str, dict[str, str]] | None = None, only: str | None = None) -> None:
+                 extra_rewrites: dict[str, dict[str, str]] | None = None, only: str | None = None,
+                 exclude: list[str] | None = None) -> None:
         self.rng = rng
+        # "type:rewrite" pairs that are not equivalences in the target dialect (dialect data
+        # rewrite_exclude), e.g. "date:plus_zero" for SQLite, where a date is text and d + 0 is a number
+        self.exclude = set(exclude or [])
         self.policies = dict(policies or {})
         # type -> name -> template (LLM-proposed, accepted by the validation gate)
         self.extra = {t: {f"llm_{n}": template_rewrite(tpl) for n, tpl in d.items()}
@@ -334,6 +341,9 @@ class Rewriter:
             left = [k for k in kinds if k not in tried]
             k = self.rng.choices(left, weights=[self.weights[x] for x in left])[0]
             tried.add(k)
+            self._pred_toks: list[str] | None = None
+            self._arms: list[list[str]] | None = None
+            self._from_toks: list[str] | None = None
             built = builders[k](t, root, schema)
             if built is None:
                 continue
@@ -346,7 +356,10 @@ class Rewriter:
             elif rhs_sql == (lhs_sql or sql):
                 continue
             mask = masks_floats(lhs_sql or sql) or masks_floats(rhs_sql)
-            out.append(Check(index, kind, lhs_sql, rhs_sql, mask, role))
+            pred = render(self._pred_toks) if self._pred_toks else None
+            arms = [render(a) for a in self._arms] if self._arms else None
+            frm = render(self._from_toks) if self._from_toks else None
+            out.append(Check(index, kind, lhs_sql, rhs_sql, mask, role, pred, arms, frm))
         return out
 
     # ---- helpers
@@ -386,8 +399,13 @@ class Rewriter:
         return items.val if items is not None and isinstance(items.val, tuple) else None
 
     def _has_window(self, t: _Tree, core: Node) -> bool:
-        items = t.child(core, "@items")
-        return items is not None and t.contains(items, {"win"})
+        """A window function of this select (items, or a QUALIFY filter) sees the rows left by
+        WHERE/HAVING, so partitioning those clauses changes its value: no TLP on such a core."""
+        for clause in ("@items", "qualify_clause"):
+            c = t.child(core, clause)
+            if c is not None and t.contains(c, {"win"}):
+                return True
+        return False
 
     def _partition(self, t: _Tree, core: Node, clause: Node, keyword: str, union: str, nested: bool) -> list[str]:
         pred = t.child(clause, "expr")
@@ -395,10 +413,13 @@ class Rewriter:
         p = t.tokens(pred) or []
         start, end = t.region(core)  # type: ignore[misc]
         cs, ce = t.region(clause)  # type: ignore[misc]
+        frm = t.child(core, "from_clause")
+        self._from_toks = t.tokens(frm) if frm is not None else None
         arms = []
         for cond in (_paren(p), ["NOT"] + _paren(p), _paren(p) + ["IS", "NULL"]):
             arm = t.toks[start:cs] + [keyword] + cond + t.toks[ce:end]
             arms.append(_paren(arm))
+        self._arms = [t.toks[:start] + a[1:-1] + t.toks[end:] for a in arms]
         joined = arms[0] + [union] + arms[1] + [union] + arms[2]
         if nested:   # keep INTERSECT (binds tighter than UNION) from regrouping the arms
             joined = _paren(joined)
@@ -415,6 +436,7 @@ class Rewriter:
         where = t.child(core, "where_clause")
         distinct = t.child(core, "distinct") is not None
         lhs = t.replace(where, [])  # type: ignore[arg-type]
+        self._pred_toks = t.tokens(t.child(where, "expr"))  # type: ignore[arg-type]
         rhs = self._partition(t, core, where, "WHERE", "UNION" if distinct else "UNION ALL",  # type: ignore[arg-type]
                               nested=core is not self._core(t, root))
         return "tlp_where", lhs, rhs
@@ -456,6 +478,7 @@ class Rewriter:
             return None
         start, end = t.region(core)  # type: ignore[misc]
         lhs = t.replace(where, [])  # type: ignore[arg-type]
+        self._pred_toks = t.tokens(t.child(where, "expr"))  # type: ignore[arg-type]
         part = self._partition(t, core, where, "WHERE", "UNION ALL", nested=False)  # type: ignore[arg-type]
         arms = part[start:len(part) - (len(t.toks) - end)]
         sel: list[str] = []
@@ -611,6 +634,7 @@ class Rewriter:
             return None
         start, _ = t.region(core)  # type: ignore[misc]
         prefix = t.toks[:start]
+        self._pred_toks, self._from_toks = p, f
         lhs = prefix + ["SELECT", "COUNT", "(", "*", ")"] + f + w
         rhs = prefix + ["SELECT", "COALESCE", "(", "SUM", "(", "CASE", "WHEN"] + _paren(p) + \
             ["THEN", "1", "ELSE", "0", "END", ")", ",", "0", ")"] + f
@@ -631,6 +655,9 @@ class Rewriter:
             rw = {self.only: rw[self.only]}
         if any(a.sym in ("agg", "win") for a in t.ancestors(n)):
             rw.pop("scalar_sub", None)   # keep sub-selects out of aggregate/window arguments
+        rw = {k: v for k, v in rw.items() if f"{n.typ}:{k}" not in self.exclude and f"*:{k}" not in self.exclude}
+        if not rw:
+            return None
         name = self.rng.choice(sorted(rw))
         return f"expr:{name}", None, t.replace(n, rw[name](t.tokens(n) or []))
 

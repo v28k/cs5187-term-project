@@ -1,0 +1,3 @@
+-- composition of rule kernels L:optimize_unions x L:simplify_expressions (datafusion), template union
+SELECT count(*) FROM (SELECT 1 AS k FROM (SELECT '2000-01-01'::date AS c0 UNION ALL (SELECT '2024-02-29'::date AS c0 UNION ALL (SELECT '1999-12-31'::date AS c0 UNION SELECT '2024-02-29'::date AS c0))) AS ka UNION ALL SELECT 2 AS k FROM (SELECT TRUE AS c0, 1.5::numeric AS c1) AS kb) AS u;
+-- pgfuzz:check kernel:union SELECT (SELECT count(*) FROM (SELECT '2000-01-01'::date AS c0 UNION ALL (SELECT '2024-02-29'::date AS c0 UNION ALL (SELECT '1999-12-31'::date AS c0 UNION SELECT '2024-02-29'::date AS c0))) AS ka) + (SELECT count(*) FROM (SELECT TRUE AS c0, 1.5::numeric AS c1) AS kb)

@@ -1,0 +1,3 @@
+-- composition of rule kernels L:scalar_subquery_to_join x P:OutputRequirements (datafusion), template union
+SELECT count(*) FROM (SELECT 1 AS k FROM (SELECT 18 AS c0, FALSE AS c1) AS ka UNION ALL SELECT 2 AS k FROM (SELECT a1.c0 AS c0 FROM tl AS a1 WHERE (SELECT BOOL_AND (TRUE) FROM ti AS a2 WHERE (NOT (NULL::boolean <= (16 IS DISTINCT FROM a1.c0)))) UNION SELECT 100 AS c0) AS kb) AS u;
+-- pgfuzz:check kernel:union SELECT (SELECT count(*) FROM (SELECT 18 AS c0, FALSE AS c1) AS ka) + (SELECT count(*) FROM (SELECT a1.c0 AS c0 FROM tl AS a1 WHERE (SELECT BOOL_AND (TRUE) FROM ti AS a2 WHERE (NOT (NULL::boolean <= (16 IS DISTINCT FROM a1.c0)))) UNION SELECT 100 AS c0) AS kb)

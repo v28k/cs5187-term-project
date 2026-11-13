@@ -1,0 +1,3 @@
+-- composition of rule kernels L:eliminate_outer_join x L:push_down_filter (datafusion), template graft_scalar
+SELECT 6 AS c0, COALESCE (CASE WHEN TRUE THEN ARRAY[(SELECT MAX (a2.c0) FROM (SELECT * FROM t0 WHERE (SELECT count(*) FROM (SELECT a2.c5 AS c0, a2.c2 AS c1 FROM (ti AS a1 LEFT JOIN t3 AS a2 ON (a1.c1 = a2.c5)) WHERE a2.c1) AS kb) >= 0) AS a2 WHERE (29 >= a2.c0))] ELSE make_array(1, 2, 3) END, make_array(NULL, 1)) AS c1 FROM tl AS a1;
+-- pgfuzz:check kernel:graft_scalar SELECT 6 AS c0, COALESCE (CASE WHEN TRUE THEN ARRAY[(SELECT MAX (a2.c0) FROM t0 AS a2 WHERE (29 >= a2.c0))] ELSE make_array(1, 2, 3) END, make_array(NULL, 1)) AS c1 FROM tl AS a1

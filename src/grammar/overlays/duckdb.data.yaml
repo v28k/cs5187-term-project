@@ -1,0 +1,11 @@
+# DuckDB literal and fill tables (override pgfuzz.grammar.engine defaults per type)
+literals:
+  textarr: ["[]::text[]", "['a', 'b']::text[]", "[NULL]::text[]", "ARRAY['x'::text, NULL::text]",
+            "['a', 'b', 'c', 'd']::text[]", "ARRAY['1'::text]"]
+  intarr: ["[1, 2, 3]::int[]", "[]::int[]", "[NULL, 1]::int[]", "[1, 2, 3, 4]::int[]", "ARRAY[1, 2, 3]", "ARRAY[1]"]
+fill:
+  jsonb: ["json_object('k', x % 10, 'a', json_array(x, x % 3))::jsonb"]
+  interval: ["(x * interval '1 minute')", "to_days((x % 40)::int)"]
+  date: ["('2024-01-01'::date + x::int)", "('2024-01-01'::date + (x % 10)::int)"]
+  tstz: ["('2024-01-01 00:00:00+00'::timestamptz + to_hours(x))"]
+  text: ["(x % 13)::text", "md5(x::text)", "repeat('ab', (x % 4)::int)", "chr((65 + x % 26)::int)"]

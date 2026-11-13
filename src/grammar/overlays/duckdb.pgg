@@ -1,0 +1,211 @@
+# DuckDB dialect overlay for grammar/postgres.pgg (format: pgfuzz/grammar/overlay.py).
+# Part 1 removes PostgreSQL-only features; part 2 adds DuckDB features.
+
+# ---------------------------------------------------------------- part 1: not in DuckDB
+# (literal and fill tables: grammar/overlays/duckdb.data.yaml)
+%droptype int4range
+
+# jsonb operators / functions / SQL-JSON syntax DuckDB does not have (jsonb = DuckDB JSON here)
+%drop expr "\"?\" ("
+%drop expr "\"@?\""
+%drop expr "\"@@\""
+%drop expr "\"#>\""
+%drop expr "\"#-\""
+%drop expr "\"-\" \"'k'\""
+%drop expr "JSONB_"
+%drop expr "TO_JSONB"
+%drop expr "JSON_VALUE"
+%drop expr "JSON_QUERY"
+%drop expr "JSON_EXISTS"
+%drop expr "JSON_OBJECT"
+%drop expr "JSON_ARRAY"
+%drop expr "IS NOT?0.3 JSON"
+%drop expr "(\"@>\" | \"<@\") expr<jsonb>"
+%drop expr "\"||\" expr<jsonb>"
+%drop srf_item "JSONB_"
+%drop srf_item "JSON_TABLE"
+%drop srf_item "ROWS FROM"
+%drop srf_item "WITH ORDINALITY"
+%droprule jobj
+%drop agg "JSONB_AGG"
+%drop agg "JSON_AGG"
+
+# functions / operators missing in DuckDB
+%drop expr "WIDTH_BUCKET"
+%drop expr "SCALE"
+%drop expr "INITCAP"
+%drop expr "TO_CHAR"
+%drop expr "NORMALIZE"
+%drop expr "JUSTIFY_HOURS"
+%drop expr "MAKE_INTERVAL"
+%drop expr "TRIM_ARRAY"
+%drop expr "ARRAY_POSITIONS"
+%drop expr "ARRAY_REMOVE"
+%drop expr "REGEXP_SPLIT_TO_ARRAY"
+%drop expr "\"^@\""
+%drop expr "SIMILAR TO"
+%drop expr "COLLATE"
+%drop expr "TO_TIMESTAMP"
+%drop expr "ARRAY in_sub"
+%drop expr "\"[\" (\"1\" | \"2\") \":\""
+%drop expr "'{}'::int[]"
+%drop expr "(\"~\" | \"~*\" | \"!~\")"
+%drop expr "<<"
+%drop expr "EXTRACT \"(\" (EPOCH | DAY | HOUR) FROM expr<interval>"
+%drop agg "MODE"
+%drop agg "EVERY"
+%drop agg "REGR_SLOPE"
+
+# window: IGNORE NULLS / EXCLUDE combos are kept (DuckDB supports them); GROUPS frames too
+
+# DML: MERGE RETURNING merge_action(), bare ON CONFLICT, RETURNING old./new.
+%drop on_conflict "ON CONFLICT DO NOTHING"
+%drop returning "\"old.\""
+%droprule merge_returning
+
+# EXPLAIN options
+%droprule explain_stmt
+explain_stmt : <2> EXPLAIN query ;
+
+# DDL that DuckDB does not have
+%droprule create_stats
+%droprule create_cast
+%droprule alter_table
+%drop create_index "USING"
+%replace create_index "CREATE INDEX ON" "CREATE INDEX @fresh_name(i) ON"
+%dropopt create_index "INCLUDE"
+%dropopt create_index "WHERE"
+%dropopt index_col "NULLS FIRST"
+%drop index_col "COALESCE"
+%drop create_table "UNLOGGED"
+%drop create_table "PARTITION BY"
+%replace create_table "\";\" ANALYZE @target_name" ""
+%replace ctas "\";\" ANALYZE @target_name" ""
+%drop new_col "GENERATED ALWAYS AS IDENTITY"
+%dropopt new_col "STORED"
+%drop create_view "matview_def"
+%drop setup_stmt "ANALYZE @table"
+
+# settings: DuckDB has no SET LOCAL; the driver resets these after every test case
+%droprule set_stmt
+set_stmt
+  : <2> SET "disabled_optimizers" "=" duck_rule
+  | <1> SET "threads" "=" ("1" | "3")
+  | <0.5> SET "default_null_order" "=" ("'nulls_first'" | "'nulls_last'")
+  ;
+duck_rule : "'filter_pushdown'" | "'join_order'" | "'statistics_propagation'" | "'unnest_rewriter'"
+          | "'build_side_probe_side'" | "'compressed_materialization'" | "'top_n'" | "'reorder_filter'"
+          | "'common_subexpressions'" | "'late_materialization'" | "'join_filter_pushdown'" ;
+
+# ---------------------------------------------------------------- batch 2 (from measured errors)
+%drop expr "NOT IN in_sub<int>"
+%drop expr "CONCAT \"(\" expr<*>"
+%drop expr "CONCAT_WS"
+%drop rec_cte "SEARCH"
+%drop rec_cte "CYCLE"
+
+# DuckDB: no subqueries in RETURNING
+%droprule returning_item
+returning_item<T> : <3> @col(T) | <1> @lit(T) | <1> COALESCE "(" @col(T) "," @lit(T) ")" ;
+
+# index keys must be scalar (no lists, no intervals, no JSON)
+%addclass int idx
+%addclass bigint idx
+%addclass numeric idx
+%addclass float8 idx
+%addclass text idx
+%addclass bool idx
+%addclass date idx
+%addclass tstz idx
+%replace index_col "@target_col(ord)" "@target_col(idx)"
+
+# ---------------------------------------------------------------- batch 3
+# DuckDB writes IGNORE NULLS inside the call: first_value(x IGNORE NULLS) OVER (...)
+%drop win "IGNORE NULLS"
+win<T:mm>
+  : <0.3> LAG "(" expr<T> IGNORE NULLS ")" OVER window_ord
+  | <0.05> (FIRST_VALUE "(" expr<T> IGNORE NULLS ")" | LAST_VALUE "(" expr<T> IGNORE NULLS ")" | NTH_VALUE "(" expr<T> "," ("1" | "2") IGNORE NULLS ")") OVER window_frame
+  ;
+# DuckDB: RETURNING may not reference other tables of the statement
+%drop returning "@items"
+# list || element needs a cast in DuckDB
+%drop expr "\"||\" expr<int>"
+# DO UPDATE SET cannot contain a subquery: make ON CONFLICT rarer
+%replace insert_stmt " on_conflict " " on_conflict?0.2 "
+
+# ---------------------------------------------------------------- part 2: DuckDB features
+# (deterministic only: no list_distinct without a sort, no any_value / arg_max on ties)
+
+select_core
+  : <0.8> group_all_core
+  | <0.8> SELECT @items ^from_clause ^where_clause?0.5 qualify_clause
+  ;
+group_all_core @clear(win_ok) : SELECT @items ^from_clause ^where_clause?0.5 GROUP BY ALL ;
+qualify_clause @set(win_ok) : QUALIFY "(" win<bigint> cmp small ")" (AND expr<bool>)?0.4 ;
+order_by : <0.5> ORDER BY ALL (ASC | DESC)?0.4 (NULLS FIRST | NULLS LAST)?0.3 ;
+set_op : <0.6> UNION BY NAME | <0.6> UNION ALL BY NAME ;
+
+rec_cte
+  : <1.5> "rc(c0, c1)" USING KEY "(c0)" AS "(" SELECT "1, 1" UNION SELECT "r.c0 % 3 + 1, r.c1 + 1" FROM "rc AS r" WHERE "r.c1 <" ("5" | "10" | "50") ")" @define_rel(rc, int, int)
+  | <0.7> "rc(c0, c1)" USING KEY "(c0)" AS "(" SELECT "c0, 0" FROM "(VALUES (1), (2), (3)) AS v(c0)" UNION SELECT "r.c0, r.c1 + r.c0" FROM "rc AS r" WHERE "r.c1 <" ("10" | "30") ")" @define_rel(rc, int, int)
+  ;
+
+joined @frame : <0.6> "(" @table(plain) POSITIONAL JOIN @table(plain) ")" ;
+
+expr<int>
+  : <0.4> "(" "{" "'a'" ":" expr<int> "," "'b'" ":" expr<text> "}" ")" "." "a"
+  | <0.3> STRUCT_PACK "(" "a :=" expr<int> "," "b :=" expr<int> ")" "." "b"
+  | <0.5> LIST_POSITION "(" expr<intarr> "," expr<int> ")"
+  | <0.4> "(" LEN "(" expr<intarr> ")" ")" "::" "int"
+  | <0.3> "(" LIST_SUM "(" expr<intarr> ")" ")" "::" "int"
+  | <0.3> LIST_MAX "(" expr<intarr> ")"
+  | <0.3> LIST_MIN "(" expr<intarr> ")"
+  | <0.4> "(" expr<int> "//" NULLIF "(" expr<int> "," "0" ")" ")"
+  | <0.2> GCD "(" expr<int> "," expr<int> ")"
+  | <0.2> BIT_COUNT "(" expr<int> ")"
+  | <0.3> TRY_CAST "(" expr<text> AS "INTEGER" ")"
+  | <0.2> "(" DATE_DIFF "(" "'day'" "," expr<date> "," expr<date> ")" ")" "::" "int"
+  | <0.3> "(" expr<intarr> ")" "[" ("1" | "2" | "-1") "]"
+  ;
+
+expr<intarr>
+  : <0.6> LIST_TRANSFORM "(" expr<intarr> "," LAMBDA "x:" "(" "x" ("+" | "*" | "-") expr<int> ")" ")"
+  | <0.5> LIST_FILTER "(" expr<intarr> "," LAMBDA "x:" "(" "x" ("<" | ">" | "=" | "<>") expr<int> ")" ")"
+  | <0.4> "[" "x + 1" FOR "x" IN expr<intarr> IF "x" (">" | "<") expr<int> "]"
+  | <0.4> LIST_SORT "(" expr<intarr> ")"
+  | <0.3> LIST_REVERSE_SORT "(" expr<intarr> ")"
+  | <0.4> LIST_SORT "(" LIST_DISTINCT "(" expr<intarr> ")" ")"
+  | <0.3> LIST_SLICE "(" expr<intarr> "," ("1" | "2" | "0" | "-2") "," ("2" | "3" | "-1") ")"
+  | <0.3> FLATTEN "(" "[" expr<intarr> "," expr<intarr> "]" ")"
+  | <0.3> LIST_CONCAT "(" expr<intarr> "," expr<intarr> ")"
+  | <0.2> LIST_REVERSE "(" expr<intarr> ")"
+  ;
+
+expr<textarr>
+  : <0.4> STRING_SPLIT "(" expr<text> "," "','" ")"
+  | <0.3> LIST_TRANSFORM "(" expr<textarr> "," LAMBDA "x:" UPPER "(" "x" ")" ")"
+  ;
+
+expr<bool>
+  : <0.5> LIST_CONTAINS "(" expr<intarr> "," expr<int> ")"
+  | <0.3> LIST_HAS_ANY "(" expr<intarr> "," expr<intarr> ")"
+  | <0.3> LIST_HAS_ALL "(" expr<intarr> "," expr<intarr> ")"
+  | <0.3> STARTS_WITH "(" expr<text> "," expr<text> ")"
+  | <0.3> CONTAINS "(" expr<text> "," expr<text> ")"
+  | <0.3> REGEXP_MATCHES "(" expr<text> "," ("'^[a-f]'" | "'b.*c'" | "'[0-9]{2}'") ")"
+  | <0.2> LIST_ANY_VALUE "(" "[" expr<bool> "]" ")"
+  ;
+
+expr<text>
+  : <0.3> STRIP_ACCENTS "(" expr<text> ")"
+  | <0.3> FORMAT "(" "'{}|{}'" "," expr<*> "," expr<*> ")"
+  | <0.3> REGEXP_EXTRACT "(" expr<text> "," "'([a-c]+)'" "," "1" ")"
+  | <0.3> "(" expr<text> ")" "[" ("1" | "2") ":" ("2" | "3") "]"
+  | <0.2> STRFTIME "(" expr<date> "," ("'%Y-%m'" | "'%d/%m/%Y'" | "'%j'") ")"
+  | <0.2> "(" "{" "'k'" ":" expr<text> "}" ")" "." "k"
+  ;
+
+expr<numeric> : <0.2> ROUND_EVEN "(" expr<numeric> "," "1" ")" ;
+
+agg<intarr> : <1> @sorted_agg(LIST, int) ;
+agg<bigint> : <0.5> COUNT_IF "(" expr<bool> ")" ;

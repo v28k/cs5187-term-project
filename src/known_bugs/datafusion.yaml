@@ -1,0 +1,18 @@
+# Known DataFusion bugs found by this fuzzer (format: pgfuzz/eval/known_bugs.py).
+bugs:
+  - id: datafusion-24422
+    title: "GROUP BY CUBE / ROLLUP / GROUPING SETS over constant columns: groups split across partitions (aggregate wrongly treated as sorted)"
+    source: "apache/datafusion PR #24422 (merged 19 Aug 2026, after 55.0.0); test-only PR #26898 shows it on 55.x"
+    affected: "datafusion-python 55.0.0"
+    fixed_in: "DataFusion main (PR #24422)"
+    match:
+      outcome: wrong_result
+      sql_regex: "(?i)\\b(CUBE|ROLLUP|GROUPING\\s+SETS)\\s*\\("
+  - id: datafusion-array-has-all-null-batch
+    title: "array_has_all / @> returns true instead of NULL for a batch whose second argument is all NULL"
+    source: "array_has_all_and_any_dispatch on main propagates the NULL masks (functions-nested/src/array_has.rs)"
+    affected: "datafusion-python 55.0.0"
+    fixed_in: "DataFusion main (after 55.0.0)"
+    match:
+      outcome: wrong_result
+      sql_regex: "(?i)(array_has_all|array_has_any|@>|<@)"

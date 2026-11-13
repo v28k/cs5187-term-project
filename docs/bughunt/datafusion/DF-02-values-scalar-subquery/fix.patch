@@ -1,0 +1,101 @@
+From a38657e3cba08fded8f8873197a96ec6a7899af6 Mon Sep 17 00:00:00 2001
+From: Venu Kummari <v.kummari@iitg.ac.in>
+Date: Sun, 8 Nov 2026 08:26:16 +0000
+Subject: [PATCH] fix: evaluate scalar subqueries in VALUES rows at execution
+ time
+
+`VALUES ((SELECT 1), 5)` failed with "Internal error: ScalarSubqueryExpr
+evaluated before the subquery was executed": the values exec evaluates
+its rows while the plan is built, but the value of an uncorrelated scalar
+subquery only exists once ScalarSubqueryExec has run.
+
+Plan each row of such a VALUES list as a projection over a placeholder
+row and union the rows, so they are evaluated at execution time.
+---
+ datafusion/core/src/physical_planner.rs       | 39 +++++++++++++++++++
+ .../sqllogictest/test_files/subquery.slt      | 12 ++++++
+ 2 files changed, 51 insertions(+)
+
+diff --git a/datafusion/core/src/physical_planner.rs b/datafusion/core/src/physical_planner.rs
+index dc81c9b..f41e4b3 100644
+--- a/datafusion/core/src/physical_planner.rs
++++ b/datafusion/core/src/physical_planner.rs
+@@ -847,6 +847,40 @@ impl DefaultPhysicalPlanner {
+                     plan
+                 }
+             }
++            // A values list is evaluated while it is planned, before the scalar
++            // subqueries have run, so rows with a scalar subquery are projected
++            // from a placeholder row at execution time instead.
++            LogicalPlan::Values(Values { values, schema })
++                if values.iter().flatten().any(contains_scalar_subquery) =>
++            {
++                let placeholder: Arc<dyn ExecutionPlan> =
++                    Arc::new(PlaceholderRowExec::new(Arc::new(Schema::empty())));
++                let rows = values
++                    .iter()
++                    .map(|row| {
++                        let exprs = row
++                            .iter()
++                            .zip(schema.fields())
++                            .map(|(expr, field)| {
++                                Ok(ProjectionExpr {
++                                    expr: create_physical_expr(
++                                        expr,
++                                        schema,
++                                        execution_props,
++                                        planning_ctx,
++                                    )?,
++                                    alias: field.name().clone(),
++                                })
++                            })
++                            .collect::<Result<Vec<_>>>()?;
++                        Ok(Arc::new(ProjectionExec::try_new(
++                            exprs,
++                            Arc::clone(&placeholder),
++                        )?) as Arc<dyn ExecutionPlan>)
++                    })
++                    .collect::<Result<Vec<_>>>()?;
++                UnionExec::try_new(rows)?
++            }
+             LogicalPlan::Values(Values { values, schema }) => {
+                 let exprs = values
+                     .iter()
+@@ -2994,6 +3028,11 @@ fn extract_update_assignments(input: &Arc<LogicalPlan>) -> Result<Vec<(String, E
+     Ok(assignments)
+ }
+ 
++fn contains_scalar_subquery(expr: &Expr) -> bool {
++    expr.exists(|e| Ok(matches!(e, Expr::ScalarSubquery(_))))
++        .unwrap_or(false)
++}
++
+ /// Check if an assignment is an identity assignment (column = column)
+ /// These are columns that are not being modified in the UPDATE
+ fn is_identity_assignment(expr: &Expr, column_name: &str) -> bool {
+diff --git a/datafusion/sqllogictest/test_files/subquery.slt b/datafusion/sqllogictest/test_files/subquery.slt
+index 8a6143b..4e05a21 100644
+--- a/datafusion/sqllogictest/test_files/subquery.slt
++++ b/datafusion/sqllogictest/test_files/subquery.slt
+@@ -2675,6 +2675,18 @@ SELECT (SELECT count(*) FROM sq_empty), (SELECT v FROM sq_values);
+ ## Uncorrelated scalar subqueries in various expression contexts
+ #############
+ 
++# VALUES rows with uncorrelated scalar subqueries
++query II
++VALUES ((SELECT min(v) FROM sq_values), 5);
++----
++1 5
++
++query II rowsort
++SELECT * FROM (VALUES ((SELECT max(v) FROM sq_values), 5), (7, (SELECT min(v) FROM sq_values))) AS t(a, b);
++----
++3 5
++7 1
++
+ # HAVING clause with uncorrelated scalar subquery
+ query II rowsort
+ SELECT x, count(*) AS cnt FROM sq_main GROUP BY x
+-- 
+2.43.0
+
