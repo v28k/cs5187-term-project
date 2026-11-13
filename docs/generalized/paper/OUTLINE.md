@@ -24,7 +24,7 @@ optimizer-rule pairs reached in 15-minute campaigns on DuckDB, DataFusion and SQ
 - Problem: logic bugs in optimizers; per-engine fuzzers do not transfer; code coverage needs
   instrumented builds and is a weak proxy for optimizer behaviour.
 - Idea: optimizer-rule firing as an engine-agnostic feedback, coverage and localization signal.
-- Contributions (each tied to an RQ, PLAN.md section 7):
+- Contributions (each tied to an RQ, DESIGN.md section 7):
   1. portable typed-grammar core with mined overlays (RQ1);
   2. rule-firing feedback and rule-targeted generation (RQ3);
   3. constraint-based data synthesis for non-vacuous oracles (RQ4);
@@ -75,13 +75,13 @@ Statistics: medians, Mann-Whitney U, Vargha-Delaney A12, bootstrap 95 % CIs (`pg
 ## 5. Discussion and threats to validity
 
 - Rule firing by toggling sees only rules the engine lets us switch off; per-rule traces (DataFusion) are exact.
-- Short campaigns on 4 cores; trials and budgets in PLAN.md section 6.
+- Short campaigns on 4 cores; trials and budgets in DESIGN.md section 6.
 - Benchmark bugs are re-injected fixes, biased toward bugs that already had tests.
 - Cross-engine precision measured on a hand-labelled sample.
 
 ## 6. Related work
 
-Use the novelty table in PLAN.md section 1.1 (SQLancer and SQLancer++, ShQveL, Sedar, QTRAN, Mozi,
+Use the novelty table in DESIGN.md section 1.1 (SQLancer and SQLancer++, ShQveL, Sedar, QTRAN, Mozi,
 DQP, QPG, WhiteFox, DBcover, HyLLfuzz, Argus, EET, SQLxDiff, ARG, PQS, TQS, Radar), plus grammar
 fuzzers (Squirrel, SQLRight, Griffin) and LLM fuzzers (Fuzz4All).
 

@@ -3,7 +3,7 @@
 Every RQ is a set of arms that differ in exactly one generator or executor parameter; all
 other settings (grammar, overlays, schema, oracles) come from the base config of the engine,
 so a fix to an engine config reaches the evaluation automatically. Run again after changing a
-base config. Budgets and trials follow PLAN.md section 6 (scaled to this 4-core machine).
+base config. Budgets and trials follow DESIGN.md section 6 (scaled to this 4-core machine).
 
     python scripts/eval/make_configs.py [--seconds 3600] [--trials 4]
 """

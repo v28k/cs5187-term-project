@@ -1,16 +1,16 @@
 # Future work (generalized fuzzer)
 
-State on 8 Nov 2026: every task of PLAN.md has code, a script or a first version, and
-`cd src && python -m pytest -q` passes. The team stopped long campaigns and result-chasing on
-8 Nov (end-semester exams). What remains is mostly running what exists and measuring; each item
-says where to start.
+State on 13 Nov 2026: every task of [`DESIGN.md`](DESIGN.md) has code, a script or a first
+version, and `cd src && python -m pytest -q` passes. The campaigns of 11-12 Nov and the rule-kernel
+experiment (`results/rq8_kernels_2026-11-12.md`) have run; five bugs are filed upstream. What
+remains is mostly running the other evaluation arms and measuring; each item says where to start.
 
 ## 1. Run the evaluation (no new code needed)
 
 | Item | Start here | Cost on this 4-core machine |
 |---|---|---|
 | RQ2-RQ5 arms (rules, synthesis, suite seeds, normalizers) | `scripts/eval/run_all.sh` (`DRY=1` checks the configs) | 11 experiments x 4 trials x 1 h, about 4 days with 3 workers |
-| SQLancer baseline (RQ6) | `scripts/baselines/sqlancer.sh build`, then `scripts/baselines/run_all.sh` | 16 runs x 1 h; the build was blocked by the sandbox in this session |
+| SQLancer baseline (RQ6) | `scripts/baselines/sqlancer.sh build`, then `scripts/baselines/run_all.sh` | 16 runs x 1 h; the build could not download its dependencies on our test machine |
 | Code-coverage ground truth (C5) | `scripts/coverage/sqlite_gcov.sh` per arm, `correlate.py` | minutes per arm for SQLite; DuckDB needs a large machine |
 | DuckDB re-injected bug benchmark (E3) | `src/bench/duckdb/README.md` (334 candidates mined) | pick ~20, about 2 h per build, then campaigns |
 | Long campaigns per engine (E1) | `pgfuzz hunt configs/{duckdb,sqlite,turso,datafusion}.yaml --budget 7200` | as long as wanted; packages appear in `results/hunt/packages` |

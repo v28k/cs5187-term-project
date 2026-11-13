@@ -8,7 +8,7 @@ component and the evaluation design. Results so far: [`results/`](results/) and 
 ## 1. Thesis and what is new
 
 The course project showed that a typed grammar with derivation trees, oracles on those trees and an
-LLM that reads recent commits find real bugs in PostgreSQL: 9 reported, 6 fixed upstream, 5 of the fixes ours.
+LLM that reads recent commits find real bugs in PostgreSQL: 10 reported, 8 fixed upstream, 6 of them with our patches.
 Plan v2 **generalizes that project** to many SQL engines and adds four techniques. Each technique comes from
 a mechanism the course project already has:
 

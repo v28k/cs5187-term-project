@@ -33,7 +33,7 @@ pip install -r requirements.txt
 All commands run from `src/`.
 
 ```sh
-python -m pytest                                   # 151 unit tests, no database needed
+python -m pytest                                   # 205 unit tests on this branch (151 on main), no database needed
 python -m pgfuzz run configs/smoke.yaml            # whole pipeline on a simulated server, ~40 s
 python -m pgfuzz selftest configs/stage1.yaml      # acceptance checks against the real harness
 python -m pgfuzz run configs/stage1.yaml -j 4      # the real Stage 1 experiment
@@ -81,8 +81,9 @@ Commands added for the generalized fuzzer:
 | `ledger [--root ../docs/bughunt]` | precision ledger per engine and oracle (D4) |
 
 Evaluation scripts: `../scripts/eval/` (configs and `run_all.sh`), `../scripts/coverage/`,
-`../scripts/baselines/`, `../scripts/bench/`. Plan, status and future work:
-`../docs/generalized/PLAN.md`, `PROGRESS.md`, `FUTURE_WORK.md`.
+`../scripts/baselines/`, `../scripts/bench/`. Design, status and future work:
+[`../docs/generalized/DESIGN.md`](../docs/generalized/DESIGN.md),
+[`../docs/generalized/FUTURE_WORK.md`](../docs/generalized/FUTURE_WORK.md).
 
 ### Adding an engine
 
