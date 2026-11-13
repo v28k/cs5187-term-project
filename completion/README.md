@@ -29,7 +29,7 @@ Team: **Venu Kummari, Bhuvan Chilukuti, Gowtham Reddy** (IIT Guwahati). License:
 | Each member's contribution: signed statement + commit history | last section of [`paper.pdf`](paper.pdf); commit history (GitHub users `v28k` = Venu Kummari, `Blazing-bhuvi` = Bhuvan Chilukuti, `doma2542` = Gowtham Reddy) |
 | Public GitHub repository, permissive license | MIT ([`../LICENSE`](../LICENSE)) |
 | `README.md` with build + run instructions and exact dependencies | [`../README.md`](../README.md), [`../src/requirements-lock.txt`](../src/requirements-lock.txt) |
-| One-command reproduction of the headline result | `sudo bash scripts/reproduce.sh` -> "Known bugs reproduced: 9 of 9" (tested 9 Nov 2026) |
+| One-command reproduction of the headline result | `sudo bash scripts/reproduce.sh` -> "Known bugs reproduced: 10 of 10" (tested 13 Nov 2026); `REPRO_19828=1` adds #19828; branch `generalized`: `bash scripts/reproduce_generalized.sh` -> 5 of 5 |
 | Bug reports / PRs / patches filed upstream, with their state | table below and [`../README.md`](../README.md); reproducers and patches in [`../docs/bughunt/`](../docs/bughunt/) |
 | A bug accepted by upstream maintainers | **nine PostgreSQL bugs fixed upstream, six of them with our patches**; DuckDB fix approved by a maintainer |
 

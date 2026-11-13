@@ -205,6 +205,8 @@ class PostgresExecutor(Executor):
 
         deadline = time.monotonic() + (self.recovery_timeout_s if wait else 0)
         last: Exception | None = None
+        restarted = False
+        t_restart = time.monotonic() + 15  # crash recovery takes seconds; longer means it failed
         while True:
             try:
                 self.conn = psycopg.connect(self.dsn, autocommit=True, cursor_factory=psycopg.ClientCursor)
@@ -218,7 +220,15 @@ class PostgresExecutor(Executor):
                 last = e
                 if self.create_database and "does not exist" in str(e) and self._create_database():
                     continue
-                if time.monotonic() >= deadline:
+                now = time.monotonic()
+                if now >= deadline or (wait and self.hang_command and not restarted and now >= t_restart):
+                    if wait and self.hang_command and not restarted:
+                        # the server did not come back after a crash (e.g. crash recovery failed):
+                        # let the configured restart command bring it back once
+                        restarted = True
+                        subprocess.run(self.hang_command, shell=True, timeout=120, capture_output=True)
+                        deadline = time.monotonic() + self.recovery_timeout_s
+                        continue
                     raise RuntimeError(f"cannot connect to PostgreSQL ({self.dsn}): {e}") from last
                 time.sleep(0.5)
 

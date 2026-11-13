@@ -37,6 +37,28 @@ Filed upstream, each with a fix and a regression test (state on 13 Nov 2026):
 | Turso | aggregate in `IN (SELECT ...)` next to a window function: wrong "misuse" error, or a panic | [#11796](https://github.com/tursodatabase/turso/issues/11796) | [#11797](https://github.com/tursodatabase/turso/pull/11797) | open |
 | DataFusion | scalar subquery inside `VALUES`: internal error (DF-02) | filed 13 Nov 2026 | filed 13 Nov 2026 | open |
 
+One command reproduces all five on the released versions the campaigns ran on (pyturso 0.8.3,
+duckdb 2.0.0, datafusion 55.0.0, installed into `.venv-repro`; no build, no root, about a minute):
+
+```sh
+bash scripts/reproduce_generalized.sh
+```
+
+Output on 13 Nov 2026:
+
+```
+REPRODUCED      T-05   Turso #11594       percentile_disc/cont of an expression argument
+REPRODUCED      T-08   Turso #11796       aggregate in an IN-subquery operand next to a window function
+REPRODUCED      D-01   DuckDB #28551      min/max of a nested subquery: Cannot copy BoundSubqueryExpression
+REPRODUCED      DF-01  DataFusion #27235  UPDATE with COALESCE: No field named __common_expr_1
+REPRODUCED      DF-02  DataFusion DF-02   VALUES with a scalar subquery: internal error
+
+Generalized bugs reproduced: 5 of 5
+```
+
+The PostgreSQL bugs (branch `main`) are reproduced by `sudo bash scripts/reproduce.sh` (10 of 10 in
+the base build; `REPRO_19828=1` adds #19828).
+
 Found by the fuzzer but already fixed on the engine's development branch when we checked (not
 filed): Turso T-01, T-02, T-06, T-07; DuckDB D-02; four DataFusion 55.0.0 bugs fixed on `main`.
 Every package and every rejected candidate: [`docs/bughunt/`](docs/bughunt/) and

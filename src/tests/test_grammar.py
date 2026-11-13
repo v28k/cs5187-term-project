@@ -222,4 +222,4 @@ def test_seed_files_declare_their_oracles():
     assert checks[0]["stmt"] == 1 and checks[0]["kind"] == "tlp_where" and checks[0]["lhs"] is None
     assert checks[1]["stmt"] == 2 and checks[1]["lhs"] == "SELECT * FROM t" and checks[1]["rhs"] == stmts[2]
     seeds = sorted((Path(__file__).resolve().parents[1] / "corpus" / "bug_seeds").glob("*.sql"))
-    assert len(seeds) == 9 and all(parse_seed(p.read_text())[0] for p in seeds)
+    assert len(seeds) == 10 and all(parse_seed(p.read_text())[0] for p in seeds)
