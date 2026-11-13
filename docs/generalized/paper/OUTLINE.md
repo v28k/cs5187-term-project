@@ -1,8 +1,8 @@
 # Arbor: rule-directed grammar fuzzing across SQL engines (paper skeleton, task E5)
 
-Status: skeleton. Numbers that exist are from first versions and smoke runs (8 Nov 2026) and are
-marked as such; every `[TBD]` comes from `scripts/eval/run_all.sh` (E4) once the campaigns run.
-Venue and authorship are still to be decided.
+Outline of a paper on the generalized fuzzer (state of 13 Nov 2026). The numbers are from the
+runs listed per RQ; RQs marked "future work" have scripts and configurations
+(`scripts/eval/run_all.sh`) but no full runs yet.
 
 ## Abstract (about 200 words)
 
@@ -14,8 +14,10 @@ exposes on release builds: which optimizer rules fire on a query, observed by to
 reading per-rule plan traces. Rule firing guides generation toward unfired rules, localizes
 failures to a rule, and serves as a coverage metric. Z3 synthesizes rows that make metamorphic
 checks non-vacuous, and learned value normalizers make cross-engine comparison precise. On
-DuckDB, SQLite, Turso and DataFusion, Arbor found [TBD: final count] new bugs; [N] are fixed
-upstream. [TBD: RQ3 to RQ6 headline numbers.]
+DuckDB, SQLite, Turso and DataFusion, the campaigns found fourteen bugs: nine were
+already fixed on the engines' development branches when we checked, and five are filed upstream
+with a fix and a regression test (the DuckDB fix approved by a maintainer). Rule kernels raise the
+optimizer-rule pairs reached in 15-minute campaigns on DuckDB, DataFusion and SQLite.
 
 ## 1. Introduction
 
@@ -58,11 +60,11 @@ upstream. [TBD: RQ3 to RQ6 headline numbers.]
 | RQ | Data source | Existing first numbers |
 |---|---|---|
 | RQ1 Portability | `sample --execute` per engine; overlay LOC; `--mine-overlay` | query validity with manual overlays (600 test cases): DuckDB 96.3 %, SQLite 97.7 % (7 Nov); Turso 93.3 %, DataFusion 79.4 % (8 Nov; DataFusion overlay still in progress, B4); mined overlay alone: DuckDB statement validity 32.1 % to 44.1 % in one round |
-| RQ2 Bugs | `docs/generalized/LEDGER.md`, `docs/bughunt/FINDINGS_2026-11.md` | 10 found; 5 fixed upstream before filing (Turso T-01, T-02, T-06, T-07; DuckDB D-02); 3 filed with fixes (Turso T-05, DuckDB D-01 approved by a maintainer 12 Nov, DataFusion DF-01); 2 ready with fixes (DF-02; Turso T-08, still on Turso main 12 Nov). Rejected 12 Nov after checks: 2 DuckDB internal errors already reported (#27720, #27983), 2 DataFusion errors fixed on main after 55.0.0 (#23232, #24244), 2 already reported (#24915; #20501 wording) |
-| RQ3 Rule feedback, targeting, seeds | `configs/eval/e4_rules_*`, `e4_seeds_*` | smoke only [TBD] |
+| RQ2 Bugs | `docs/generalized/LEDGER.md`, `docs/bughunt/FINDINGS_2026-11.md` | 14 found; 9 already fixed upstream when checked (Turso T-01, T-02, T-06, T-07; DuckDB D-02; four DataFusion 55.0.0 bugs fixed on main); 5 filed with fixes (Turso T-05 #11594 and T-08 #11796, DuckDB D-01 #28551 approved by a maintainer, DataFusion DF-01 #27235 and DF-02); all five reproduced by `scripts/reproduce_generalized.sh`. Rejected 12 Nov after checks: 2 DuckDB internal errors already reported (#27720, #27983), 2 DataFusion errors fixed on main after 55.0.0 (#23232, #24244), 2 already reported (#24915; #20501 wording) |
+| RQ3 Rule feedback, targeting, seeds | `configs/eval/e4_rules_*`, `e4_seeds_*` | smoke runs only; full runs future work |
 | RQ4 Data synthesis | `configs/eval/e4_synth_*`, `scripts/eval_c3_vacuity.py` | non-vacuous TLP checks on column predicates 34 % to 40 % (first version, DuckDB) |
 | RQ5 Normalizers | `configs/eval/e4_norm_{off,on}` | held-out disagreement DuckDB vs SQLite 28.7 % to 3.6 % |
-| RQ6 Baselines | `scripts/baselines/` | [TBD] |
+| RQ6 Baselines | `scripts/baselines/` | future work (SQLancer scripts ready) |
 | RQ7 Cost and autonomy | hunt logs, packages | `hunt` round on DataFusion (20 s) produced 3 reproducible package drafts automatically |
 | Ground truth | `scripts/coverage/` | 200 SQLite test cases: 69.4 % of optimizer-file lines |
 | RQ8 Rule kernels (12 Nov) | `pgfuzz kernels`, `corpus/kernels/*`, `configs/{sqlite,duckdb}_kernels.yaml`, `scripts/eval/kernels_rq8.py` | SQLite: the grammar fires 16 of 30 rules; 17 rules with kernels (33 kernels; Turso's SQLite-compatible tests add `BalancedMerge`), 136 rule pairs composed, 123 co-fire, 400 seeds, 0 violations. DuckDB: grammar fires 28 of 48 rules, its optimizer tests 5 more; 31 rules with kernels (60), 464 pairs, 364 co-fire, 1283 seeds, 0 violations. Transfer SQLite -> DuckDB: 29 of 33 kernels run and fire 13 DuckDB rules, none that the DuckDB grammar misses; DuckDB -> SQLite: 5 of 60 run (dialect gap). **Campaign DuckDB (3 x 15 min per arm): rule pairs 307 -> 386 (A12 = 1.00, p = 0.10, the smallest p for 3 vs 3), rules 31 -> 33, plan shapes 553 -> 446; `aggregate_reuse`, `disjunctive_join_rewriter`, `top_n` fired only with kernels.** **Campaign SQLite (3 x 15 min): rule pairs 86 -> 182 (A12 = 1.00, p = 0.10), rules 17 -> 21 (p = 0.06), plan shapes 1308 -> 1928; the kernel arm also ran about twice as many test cases (small seeds): per 1000 test cases 4.9 vs 5.3 pairs, so on SQLite the gain is throughput. DuckDB per 1000 test cases: 21.7 vs 25.9 (A12 0.78).** **DataFusion (3 x 15 min, grammar kernels only): rule pairs 241 -> 276, per 1000 test cases 14.6 -> 19.2 (A12 1.00, p 0.10).** Details: `docs/generalized/results/rq8_kernels_2026-11-12.md` |
