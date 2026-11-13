@@ -12,7 +12,7 @@
 | 1 | Title | Venu | 15 s |
 | 2 | Target and problem | Venu | 30 s |
 | 3 | Arbor: architecture and techniques | Gowtham | 60 s |
-| 4 | Arbor: all nine bugs (type, found by, signal, upstream) | Bhuvan | 30 s |
+| 4 | Arbor: all ten bugs (type, found by, signal, upstream) | Bhuvan | 30 s |
 | 5 | Arbor: three bugs in detail (JSON_TABLE, NOT IN, parallel Append) | Venu, Bhuvan, Gowtham (one each) | 60 s |
 | 6 | Generalized fuzzer: architecture and techniques | Venu | 45 s |
 | 7 | Generalized fuzzer: three bugs in detail (Turso, DuckDB, DataFusion) + other bugs | Gowtham, Bhuvan, Venu (one each) | 60 s |
