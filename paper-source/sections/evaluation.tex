@@ -1,14 +1,14 @@
 \section{Evaluation}
 \label{sec:eval}
 
-We ask four questions.
+We evaluated \tool with four research questions:
 \begin{itemize}
   \item[\rqref{1}] Does the typed grammar reach more of \pg than a
-    random-mutation generator in the same time: more valid statements, more
-    covered lines and branches, more SQL features and plan shapes?
+    random-mutation generator in the same time, in terms of valid statements,
+    covered lines and branches, SQL features and plan shapes?
   \item[\rqref{2}] Which bugs does \tool find, and how precise is each oracle?
-  \item[\rqref{3}] On real bugs put back into \pg, which configuration finds
-    how many, and how fast?
+  \item[\rqref{3}] When real bugs are put back into \pg, which configuration
+    finds how many of them, and how fast?
   \item[\rqref{4}] What does the commit-directed LLM extension add, and what
     does it cost in tokens, money and repair rounds?
 \end{itemize}
@@ -17,61 +17,62 @@ We ask four questions.
 \label{sec:subjects}
 
 All servers are built from \pg master \texttt{26bd08fb} (16~October~2026) with
-assertions on. For \rqref{3} we built a benchmark in the style of
-Magma~\cite{hazimeh2020magma} by reverting fixes: every commit between
-31~July and 16~October~2026 that fixes a bug in the optimiser, executor,
-parser, rewriter or a SQL-callable function, adds a regression test, and
-reverts cleanly alone and together with the others, 23 in all. We build the
-\emph{fixed} server, one \emph{solo} server per bug (only that fix reverted),
-and the \emph{injected} server (all 23 reverted) on which the campaigns run.
-A proof of concept (PoC) written from each regression test changes its result
-for 20 bugs: 8 wrong results, 5 internal errors, 4 assertion failures, 2
-missing errors and 1 wrong error. A crash-only fuzzer can see only the 9
-assertions and internal errors. The other three change only the plan, or need an
-equality operator that returns NULL for non-NULL inputs, and leave the
-denominator. On the injected server every PoC shows the symptom of its solo
-server.
+assertions enabled. For \rqref{3} we built a benchmark in the style of
+Magma~\cite{hazimeh2020magma} by reverting fixes. We took every commit between
+31~July and 16~October~2026 that fixes a bug in the optimiser, executor, parser,
+rewriter or a SQL-callable function, adds a regression test, and reverts cleanly
+both alone and together with the others; this gave 23 commits. From them we
+build the \emph{fixed} server, one \emph{solo} server per bug with only that fix
+reverted, and the \emph{injected} server with all 23 fixes reverted, on which the
+campaigns run. For each bug we wrote a proof of concept (PoC) from its
+regression test. The PoC changes its result for 20 of the bugs: 8 wrong results,
+5 internal errors, 4 assertion failures, 2 missing errors and 1 wrong error. A
+fuzzer that only detects crashes can see just the 9 assertions and internal
+errors among them. The remaining three bugs change only the plan, or need an
+equality operator that returns NULL for non-NULL inputs, so we leave them out of
+the denominator. On the injected server, every PoC shows the same symptom as on
+its solo server.
 
 \subsection{Configurations}
 \label{sec:baselines}
 
-The configurations (\emph{arms}) share server, schema, executor, oracles,
-budget and per-trial seeds and differ only in the generator. \arm{Random}
-mutates seed queries at the token level and attaches no metamorphic checks.
-\arm{Grammar} is Step 1 alone. \arm{Grammar+Oracles} adds Steps 2--4: metamorphic
-checks (including RLS and CERT) on half the queries, plan-shape guidance,
-feedback weights and data-profile literals; \arm{Grammar+Oracles, flat} is the
-same without the weights. \arm{+LLM} adds the fragments, seeds and rewrites that
-passed the \gate, and \arm{+LLM fragments} and \arm{+LLM seeds} use one of
-them. The commit miner excludes the 23 benchmark fixes. All arms use the
-plan-variant oracle and, in \rqref{3}, the cross-version oracle.
+All configurations (we call them \emph{arms}) share the server, schema,
+executor, oracles, budget and per-trial seeds, and differ only in the generator.
+\arm{Random} mutates seed queries at the token level and attaches no metamorphic
+checks. \arm{Grammar} is Step~1 alone. \arm{Grammar+Oracles} adds Steps 2--4:
+metamorphic checks (including RLS and CERT) on half of the queries, plan-shape
+guidance, feedback weights and data-profile literals. \arm{Grammar+Oracles,
+flat} is the same arm without the feedback weights. \arm{+LLM} adds the
+fragments, seeds and rewrites that passed the \gate, while \arm{+LLM fragments}
+and \arm{+LLM seeds} use only one of these. The commit miner excludes the 23
+benchmark fixes. Every arm uses the plan-variant oracle, and in \rqref{3} also
+the cross-version oracle.
 
 \subsection{Setup}
 \label{sec:setup}
-\tool is about 11{,}000 lines of Python with 151 unit tests; it drives \pg
-through \texttt{psycopg} and reads the server log for assertion and crash
-evidence. Each arm runs 5 one-hour trials with four workers, one server each.
-\rqref{1}, \rqref{2} and \rqref{4} ran on one laptop (WSL2, 24 logical cores),
-\rqref{3} on another, so each experiment is compared on one machine.
-The cross-version reference is \pg 18.6. Following
-Klees et al.~\cite{klees2018evaluating}, and Arcuri and
-Briand~\cite{arcuri2011practical}, we report medians, compare arms with the
-two-sided Mann--Whitney U test, and give the Vargha--Delaney
-$\hat{A}_{12}$ effect size~\cite{vargha2000a12}. With 5 trials per arm the
-smallest possible two-sided $p$ is 0.008, so we read effect sizes, not only
-$p$. Coverage is sampled every 300 seconds per worker, so the first point of every curve is the server's start-up coverage.
+Each arm runs 5 one-hour trials with four workers, each worker with its own
+server. \rqref{1}, \rqref{2} and \rqref{4} ran on one laptop (WSL2, 24 logical
+cores) and \rqref{3} on another, so each experiment is compared on a single
+machine. The cross-version reference is \pg 18.6. Following Klees et
+al.~\cite{klees2018evaluating} and Arcuri and Briand~\cite{arcuri2011practical},
+we report medians, compare arms with the two-sided Mann--Whitney U test, and give
+the Vargha--Delaney $\hat{A}_{12}$ effect size~\cite{vargha2000a12}. With 5
+trials per arm the smallest possible two-sided $p$ is 0.008, so we read the
+effect sizes and not only the $p$-values. Coverage is sampled every 300 seconds
+per worker, which is why the first point of every curve is the coverage of the
+server after start-up.
 
-\paragraph{The language model.} In the client's manual mode a script answered
-the prompts with Google Gemini Flash models on the free tier (9 answers by
-\texttt{gemini-3.6-flash}, 2 by \texttt{gemini-3.8-flash}, 14 by
-\texttt{gemini-3-flash-preview}); the daily quota limited \rqref{4} to 10 of the
-25 mined commits. The results of \rqref{4} hold for these models.
+\paragraph{The language model.} We used the client's manual mode, in which a
+script answered the prompts with Google Gemini Flash models on the free tier (9
+answers by \texttt{gemini-3.6-flash}, 2 by \texttt{gemini-3.8-flash} and 14 by
+\texttt{gemini-3-flash-preview}). The daily quota limited \rqref{4} to 10 of the
+25 mined commits, and the results of \rqref{4} hold for these models.
 
 \subsection{\rqref{1}: Reach}
 \label{sec:rq1}
 
-Table~\ref{tab:rq1} gives the medians of the seven arms and
-Figure~\ref{fig:rq1} the growth over time.
+Table~\ref{tab:rq1} gives the medians of the seven arms, and
+Figure~\ref{fig:rq1} shows how coverage and plan shapes grow over time.
 
 \begin{table*}[t]
   \centering
@@ -102,23 +103,23 @@ more test cases.
 
 \begin{observation}
 \label{obs:oracles-reach}
-The oracles do not add line coverage (36.7\% to 36.2\%, $p=0.42$) but they
-roughly double the plan shapes (20{,}279 to 34{,}313, $\hat{A}_{12}=0.84$,
-$p=0.095$, so with 5 trials this is an effect size, not a significant
-difference). The feedback weights contribute: without them the same arm
-reaches 23{,}997 plan shapes ($\hat{A}_{12}=0.80$, $p=0.15$), at the price of
-validity (96.3\% against 99.4\%, $p=0.016$).
+The oracles do not add line coverage (36.7\% to 36.2\%, $p=0.42$), but they
+roughly double the number of plan shapes (20{,}279 to 34{,}313,
+$\hat{A}_{12}=0.84$, $p=0.095$; with 5 trials this is an effect size, not a
+significant difference). The feedback weights contribute to this: without them
+the same arm reaches 23{,}997 plan shapes ($\hat{A}_{12}=0.80$, $p=0.15$), but
+its validity is higher (99.4\% against 96.3\%, $p=0.016$).
 \end{observation}
 
-Oracles also cost throughput: the plan-variant runs and metamorphic checks
-lower the statements per second from 67 to 40.
+The oracles are not free, however. The plan-variant runs and the metamorphic
+checks lower the throughput from 67 to 40 statements per second.
 
 \subsection{\rqref{2}: Bugs and Oracle Precision}
 \label{sec:rq2}
 
-Across the \rqref{1} and \rqref{3} campaigns, plus the earlier hunt and smoke
-runs, \tool reported 93 distinct bug candidates (after de-duplication by
-signature). We triaged all of them (Section~\ref{sec:triage}) and
+Across the \rqref{1} and \rqref{3} campaigns, together with the earlier hunt and
+smoke runs, \tool reported 93 distinct bug candidates after de-duplication by
+signature. We triaged all of them as described in Section~\ref{sec:triage};
 Table~\ref{tab:rq2} gives the verdicts per oracle.
 
 \begin{table*}[t]
@@ -132,14 +133,16 @@ Table~\ref{tab:rq2} gives the verdicts per oracle.
   \input{tables/rq2}
 \end{table*}
 
-\paragraph{Bugs.} Table~\ref{tab:bugs} lists the ten bugs we reported. Six
-came from running the fuzzer (the campaigns and later runs on newer master builds); four came from
-the targeted bug hunt that accompanied them, in which we audited recent planner and executor features with
-differential probes. Eight of the ten bugs are fixed upstream, six of them with fixes written by the
-authors. The other two are open with our patches. The oracles also found three bugs reported by others days
-before us, which we count as duplicates: a wrong result of self-join
-elimination under \texttt{ROLLUP} in 18.6 (\#19800, a plan variant), \#19772
-(the \texttt{(SELECT e)} rewrite) and \#19784.
+\paragraph{Bugs.} Table~\ref{tab:bugs} lists the ten bugs we reported. Six of
+them came from running the fuzzer, either in the campaigns or in later runs on
+newer master builds. The other four came from a targeted bug hunt that we did
+alongside the campaigns, in which we audited recent planner and executor
+features with differential probes. Eight of the ten bugs are now fixed upstream,
+six of them with fixes written by us, and the remaining two are open with our
+patches. The oracles also found three bugs that others had reported a few days
+before us, which we count as duplicates: a wrong result of self-join elimination
+under \texttt{ROLLUP} in 18.6 (\#19800, found by a plan variant), \#19772 (found
+by the \texttt{(SELECT e)} rewrite) and \#19784.
 
 \begin{table*}[t]
   \centering
@@ -166,17 +169,20 @@ elimination under \texttt{ROLLUP} in 18.6 (\#19800, a plan variant), \#19772
   \end{tabular}
 \end{table*}
 
-\paragraph{Rediscovery.} We added each reproducer as a seed that carries its own
-check (for a wrong result, the query that must agree), extended the grammar with
-what the four hunt bugs need (statistics on expressions, statistics import with
-boundary values, a user-defined implicit cast, \texttt{IGNORE NULLS} over
-whole-partition frames), and added a \emph{hang} oracle that restarts a server
-whose statement outlives its \texttt{statement\_timeout} by ten seconds. One
-150-second trial of \arm{Grammar+Oracles} on the base build then reported all
-nine bugs reported up to that point, each matched to its catalogue entry, at unchanged validity (99.3\%).
-With the tenth reproducer added (\#19826, found by the plan-variant oracle
-under partitionwise aggregation), the one-command reproduction, one
-150-second trial that replays the seeds in turn, reports all ten bugs.
+\paragraph{Rediscovery.} Since four of the bugs came from the hunt and not from
+the fuzzer itself, we wanted to know whether \tool can find all of them. We
+added each reproducer as a seed that carries its own check (for a wrong result,
+the query that must agree with it). We also extended the grammar with what the
+four hunt bugs need: statistics on expressions, statistics import with boundary
+values, a user-defined implicit cast, and \texttt{IGNORE NULLS} over
+whole-partition frames. In addition, we added a \emph{hang} oracle that restarts
+a server whose statement runs ten seconds past its \texttt{statement\_timeout}. After
+these changes, one 150-second trial of \arm{Grammar+Oracles} on the base build
+reported all nine bugs reported up to that point, each matched to its catalogue
+entry, with unchanged validity (99.3\%). When we later added the tenth
+reproducer (\#19826, found by the plan-variant oracle under partitionwise
+aggregation), the one-command reproduction, a single 150-second trial that
+replays the seeds in turn, reported all ten bugs.
 
 \begin{observation}
 \label{obs:wrong}
@@ -185,22 +191,23 @@ versions that no crash oracle can see (BUG~\#19793 and \#19800).
 \end{observation}
 
 \paragraph{Precision.} Of the 93 candidates, 28 (30\%) did not reproduce in
-three re-runs. Of the 65 others, 8 are real, 15 are duplicates of real bugs and
-42 are false positives, so the precision is $8/50=0.16$ without duplicates and
-$23/65=0.35$ if duplicates count as true positives. The false positives come
-from few classes: six were fixed before the campaigns, and five that the
-campaigns revealed were fixed \emph{after} them, tested on the stored
-reproducers but not re-measured.
-They are equal \texttt{interval} values printed differently depending on
-join order (16 candidates; the digest now uses \pg's interval equality),
-order-sensitive aggregates sorted by a key that is not the value, such as
-\texttt{ORDER BY NULL} (2), state that diverges in the cross-version oracle
-after an \texttt{INSERT} only master accepts (5), an RLS rewrite that left a
-protected table inside a repeated sub-select unfiltered (5), and an LLM rewrite
-that is not an identity (Section~\ref{sec:rq4}). One remaining candidate is
-a new bug, which we reported as BUG~\#19826: \texttt{corr()} of a constant input is NULL
-serially but 1 under partial aggregation. It is fixed upstream with our patch
-(\texttt{ef1b7404}, back-patched to 19).
+three re-runs. Of the other 65, 8 are real, 15 are duplicates of real bugs and
+42 are false positives, which gives a precision of $8/50=0.16$ without
+duplicates and $23/65=0.35$ if duplicates count as true positives. The false
+positives come from only a few classes. Six classes were fixed before the
+campaigns. The five classes that the campaigns revealed were fixed \emph{after}
+them; we tested these fixes on the stored reproducers but did not re-measure
+them in a new campaign. The five classes are: equal \texttt{interval} values
+printed differently depending on join order (16 candidates; the digest now uses
+\pg's own interval equality); order-sensitive aggregates sorted by a key that is
+not the value, such as \texttt{ORDER BY NULL} (2); state that diverges in the
+cross-version oracle after an \texttt{INSERT} that only master accepts (5); an
+RLS rewrite that left a protected table inside a repeated sub-select unfiltered
+(5); and an LLM rewrite that is not an identity (Section~\ref{sec:rq4}). One
+candidate that remained after these fixes turned out to be a new bug, which we
+reported as BUG~\#19826: \texttt{corr()} of a constant input is NULL when
+computed serially but 1 under partial aggregation. It is now fixed upstream with
+our patch (\texttt{ef1b7404}, back-patched to 19).
 
 \subsection{\rqref{3}: Re-injected Bugs}
 \label{sec:rq3}
@@ -224,23 +231,24 @@ With one hour and five trials, the arms found few of the benchmark bugs:
 \end{observation}
 
 The grammar arms found the internal error of fix \texttt{dfcf6fa7} in nearly
-every trial (median 458, 509 and 1{,}109 seconds); \arm{Random} never did. The two
-arms with oracles also found the assertion of \texttt{11b56ee2}, once each, which
-is too little to separate them. The benchmark therefore does \emph{not} show an
-advantage of the oracles; that claim rests on \rqref{2}. Three things limit
-\rqref{3}: one hour is short for bugs that need a specific combination of
-features; attribution is conservative (of the 30 wrong-result failures, 11
-reproduce on the fixed server, 19 on no server, and none on a solo server); and
-five trials cannot separate arms that find a bug in one trial in five.
+every trial (median 458, 509 and 1{,}109 seconds), while \arm{Random} never did.
+The two arms with oracles also found the assertion of \texttt{11b56ee2}, once
+each, which is too little to separate them. So the benchmark does \emph{not}
+show an advantage of the oracles; that claim rests on \rqref{2}. We see three
+reasons for this result. First, one hour is short for bugs that need a specific
+combination of features. Second, our attribution is conservative: of the 30
+wrong-result failures, 11 reproduce on the fixed server, 19 on no server, and
+none on a solo server. Third, five trials cannot separate arms that find a bug in
+only one trial out of five.
 
 \subsection{\rqref{4}: The LLM Extension}
 \label{sec:rq4}
 
-The gate accepted 4 of 10 commits (2 in the first round, 2 after repair). Of
-the 25 rounds, 16 failed because too few statements ran (mean validity of a
-proposal 36.5\%), 4 because the fragment was not derived or did not parse, and
-1 on seeds or coverage. The run used 328{,}000 input and 171{,}000 output tokens
-at no cost on the free tier.
+The gate accepted 4 of the 10 commits, 2 in the first round and 2 after repair.
+Of the 25 rounds, 16 failed because too few statements ran (the mean validity of
+a proposal was 36.5\%), 4 because the fragment was never derived or did not
+parse, and 1 on the seeds or on coverage. The whole run used 328{,}000 input and
+171{,}000 output tokens, at no cost on the free tier.
 
 \begin{observation}
 \label{obs:llm}
@@ -249,11 +257,14 @@ $p=0.004$) but no coverage: lines drop from 36.2\% to 35.7\% ($p=0.42$), plan
 shapes from 34{,}313 to 26{,}375, and validity from 96.3\% to 95.3\%.
 \end{observation}
 
-It covers only 34 more changed lines over the 10 commits, but the
-fragments-only arm found BUG~\#19803: with these models the benefit is modest.
+Over the 10 commits, the accepted fragments cover only 34 more changed lines.
+Still, the fragments-only arm found BUG~\#19803, so the benefit with these
+models is real but modest.
 
 \paragraph{The gate is not enough for rewrites.} All 7 proposed rewrites passed
-the gate, but \texttt{NULLIF(\{e\}, NULL::text COLLATE "POSIX")} is not an
-identity: it changes the collation, and caused a false positive in \rqref{3}.
-Neither the value probe nor the live checks vary the collation; the gate now
-rejects an explicit \texttt{COLLATE}. Testing an equivalence on samples is not proof.
+the gate, but one of them, \texttt{NULLIF(\{e\}, NULL::text COLLATE "POSIX")},
+is not an identity: it changes the collation of its argument, and it caused a
+false positive in \rqref{3}. Neither the value probe nor the live checks vary
+the collation, which is how it got through. The gate now rejects any explicit
+\texttt{COLLATE}, but the general point remains: testing an equivalence on
+samples does not prove it.

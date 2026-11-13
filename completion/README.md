@@ -8,7 +8,7 @@ Team: **Venu Kummari, Bhuvan Chilukuti, Gowtham Reddy** (IIT Guwahati). License:
 
 | File | What it is |
 |---|---|
-| [`../paper/paper.pdf`](../paper/paper.pdf) | the paper, ACM Primary Article Template (`sigconf`), 9 pages: motivation, technique, implementation, evaluation (4 RQs), discussion (incl. the generalized fuzzer), threats to validity, related work, data availability, use of generative AI, **signed statement of contributions** |
+| [`../paper/paper.pdf`](../paper/paper.pdf) | the paper, ACM Primary Article Template (`sigconf`), 10 pages: motivation, technique, implementation, evaluation (4 RQs), discussion (incl. the generalized fuzzer), threats to validity, related work, data availability, use of generative AI, **signed statement of contributions** |
 | [`../paper-source/`](../paper-source/) | the LaTeX source of the paper (`make` builds it with pdfLaTeX + BibTeX) |
 | [`complete_project_document.pdf`](complete_project_document.pdf) | the complete project document (62 pages): every component, every result, every bug with its state, the generalized fuzzer, contributions, deliverables, reproduction, questions and answers |
 | [`slides/final_presentation.pdf`](slides/final_presentation.pdf), [`.pptx`](slides/final_presentation.pptx) | final presentation (Beamer, 24 slides) and its editable PowerPoint version (same design): architecture and techniques of the PostgreSQL fuzzer and of the generalized fuzzer, evaluation, how the tool found each bug; [speaker notes](slides/final_presentation_notes.pdf) |

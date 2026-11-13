@@ -1,44 +1,45 @@
 \section{Introduction}
 \label{sec:intro}
 
-Suppose you run a reporting query on \pg and it returns a row that should not
-be there. The query does not crash, no error is raised, and nothing in the logs
-says that the answer is wrong. This kind of failure, a \emph{wrong result}, is
-the most harmful bug a database system can have, because the user has no way to
-notice it.
+Imagine running a reporting query on \pg and getting back a row that should not
+be there. The query does not crash, no error is raised, and the server log looks
+normal. Nothing tells you that the answer is wrong. This kind of failure, a
+\emph{wrong result}, is in our view the most harmful bug a database system can
+have, because the user has no way to notice it.
 
-Fuzzers for database systems mostly look for crashes. SQLsmith~\cite{sqlsmith}
-generates random queries from the system catalog and
+Most fuzzers for database systems look for crashes instead.
+SQLsmith~\cite{sqlsmith} generates random queries from the system catalog, and
 SQUIRREL~\cite{zhong2020squirrel} mutates SQL with coverage feedback; both
-detect a bug when the server crashes or an assertion fails. To find wrong
-results, a fuzzer needs a \emph{test oracle} that knows the right answer.
-Differential testing compares two systems~\cite{slutz1998rags}; metamorphic
-oracles such as Ternary Logic Partitioning (TLP)~\cite{rigger2020tlp},
-NoREC~\cite{rigger2020norec} and equivalent expression
-transformation~\cite{jiang2024eet} compare a query with a rewritten query that
-must return the same rows. They rewrite the SQL text, so each tool builds its
-own small query generator that its oracle understands. Grammar-based
-generators reach deep into the planner but do not know which parts of a query
-can be rewritten safely; oracle-based tools know how to rewrite but cover a
-small part of SQL; and neither knows what changed in the code yesterday, though
-the planner of \pg master changes every week and most new bugs live in the
-newest code.
+report a bug when the server crashes or an assertion fails. To catch a wrong
+result, a fuzzer needs a \emph{test oracle}, something that knows what the
+right answer is. Differential testing compares two systems on the same
+query~\cite{slutz1998rags}. Metamorphic oracles such as Ternary Logic
+Partitioning (TLP)~\cite{rigger2020tlp}, NoREC~\cite{rigger2020norec} and
+equivalent expression transformation~\cite{jiang2024eet} instead compare a query
+with a rewritten version that must return the same rows. These oracles rewrite
+the SQL text, so each tool comes with its own small query generator whose output
+the oracle understands. This leaves a gap. Grammar-based generators reach deep
+into the planner but do not know which parts of a query can be rewritten safely,
+while oracle-based tools know how to rewrite but cover only a small part of SQL.
+Neither of them knows what changed in the code recently, even though the \pg
+planner changes every week and most new bugs live in the newest code.
 
 Figure~\ref{fig:motivating} shows a real wrong result that \tool found. Since
-\pg~17, the planner replaces \texttt{range @> elem} by the constant
-\texttt{true} when the range is unbounded on both sides, and by \texttt{false}
-when it is empty. The operator is strict, so for a NULL element the correct
-answer is NULL; the constant is wrong under \texttt{NOT}, in \texttt{IS NULL}
-tests, in \texttt{CASE}, and in outer joins, where unmatched rows carry NULLs.
-We reproduced it on the release 18.6 and on master. \tool found it with a typed
-rewrite of the derivation tree (a scalar subquery around the range), in the
-first 150 test cases the rewrite ran. Of 23 recent fixes in \pg master that we put back
-(Section~\ref{sec:rq3}), 20 change what a query returns, and only 9 can be seen
-by a crash-only fuzzer. The closest work is query plan
-guidance~\cite{ba2023qpg}, which steers a generator toward new plan shapes with
-SQLancer's oracles, and Fuzz4All~\cite{xia2024fuzz4all}, which uses a large
-language model (LLM) as the generator; neither connects the generator to the
-code that changed.
+\pg~17, the planner replaces \texttt{range @> elem} with the constant
+\texttt{true} when the range is unbounded on both sides, and with \texttt{false}
+when the range is empty. The operator is strict, so for a NULL element the
+correct answer is NULL. The folded constant gives a wrong answer under
+\texttt{NOT}, in \texttt{IS NULL} tests, in \texttt{CASE} expressions and in
+outer joins, where unmatched rows carry NULLs. We reproduced the bug on release
+18.6 and on master. \tool found it with a typed rewrite of the derivation tree,
+by wrapping the range in a scalar subquery, within the first 150 test cases that
+used this rewrite. The example is not an isolated case: when we put back 23
+recent fixes from \pg master (Section~\ref{sec:rq3}), 20 of them changed what a
+query returns, and only 9 could be seen by a fuzzer that only watches for
+crashes. The closest previous work is query plan guidance~\cite{ba2023qpg},
+which steers a generator toward new plan shapes using SQLancer's oracles, and
+Fuzz4All~\cite{xia2024fuzz4all}, which uses a large language model (LLM) as the
+generator. Neither connects the generator to the code that changed.
 
 \begin{figure}[t]
 \begin{lstlisting}[numbers=none,escapechar=!,language=SQL]
@@ -54,50 +55,58 @@ FROM (VALUES (NULL::int), (1)) v(c);
  NULL | t        | t          !\textbf{$\leftarrow$ wrong: the planner folded the call to a constant}!
  1    | t        | t
 \end{lstlisting}
-\caption{A wrong result in \pg~17, 18.6 and master that \tool found: the
+\caption{A wrong result in \pg~17, 18.6 and master that \tool found. The
 planner support function for range containment returns \texttt{true} or
 \texttt{false} for a NULL element, where the strict operator gives NULL. No
-error or crash shows it; only an oracle that compares two equivalent queries
+error or crash reveals it; only an oracle that compares two equivalent queries
 does.}
 \label{fig:motivating}
 \end{figure}
 
-We present \tool, a grammar-aware fuzzer for \pg built on three ideas:
-\begin{enumerate}
-  \item A \emph{typed grammar} generates SQL as derivation trees. Every node
-    knows its type and its place in the query (Section~\ref{sec:grammar}).
-  \item \emph{Tree-based oracles} rewrite the derivation tree, not the text:
-    TLP and NoREC at any query level, typed expression rewrites, a
-    row-level security check, and plan-variant and cross-version oracles
-    (Section~\ref{sec:oracles}).
-  \item \emph{Commit-directed extension}: an LLM reads a recent commit and
-    proposes grammar alternatives, seed queries and new equivalence rewrites;
-    a \gate accepts them only if the server runs them, they execute the lines
-    the commit changed, and a rewrite never changes a result
-    (Section~\ref{sec:llm}).
-\end{enumerate}
-\tool then reduces every finding on its derivation tree and its tokens,
-localizes wrong results to a planner path or to an always-applied rewrite,
-and drafts the upstream report (Section~\ref{sec:triage}).
+To close this gap we built \tool, a grammar-aware fuzzer for \pg based on three
+ideas. First, a \emph{typed grammar} generates SQL as derivation trees in which
+every node knows its type and its place in the query
+(Section~\ref{sec:grammar}). Second, the oracles work on the tree rather than on
+the text: TLP and NoREC can be applied at any query level, alongside typed
+expression rewrites, a row-level security check, and plan-variant and
+cross-version oracles (Section~\ref{sec:oracles}). Third, the grammar is
+extended from recent commits: an LLM reads a commit and proposes grammar
+alternatives, seed queries and new equivalence rewrites, and a \gate accepts
+them only if the server runs them, they execute the lines the commit changed,
+and no rewrite changes a result (Section~\ref{sec:llm}). Around these ideas,
+\tool reduces every finding on its derivation tree and its tokens, localizes a
+wrong result to a planner path or to a rewrite that is always applied, and drafts
+the upstream report (Section~\ref{sec:triage}).
 
-\paragraph{Results.} The typed grammar reaches 36.7\% of backend lines in an
-hour against 22.2\% for random mutation, with 99\% valid statements against
-26\% (\rqref{1}); the oracles double the distinct plan shapes. We reported ten
-bugs found with \tool: eight are fixed upstream (six with our patches),
-and \tool rediscovers all ten in one 150-second run (\rqref{2}). Of 93 triaged candidates, 8 are real and 15 duplicate real
-bugs; the false positives come from a small number of classes. On the
-benchmark of 23 re-injected bugs, no arm found more than 2 of 20 in one hour
-(\rqref{3}). The LLM extension adds SQL features but no coverage, and the
-gate accepted one rewrite that is not an identity (\rqref{4}). The lesson is
-that oracle precision, not generator power, limits a wrong-result fuzzer: a
-generator that reaches more of SQL also reaches more corner cases where two
-``equivalent'' queries are not equivalent.
+We evaluated \tool on \pg master. The typed grammar reaches 36.7\% of backend
+lines in an hour against 22.2\% for random mutation, with 99\% valid statements
+against 26\% (\rqref{1}), and the oracles double the number of distinct plan
+shapes. We reported ten bugs found with \tool, eight of which are fixed
+upstream, six with our patches, and \tool rediscovers all ten in one
+150-second run (\rqref{2}). Of 93 triaged candidates, 8 are real and 15 are
+duplicates of real bugs, and the false positives come from a small number of
+classes. On a benchmark of 23 re-injected bugs, no configuration found more
+than 2 of 20 in one hour (\rqref{3}). The LLM extension adds SQL features but no
+coverage, and the gate accepted one rewrite that is not an identity
+(\rqref{4}). What we learned is that oracle precision, not generator power,
+limits a wrong-result fuzzer: a generator that reaches more of SQL also reaches
+more of the corner cases where two ``equivalent'' queries are in fact not
+equivalent.
 
-\paragraph{Contributions.} (1)~A typed \pg grammar whose derivation trees serve
-generation, mutation, metamorphic rewriting and reduction
-(Section~\ref{sec:approach}); (2)~tree-based oracles with the precision of each
-(Section~\ref{sec:rq2}); (3)~a commit-directed LLM extension with a \gate that
-tests proposed rewrites on values and queries (Section~\ref{sec:llm}); (4)~a
-benchmark of 23 real \pg bugs put back into one server
-(Section~\ref{sec:rq3}); and (5)~ten reported \pg bugs, eight
-fixed upstream (six with our patches), with the tool and all data (Section~\ref{sec:data}).
+In summary, this paper makes the following contributions:
+\begin{itemize}
+  \item a typed \pg grammar whose derivation trees are used for generation,
+    mutation, metamorphic rewriting and reduction (Section~\ref{sec:approach});
+  \item tree-based oracles, together with the measured precision of each
+    (Section~\ref{sec:rq2});
+  \item a commit-directed LLM extension with a \gate that tests proposed
+    rewrites on values and on queries (Section~\ref{sec:llm});
+  \item a benchmark of 23 real \pg bugs put back into one server
+    (Section~\ref{sec:rq3}); and
+  \item ten reported \pg bugs, eight of them fixed upstream (six with our
+    patches), released together with the tool and all data
+    (Section~\ref{sec:data}).
+\end{itemize}
+The rest of the paper defines the problem (Section~\ref{sec:problem}), describes
+the approach and its implementation (Sections~\ref{sec:approach}
+and~\ref{sec:impl}), and then reports the evaluation (Section~\ref{sec:eval}).

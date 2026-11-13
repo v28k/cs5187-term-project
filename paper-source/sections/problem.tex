@@ -1,44 +1,48 @@
 \section{Problem Statement}
 \label{sec:problem}
 
-Let $G$ be a typed grammar for the SQL dialect of \pg and $S$ a database
-schema. A \emph{test case} is a sequence of statements derived from $G$ over
-$S$, run in one transaction that is rolled back at the end. The
-\emph{derivation tree} \Tree{\Q} of a query \Q records the alternative each rule
-took; its leaves, read left to right, are the text of \Q. A query has a
-\emph{wrong result} when the server returns, without an error, a multiset
-\Res{\Q} that differs from what the SQL standard and the \pg documentation
-define. An \emph{oracle} maps the server's response to a test case to
-\emph{pass} or \emph{bug candidate}: a metamorphic oracle such as
-TLP~\cite{rigger2020tlp} or NoREC~\cite{rigger2020norec} compares \Q with a
-rewritten query, and a \emph{plan variant} (the same query under a setting such
-as \texttt{SET enable\_hashjoin = off}) must return the same multiset.
+Before describing \tool, we fix the terms we use in the rest of the paper. Let
+$G$ be a typed grammar for the SQL dialect of \pg and $S$ a database schema. A
+\emph{test case} is a sequence of statements derived from $G$ over $S$ and run
+in one transaction that is rolled back at the end. The \emph{derivation tree}
+\Tree{\Q} of a query \Q records which alternative each rule took, and its leaves,
+read from left to right, give the text of \Q. A query has a \emph{wrong result}
+when the server returns, without any error, a multiset \Res{\Q} that differs
+from what the SQL standard and the \pg documentation define. An \emph{oracle}
+looks at the server's response to a test case and decides between \emph{pass}
+and \emph{bug candidate}. A metamorphic oracle such as TLP~\cite{rigger2020tlp}
+or NoREC~\cite{rigger2020norec} compares \Q with a rewritten query. Similarly,
+a \emph{plan variant}, the same query run under a setting such as
+\texttt{SET enable\_hashjoin = off}, must return the same multiset as the
+original.
 
-\paragraph{Sound rewrites.} A tree rewrite $r$ maps \Tree{\Q} to a second
-tree. It is \emph{sound} for \Q if $\Res{\Q} = \Res{r(\Q)}$ holds on every
-correct server. A rewrite that is sound only under conditions (for example,
-only if no \texttt{LIMIT} without \texttt{ORDER BY} appears below the rewritten
-node) must check them on the tree before it is applied. An unsound rewrite
-produces \emph{false positives}: candidates that are not bugs.
+\paragraph{Sound rewrites.} A tree rewrite $r$ maps \Tree{\Q} to a second tree.
+We call it \emph{sound} for \Q if $\Res{\Q} = \Res{r(\Q)}$ holds on every correct
+server. Some rewrites are sound only under conditions, for example only if no
+\texttt{LIMIT} without \texttt{ORDER BY} appears below the rewritten node, and
+these conditions must be checked on the tree before the rewrite is applied. An
+unsound rewrite produces \emph{false positives}, that is, candidates that are
+not bugs.
 
-\paragraph{Goal.} Given a fixed time budget $B$ and one server, find as many
-distinct bugs as possible, where a bug is a crash, a failed assertion, an
-internal error (SQLSTATE class \texttt{XX}), or a wrong result, while keeping
-the \emph{precision} of each oracle high:
+\paragraph{Goal.} Given a fixed time budget $B$ and one server, we want to find
+as many distinct bugs as possible, where a bug is a crash, a failed assertion,
+an internal error (SQLSTATE class \texttt{XX}) or a wrong result. At the same
+time, we want the \emph{precision} of each oracle to stay high:
 \begin{equation}
   \mathit{precision}(o) = \frac{|R_o|}{|R_o| + |F_o|}
   \label{eq:precision}
 \end{equation}
-where $R_o$ and $F_o$ are the real bugs and the false positives among the
-distinct candidates oracle $o$ reported, after de-duplication by signature
-(Section~\ref{sec:triage}). Candidates that do not reproduce (flaky) are
-counted apart, and a duplicate of a bug reported upstream is a real bug that
-we report separately, so we also give precision with duplicates in $R_o$.
+Here $R_o$ and $F_o$ are the real bugs and the false positives among the
+distinct candidates reported by oracle $o$, after de-duplication by signature
+(Section~\ref{sec:triage}). Candidates that do not reproduce (flaky ones) are
+counted separately. A duplicate of a bug that was already reported upstream is
+still a real bug, so we also give the precision with duplicates counted in
+$R_o$.
 
 \paragraph{Why not let an LLM write the test cases?} An LLM can write SQL that
-targets a feature, but at a few seconds per call it writes at most a few
-thousand test cases in an hour, where the grammar arm produced 71{,}228
-(Table~\ref{tab:rq1}). LLM-written queries are also not derivation trees, so
-the tree-based oracles cannot rewrite them. We use the LLM to extend the grammar
-instead: a few calls per commit, after which the grammar generates thousands of
-variations.
+targets a specific feature, but it needs a few seconds per call. In an hour it
+produces at most a few thousand test cases, while the grammar arm produced
+71{,}228 in the same time (Table~\ref{tab:rq1}). Queries written by an LLM are also not
+derivation trees, so the tree-based oracles cannot rewrite them. For these
+reasons we use the LLM to \emph{extend the grammar} instead: a few calls per
+commit, after which the grammar generates thousands of variations on its own.

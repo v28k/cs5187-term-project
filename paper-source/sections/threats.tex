@@ -1,37 +1,41 @@
 \section{Threats to Validity}
 \label{sec:threats}
 
-\paragraph{Internal threats.} Every arm runs 5 trials with the same per-trial
-seeds on the same build, schema, executor, oracles and budget, each trial has
-its own server, a metamorphic mismatch counts only if it repeats, and every
-candidate is reproduced three times before triage. But five trials are few:
-differences with $p$ above 0.008 are effect sizes, not significant results, and
-several conclusions rest on them.
+\paragraph{Internal validity.} We tried to make the arms comparable: every arm
+runs 5 trials with the same per-trial seeds on the same build, schema, executor,
+oracles and budget; each trial has its own server; a metamorphic mismatch counts
+only if it repeats; and every candidate is reproduced three times before triage.
+Still, five trials are few. Differences with $p$ above 0.008 are effect sizes,
+not significant results, and several of our conclusions rest on them.
 
-Our own oracles can be wrong. Eleven false-positive classes reached triage, six
-before the campaigns and five in them (Section~\ref{sec:rq2}). We fixed the
-last five \emph{after} the campaigns and checked them on the stored
-reproducers and with unit tests, but did not re-run the campaigns, so the
-precision after the fixes is not a measurement. More classes may remain. Verdicts are ours, some made from the reduced reproducer; we
-release the reproducers. An accepted LLM rewrite is tested, not proven
-(Section~\ref{sec:rq4}). Attribution in \rqref{3} replays on single-bug servers,
-so a finding that needs two injected bugs is reported as unattributed.
+Our own oracles can also be wrong. Eleven false-positive classes reached
+triage, six before the campaigns and five during them (Section~\ref{sec:rq2}).
+We fixed the last five \emph{after} the campaigns and checked the fixes on the
+stored reproducers and with unit tests. We did not re-run the campaigns, so the
+precision after the fixes is not a measurement, and more classes may remain.
+The verdicts are our own, and some were made on the reduced reproducer; we
+release all reproducers so that others can check them. An accepted LLM rewrite
+is tested, not proven (Section~\ref{sec:rq4}). Attribution in \rqref{3} replays
+each finding on single-bug servers, so a finding that needs two injected bugs at
+once is reported as unattributed.
 
-The two laptops differ, so \rqref{1} and \rqref{3} are not comparable in
-absolute throughput; 14 \rqref{1} trials were re-run with the same seeds after a
-server failed crash recovery.
+The two laptops differ, so \rqref{1} and \rqref{3} cannot be compared in
+absolute throughput. In addition, 14 \rqref{1} trials were re-run with the same
+seeds after a server failed crash recovery.
 
-\paragraph{External threats.} We test one system at one commit, with one schema
-of 9 relations and one set of row-level security policies that we chose;
-bugs that need other data shapes, extensions or concurrent sessions are out of
-reach. The 23 benchmark bugs are recent fixes with regression tests and may
-favour features that recent \pg development touched. The LLM results hold for
-free-tier Gemini Flash models on 10 commits; we store every prompt and response.
+\paragraph{External validity.} We test one system at one commit, with one schema
+of 9 relations and one set of row-level security policies that we chose
+ourselves. Bugs that need other data shapes, extensions or concurrent sessions
+are out of reach. The 23 benchmark bugs are recent fixes with regression tests,
+which may favour features that recent \pg development touched. The LLM results
+hold for free-tier Gemini Flash models on 10 commits; we store every prompt and
+response so that the run can be replayed.
 
-\paragraph{Construct threats.} Coverage measures what code ran, not whether an
-oracle could have seen a bug there. A bug ``found'' in \rqref{3} means a test
-case failed on its solo server and passed on the fixed one, even if its symptom
-differs from the PoC's. A fragment that passes the \gate reaches the changed
-lines; that does not prove it tests the changed behaviour. The rediscovery of
-the reported bugs replays their reproducers as seeds: it shows that the
-oracles recognise each bug, not that generation alone finds it in a short run.
+\paragraph{Construct validity.} Coverage measures which code ran, not whether
+an oracle could have noticed a bug there. A bug ``found'' in \rqref{3} means
+that a test case failed on its solo server and passed on the fixed one, even if
+its symptom differs from the PoC's. A fragment that passes the \gate reaches the
+changed lines, but that does not prove it tests the changed behaviour. Finally,
+the rediscovery of the reported bugs replays their reproducers as seeds: it
+shows that the oracles recognise each bug, not that generation alone would find
+it in a short run.
