@@ -1,14 +1,27 @@
 \section{Implementation}
 \label{sec:impl}
 
-\tool is about 11{,}000 lines of Python with 151 unit tests, plus the grammar
-(628 lines in the campaigns, 651 with the additions of Section~\ref{sec:eval}). It drives \pg through \texttt{psycopg}, reads the server log for
-assertion and crash evidence, and runs every trial as a resumable process
-whose events, timeline and failures are written as JSON. Its parts are the \pgg parser and derivation engine (scopes, type variables,
-node spans, the \texttt{MINIMAL} marker); the generator (corpus, alternative
-weights, data profile); the executor (savepoints, plan variants, metamorphic,
-RLS and CERT checks, and a cross-version wrapper); triage (reproduction, tree
-and token reduction, localization, reports, bisection, the precision ledger);
-the benchmark scripts with \texttt{bench verify} and \texttt{bench attribute};
-and the LLM arm (commit miner, prompts, a client that stores every response for
-replay, the \gate and the ledger).
+We implemented \tool in Python. It is about 11{,}000 lines of code with 151 unit
+tests, plus the grammar, which had 628 lines in the campaigns and has 651 after
+the additions described in Section~\ref{sec:rq2}. \tool talks to \pg through
+\texttt{psycopg} and reads the server log to find evidence of assertion
+failures and crashes. Every trial runs as a resumable process that writes its
+events, timeline and failures as JSON, so an interrupted trial can continue
+where it stopped. The code is split into six parts:
+\begin{itemize}
+  \item the \pgg parser and derivation engine, which handles scopes, type
+    variables, node spans and the \texttt{MINIMAL} marker used by reduction;
+  \item the generator, with the corpus, the alternative weights and the data
+    profile;
+  \item the executor, which manages savepoints and plan variants and runs the
+    metamorphic, RLS and CERT checks, with a wrapper for the cross-version
+    oracle;
+  \item triage, covering reproduction, tree and token reduction, localization,
+    report drafts, bisection and the precision ledger;
+  \item the benchmark scripts, including \texttt{bench verify} and
+    \texttt{bench attribute}; and
+  \item the LLM arm, made of the commit miner, the prompts, a client that stores
+    every response so that a run can be replayed, the \gate and the ledger.
+\end{itemize}
+A single configuration file selects the generator, the oracles and the budget of
+a campaign, so every arm in the evaluation differs only in its configuration.

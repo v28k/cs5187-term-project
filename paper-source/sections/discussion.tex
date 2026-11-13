@@ -1,68 +1,77 @@
 \section{Discussion}
 \label{sec:discussion}
 
-\paragraph{Is a larger grammar always better?} No. A larger grammar reaches
-more corner cases of SQL semantics, and some break the assumptions of an
-oracle: \texttt{HAVING} without \texttt{GROUP BY}, \texttt{DISTINCT} over
-\texttt{numeric} values of different scale, \texttt{interval} values that are
-equal but print differently. The cost is paid in oracle precision, and every
-rewrite needs a soundness check on the tree.
+The results raise a few questions that we want to discuss before turning to
+the threats to validity.
+
+\paragraph{Is a larger grammar always better?} Not for a wrong-result fuzzer. A
+larger grammar reaches more corner cases of SQL semantics, and some of them
+break the assumptions an oracle makes: \texttt{HAVING} without \texttt{GROUP
+BY}, \texttt{DISTINCT} over \texttt{numeric} values of different scale, or
+\texttt{interval} values that are equal but print differently. The price is paid
+in oracle precision, and every rewrite needs a soundness check on the tree.
 
 \paragraph{Why keep the tree?} Mutation re-derives a subtree, the oracles
-rewrite one typed node, and reduction replaces a subtree by its smallest
-derivation; each time the generator replays the tree and re-binds names and
-types, so the result stays valid SQL. On the \texttt{JSON\_TABLE} case, tree
-reduction followed by token reduction gave a 79-token reproducer where token
-reduction alone gave 116. On the tree a clause is one node with a known span,
-which lets \tool apply TLP inside a derived table or a \texttt{LATERAL}
-subquery, where a text rewrite must parse the query again.
+rewrite one typed node, and reduction replaces a subtree with its smallest
+derivation. In each case the generator replays the tree and re-binds names and
+types, so the result stays valid SQL. On the \texttt{JSON\_TABLE} bug, tree
+reduction followed by token reduction gave a 79-token reproducer, whereas token
+reduction alone stopped at 116 tokens. On the tree, a clause is one node with a
+known span, which lets \tool apply TLP inside a derived table or a
+\texttt{LATERAL} subquery, where a text-based rewrite would have to parse the
+query again.
 
 \paragraph{Why compare with the last release?} Plan variants cannot catch a
-wrong result that every plan shares, such as a constant folded before any plan
-is chosen (Figure~\ref{fig:motivating}). The release lacks the newest planner
-rules, so it disagrees with exactly the bugs that new code brings, and also with
-intended changes, which triage must recognise.
+wrong result that every plan shares, such as a constant that is folded before
+any plan is chosen (Figure~\ref{fig:motivating}). The last release does not have
+the newest planner rules, so it disagrees exactly on the bugs that new code
+introduces. It also disagrees on intended changes, which triage has to
+recognise.
 
 \paragraph{Can an LLM be trusted?} Not on its word. A rewrite is a claim about
-semantics, and \rqref{4} shows our gate accepted a wrong one. For fragments the
-model only has to name the SQL that reaches a commit, and the \gate rejects what
-does not parse, is never derived, fails on the server or misses the changed
-lines. Repair helps rarely: of the 4 accepted commits 2 passed in the first
-round, and 6 of 10 never passed.
+semantics, and \rqref{4} shows that our gate accepted a wrong one. For
+fragments the situation is easier, because the model only has to name SQL that
+reaches a commit, and the \gate rejects anything that does not parse, is never
+derived, fails on the server or misses the changed lines. Repair rounds helped
+only rarely: of the 4 accepted commits, 2 passed in the first round,
+and 6 of the 10 commits never passed.
 
 \paragraph{Does the approach carry over to other engines?}
 \label{sec:beyond}
-Yes, with a small adapter per engine. After the \pg campaigns we generalized
-\tool (public branch \texttt{generalized}) to DuckDB, SQLite, Turso and Apache
-DataFusion. Each engine runs in its own worker process, and a dialect
+After the \pg campaigns we wanted to know whether the same design works beyond
+\pg, so we generalized \tool to DuckDB, SQLite, Turso and Apache DataFusion
+(branch \texttt{generalized} of our repository). The answer is yes, with a small
+adapter per engine. Each engine runs in its own worker process, and a dialect
 \emph{overlay} of a few dozen lines drops or rewrites the parts of the \pg
-grammar the engine does not accept. With the manual overlays, 96.3\% of the
-generated queries are valid on DuckDB, 97.7\% on SQLite, 93.3\% on Turso and
-79.4\% on DataFusion. An overlay miner drafts the overlay from the measured
-failure rate of each grammar alternative: one mined round lifts DuckDB from 32.1\%
-to 44.1\% valid statements without any manual line. Optimizer-rule firing, read
-from rule switches or from per-rule plan traces, replaces the \pg plan variants
-as feedback and as a coverage measure. Other additions are Z3-synthesized rows that
-make TLP partitions non-empty, normalizers learned from probes for cross-engine
-comparison (DuckDB against SQLite: held-out disagreements drop from 28.7\% to
-3.6\%), engine test suites as seeds, and a loop that triages new failures and
-drafts a filing package with a regression test in the engine's own format.
-\emph{Rule kernels}, minimal queries that each make one optimizer rule fire,
-composed in pairs, raise the number of distinct optimizer-rule pairs reached in
-15-minute campaigns (medians of three trials per arm) from 307 to 386 on DuckDB,
-241 to 276 on DataFusion and 86 to 182 on SQLite; every kernel trial beat every
-plain one ($\hat{A}_{12}=1.00$), although three trials per arm cannot give $p<0.1$.
-The campaigns found fourteen bugs. Nine were already fixed on the engine's
-development branch when we checked. For the other five we filed an issue and a
-pull request with a fix and a regression test:
-Turso \#11594 / PR \#11595 (\texttt{percentile\_disc} with an expression argument)
-and \#11796 / PR \#11797 (an aggregate in \texttt{IN (SELECT ...)} next to a
-window function: a spurious error, or a panic),
-DuckDB \#28551 / PR \#28552 (\texttt{min}/\texttt{max} over a nested value
-computed by a subquery, a 2.0.0 regression; approved by a maintainer for merging
-and for the 2.0 release line), DataFusion \#27235 / PR \#27236
-(\texttt{UPDATE}/\texttt{DELETE} that repeat an expression fail on an internal
-common-subexpression column), and a DataFusion internal error for a scalar
-subquery inside \texttt{VALUES}. One command
-(\texttt{scripts/reproduce\_generalized.sh}) reproduces all five on the released
-versions the campaigns ran on.
+grammar that the engine does not accept. With hand-written overlays, 96.3\% of
+the generated queries are valid on DuckDB, 97.7\% on SQLite, 93.3\% on Turso
+and 79.4\% on DataFusion. An overlay miner can also draft the overlay from the
+measured failure rate of each grammar alternative: one mined round lifted DuckDB
+from 32.1\% to 44.1\% valid statements without any line written by hand. Instead of the
+\pg plan variants, \tool uses optimizer-rule firing, read from rule switches or
+from per-rule plan traces, as feedback and as a coverage measure. We also added rows synthesized with Z3 that make TLP
+partitions non-empty, and normalizers learned from probes for cross-engine
+comparison; between DuckDB and SQLite, these normalizers reduce held-out
+disagreements from 28.7\% to 3.6\%. The engines' own test suites serve as seeds,
+and a loop triages new failures and drafts a filing package with a regression
+test in the engine's own format.
+Finally, \emph{rule kernels}, minimal queries that each make one optimizer rule
+fire, are composed in pairs. In 15-minute campaigns (medians of three trials per
+arm), they raise the number of distinct optimizer-rule pairs reached from 307 to
+386 on DuckDB, from 241 to 276 on DataFusion, and from 86 to 182 on SQLite.
+Every kernel trial beat every plain one ($\hat{A}_{12}=1.00$), although three
+trials per arm cannot give $p<0.1$.
+
+These campaigns found fourteen bugs. Nine of them were already fixed on the
+engine's development branch when we checked. For the other five we filed an
+issue and a pull request with a fix and a regression test: Turso \#11594 / PR
+\#11595 (\texttt{percentile\_disc} with an expression argument) and \#11796 / PR
+\#11797 (an aggregate in \texttt{IN (SELECT ...)} next to a window function,
+which gives a spurious error or a panic); DuckDB \#28551 / PR \#28552
+(\texttt{min}/\texttt{max} over a nested value computed by a subquery, a 2.0.0
+regression), which a maintainer approved for merging and for the 2.0 release
+line; DataFusion \#27235 / PR \#27236 (\texttt{UPDATE} and \texttt{DELETE}
+statements that repeat an expression fail on an internal common-subexpression
+column); and a DataFusion internal error for a scalar subquery inside
+\texttt{VALUES}. A single command (\texttt{scripts/reproduce\_generalized.sh})
+reproduces all five on the released versions that the campaigns ran on.

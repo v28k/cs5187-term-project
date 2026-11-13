@@ -1,29 +1,28 @@
-%% One paragraph, no citations: problem -> real case with a number ->
-%% "We present \tool" + what it does -> results with numbers -> one lesson.
-A database system that returns a wrong result raises no error and leaves no
-trace in its logs. Fuzzers for \pg mostly find crashes, and the oracles that
-detect wrong results work on small query languages of their own. In \pg~17,
-18 and master, for example, the planner answers \texttt{true} for
-\texttt{'(,)'::int4range @> NULL}, where the strict operator must give NULL.
-Of 23 recent query-processing fixes in \pg master, 20 change what a query
-returns, but only 9 of them crash or raise an internal error. We present
-\tool, a fuzzer that keeps every generated query as a typed derivation tree,
-so that metamorphic oracles (TLP, NoREC, expression rewrites, CTE and table
-fences, row-level security) can rewrite single nodes of known type at any
-query level, and triage reduces failures on the same trees. Plan variants and
-the last release serve as two more oracles. An LLM reads recent commits and
-proposes grammar alternatives and equivalence rewrites, which a validation
-gate accepts only if the server runs them, they reach the changed lines, and
-a rewrite never changes a result. In five one-hour trials per
-configuration, the typed grammar covers 36.7\% of backend lines against 22.2\%
-for random mutation, and the oracles double the plan shapes reached. We reported ten
-bugs found with \tool; eight are fixed
-upstream (six with the authors' patches), and \tool rediscovers all ten in one 150-second run. Of 93 triaged candidates, 8 are real and 15 duplicate real bugs; the
-false positives come from a few classes, which we fixed. The LLM adds SQL
-features but no coverage, and one rewrite it proposed passed our gate although
-it is not an identity. On the benchmark of 23 real bugs, the arms found
-2 of 20 at best. The main lesson is that oracle precision, not generator reach,
-limits a wrong-result fuzzer: a richer grammar also reaches the corners where
-two ``equivalent'' queries are not. Generalized with per-engine dialect overlays and optimizer-rule
-feedback, \tool also tests DuckDB, SQLite, Turso and DataFusion; there it found
-five more bugs that we reported upstream with fixes.
+When a database system returns a wrong result, nothing tells the user: there is
+no error, no crash and nothing in the logs. Most fuzzers for \pg look for
+crashes, and the oracles that can detect wrong results are tied to small query
+generators of their own. As an example, \pg~17, 18 and master answer
+\texttt{true} for \texttt{'(,)'::int4range @> NULL}, although a strict operator
+must return NULL. We also found that of 23 recent query-processing fixes in \pg
+master, 20 change what a query returns, but only 9 of them crash or raise an
+internal error. This paper presents \tool, a fuzzer that keeps every generated
+query as a typed derivation tree. Because the tree is kept, metamorphic oracles
+such as TLP, NoREC, expression rewrites, CTE and table fences and a row-level
+security check can rewrite a single node of known type at any level of the
+query. Triage then reduces a failure on the same tree. Plan variants and the last release
+of \pg act as two more oracles. In addition, an LLM reads recent commits and
+proposes grammar alternatives and equivalence rewrites, and a validation gate
+accepts them only if the server runs them, they reach the changed lines and no
+rewrite changes a result. In five one-hour trials per configuration, the typed
+grammar covers 36.7\% of backend lines against 22.2\% for random mutation, and
+the oracles double the number of plan shapes reached. We reported ten bugs found
+with \tool; eight are fixed upstream, six of them with our patches, and \tool
+rediscovers all ten in one 150-second run. Of 93 triaged candidates, 8 are real
+and 15 are duplicates of real bugs, and the false positives come from a few
+classes that we fixed. The LLM adds SQL features but no coverage, and one
+rewrite it proposed passed our gate although it is not an identity. On a
+benchmark of 23 real bugs, the best configuration found 2 of 20. Our main lesson
+is that oracle precision, not generator reach, is what limits a wrong-result
+fuzzer. Finally, with per-engine dialect overlays and optimizer-rule feedback,
+\tool also tests DuckDB, SQLite, Turso and DataFusion, where it found five more
+bugs that we reported upstream with fixes.

@@ -1,12 +1,16 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-\tool generates SQL as typed derivation trees, rewrites the trees into
-metamorphic checks, compares each query with its plan variants and the last
-release, and extends its grammar from recent commits behind a server-side
-gate. We reported ten \pg bugs found with it, eight of them fixed upstream (six with
-our patches). Its grammar reaches 36.7\% of backend lines against 22.2\% for random
-mutation, yet the precision of the oracles, not the reach of the generator,
-decided how useful its findings were. With a dialect overlay and a small adapter per engine, the same core
-tests DuckDB, SQLite, Turso and DataFusion and found five more bugs there, which
-we reported upstream with fixes (Section~\ref{sec:beyond}).
+We presented \tool, a fuzzer that generates SQL as typed derivation trees,
+rewrites these trees into metamorphic checks, compares each query with its plan
+variants and with the last release, and extends its grammar from recent commits
+behind a server-side gate. With it we reported ten \pg bugs, eight of which are
+fixed upstream, six with our patches. Its grammar reaches 36.7\% of backend
+lines against 22.2\% for random mutation, yet in the end it was the precision of
+the oracles, not the reach of the generator, that decided how useful the
+findings were. We think this is the main thing to improve in future
+wrong-result fuzzers: each false-positive class we found came from an oracle
+assumption that held for most queries but not for all, so every new rewrite and
+every comparison needs its own soundness argument. Finally, with a dialect overlay and a small adapter per engine,
+the same core tests DuckDB, SQLite, Turso and DataFusion, where it found five
+more bugs that we reported upstream with fixes (Section~\ref{sec:beyond}).
