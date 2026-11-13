@@ -60,7 +60,7 @@ arXiv) and add any new close work to this table (task P3).
 | D7 | Data solver | **Z3** (`z3-solver` pip) on the typed predicate subset; unsupported functions are treated as unconstrained | typed trees make the translation direct |
 | D8 | Language / isolation | stay in Python; each engine runs in a **spawned worker process** (crash = dead worker); SQLite through a small **ctypes** binding (needed for `sqlite3_test_control(SQLITE_TESTCTRL_OPTIMIZATIONS)` and EXPLAIN QUERY PLAN) | reuse 10.5k lines; one isolation model for all engines |
 | D9 | Oracles per engine | crash / internal error / hang; TLP, NoREC, expression rewrites (existing); rule ablation (one rule off); cross-version (nightly vs last release); cross-engine (with learned normalizers); Turso vs SQLite trunk | strongest precise oracles first; cross-engine only with measured precision |
-| D10 | Repository | keep working in `v28k/cs5187-term-project`, branch `generalized` | history preserved |
+| D10 | Repository | keep working in the course repository, branch `generalized` | history preserved |
 | D11 | Compute | 4 cores: at most **3 fuzz workers** + 1 for triage/build; long campaigns run in the background with a watchdog; evaluation budgets sized for this machine (section 6) and scaled up when more machines are available | honest, reproducible numbers |
 | D12 | Paper tool name | **Arbor** (`\tool`, as in the course paper); code package stays `pgfuzz` (rename to `arbor` in P1 if cheap) | continuity |
 

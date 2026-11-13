@@ -4,7 +4,7 @@ CS-5187 term project A3, extended version. Team: **Venu Kummari, Bhuvan Chilukut
 (IIT Guwahati). License: [MIT](LICENSE).
 
 * **Course project (PostgreSQL fuzzer, paper, slides, submission package):** branch
-  [`main`](https://github.com/v28k/cs5187-term-project/tree/main).
+  [`main`](https://github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi/tree/main).
 * **This branch, `generalized`:** the same fuzzer (`pgfuzz`, called Arbor in the paper) extended to
   **DuckDB, SQLite, Turso and Apache DataFusion**, with new techniques and the bugs found with them.
 

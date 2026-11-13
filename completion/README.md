@@ -51,7 +51,7 @@ PostgreSQL (ten bugs found by the tool and reported):
 | `corr()`/`regr_*()` of a constant input under partial aggregation | [BUG #19826](https://postgr.es/m/19826-4b769cb5342fdfe7@postgresql.org) | **merged**: our patch, [`ef1b7404`](https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=ef1b740441) (Tom Lane), back-patched to 19 |
 
 
-Generalized fuzzer (branch `generalized` of <https://github.com/v28k/cs5187-term-project>), each filed with a fix and a regression test:
+Generalized fuzzer (branch [`generalized`](https://github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi/tree/generalized) of this repository), each filed with a fix and a regression test:
 
 | Engine | Bug | Issue / PR | State |
 |---|---|---|---|

@@ -28,10 +28,10 @@ questions: RQ1 reach (validity, coverage, features, plan shapes), RQ2 bugs
 and oracle precision, RQ3 time to find 23 real bugs that we put back into \pg,
 RQ4 what the LLM adds and costs.
 
-\paragraph{Where we ended (9 Nov 2026).}
+\paragraph{Where we ended (13 Nov 2026).}
 \begin{itemize}
   \item The fuzzer is complete and tested on real \pg master servers: about
-    10{,}500 lines of Python, a 78-rule typed grammar, 151 unit tests passing,
+    11{,}000 lines of Python, a typed grammar of 78 rules (83 after the rediscovery additions), 151 unit tests passing,
     MIT license.
   \item \textbf{Ten \pg bugs reported upstream: eight are fixed upstream, six of
     them with our patches} (Part~\ref{part:bugs}). One
@@ -74,9 +74,9 @@ RQ4 what the LLM adds and costs.
 \midrule
 \endhead
 Subject & \pg master \texttt{26bd08fb} (16 Oct 2026), \texttt{--enable-cassert}; release reference 18.6 \\
-Grammar & 78 rules, 108 variants, 421 alternatives, 13 SQL types, 628 lines (\file{src/grammar/postgres.pgg}) \\
+Grammar & in the campaigns 78 rules, 108 variants, 421 alternatives, 13 SQL types, 628 lines; now 83 rules, 437 alternatives, 651 lines after the rediscovery additions (\file{src/grammar/postgres.pgg}) \\
 Schema & 9 relations: plain, partitioned (\texttt{tp}, \texttt{tl}), inheritance (\texttt{ti}), view (\texttt{v0}), generated columns, B-tree/GIN/GiST/BRIN indexes \\
-Code & $\approx$10{,}500 lines of Python (\file{src/pgfuzz}), 151 unit tests passing; MIT license \\
+Code & $\approx$11{,}000 lines of Python (\file{src/pgfuzz}), 151 unit tests passing; MIT license \\
 Grammar validity, meeting 1 & 83.4\% $\rightarrow$ 83.1\% $\rightarrow$ 88.4\% $\rightarrow$ 100\% (966/966) over four tuning rounds \\
 Grammar validity now & 99.5--99.7\% of statements run without error on master \\
 Throughput (one worker) & $\approx$17--23 grammar test cases per second with all oracles on (3{,}166 in 180 s full system; 5{,}516 in 240 s plain grammar) \\
@@ -116,7 +116,7 @@ All three can explain every part; this document is the script.
 \toprule
 Component & Weight & How this project addresses it \\
 \midrule
-Implementation and results & 50\% & Working fuzzer (typed grammar, 12 metamorphic oracles, plan-variant and cross-version oracles, hang oracle, triage with tree reduction, gated LLM arm, benchmark), final campaigns. \textbf{Upstream-accepted bugs: nine fixed upstream (six with our patches).} Generalized fuzzer: three more fixes filed. \\
+Implementation and results & 50\% & Working fuzzer (typed grammar, 12 metamorphic oracles, plan-variant and cross-version oracles, hang oracle, triage with tree reduction, gated LLM arm, benchmark), final campaigns. \textbf{Upstream-accepted bugs: eight fixed upstream (six with our patches).} Generalized fuzzer: five more bugs filed with fixes, the DuckDB one approved by a maintainer. \\
 Meetings and presentation & 25\% & Progress meetings 1 and 2, final presentation (Beamer, 24 slides) and class talk (Beamer, 12 slides), each with a speaker-notes PDF, this document, live demo (Section~\ref{sec:demo}). \\
 Paper (ACM/FSE) & 25\% & ACM \texttt{sigconf}: motivation (a real wrong result, BUG \#19793), technique, implementation, evaluation (four RQs), related work, threats to validity, data availability, signed contributions. \\
 Repository & -- & Public, MIT license, \file{README.md} with build and run instructions, exact dependencies, one-command reproduction, and every upstream report with its state. \\
