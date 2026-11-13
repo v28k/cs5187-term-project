@@ -8,8 +8,8 @@ Team: **Venu Kummari, Bhuvan Chilukuti, Gowtham Reddy** (IIT Guwahati). License:
 
 | File | What it is |
 |---|---|
-| [`../paper/paper.pdf`](../paper/paper.pdf) | the paper, ACM Primary Article Template (`sigconf`), 10 pages: motivation, technique, implementation, evaluation (4 RQs), discussion (incl. the generalized fuzzer), threats to validity, related work, data availability, use of generative AI, **signed statement of contributions** |
-| [`../paper-source/`](../paper-source/) | the LaTeX source of the paper (`make` builds it with pdfLaTeX + BibTeX) |
+| [`../paper/paper.pdf`](../paper/paper.pdf) | the paper, ACM Primary Article Template (`sigconf`), 11 pages: motivation, background, technique, implementation, evaluation (4 RQs), discussion (incl. the generalized fuzzer), threats to validity, related work, data availability, use of generative AI, **signed statement of contributions** |
+| [`../paper/`](../paper/) | the LaTeX source of the paper (`cd paper && make` builds it with pdfLaTeX + BibTeX) |
 | [`complete_project_document.pdf`](complete_project_document.pdf) | the complete project document (62 pages): every component, every result, every bug with its state, the generalized fuzzer, contributions, deliverables, reproduction, questions and answers |
 | [`slides/final_presentation.pdf`](slides/final_presentation.pdf), [`.pptx`](slides/final_presentation.pptx) | final presentation (Beamer, 24 slides) and its editable PowerPoint version (same design): architecture and techniques of the PostgreSQL fuzzer and of the generalized fuzzer, evaluation, how the tool found each bug; [speaker notes](slides/final_presentation_notes.pdf) |
 | [`slides/class_talk.pdf`](slides/class_talk.pdf), [`.pptx`](slides/class_talk.pptx) | class talk (Beamer, 12 slides, about 7 minutes) and its editable version; [speaker notes](slides/class_talk_notes.pdf) |
@@ -25,7 +25,7 @@ Team: **Venu Kummari, Bhuvan Chilukuti, Gowtham Reddy** (IIT Guwahati). License:
 | Proposal (2 pages) | submitted by the team leader on the proposal form by 20 Sep 2026 |
 | Progress meetings 1 and 2 | [`progress/`](progress/) |
 | Final presentation (10–15 min) | [`slides/final_presentation.pdf`](slides/final_presentation.pdf) (Beamer; source `docs/presentation/`, `make`) |
-| Paper in FSE format, ACM `sigconf` | [`../paper/paper.pdf`](../paper/paper.pdf) (source: [`../paper-source/`](../paper-source/)) |
+| Paper in FSE format, ACM `sigconf` | [`../paper/paper.pdf`](../paper/paper.pdf) (source in [`../paper/`](../paper/)) |
 | Each member's contribution: signed statement + commit history | last section of [`../paper/paper.pdf`](../paper/paper.pdf); commit history (GitHub users `v28k` = Venu Kummari, `Blazing-bhuvi` = Bhuvan Chilukuti, `doma2542` = Gowtham Reddy) |
 | Public GitHub repository, permissive license | MIT ([`../LICENSE`](../LICENSE)) |
 | `README.md` with build + run instructions and exact dependencies | [`../README.md`](../README.md), [`../src/requirements-lock.txt`](../src/requirements-lock.txt) |

@@ -1,20 +1,14 @@
 \section{Problem Statement}
 \label{sec:problem}
 
-Before describing \tool, we fix the terms we use in the rest of the paper. Let
-$G$ be a typed grammar for the SQL dialect of \pg and $S$ a database schema. A
-\emph{test case} is a sequence of statements derived from $G$ over $S$ and run
-in one transaction that is rolled back at the end. The \emph{derivation tree}
-\Tree{\Q} of a query \Q records which alternative each rule took, and its leaves,
-read from left to right, give the text of \Q. A query has a \emph{wrong result}
-when the server returns, without any error, a multiset \Res{\Q} that differs
-from what the SQL standard and the \pg documentation define. An \emph{oracle}
-looks at the server's response to a test case and decides between \emph{pass}
-and \emph{bug candidate}. A metamorphic oracle such as TLP~\cite{rigger2020tlp}
-or NoREC~\cite{rigger2020norec} compares \Q with a rewritten query. Similarly,
-a \emph{plan variant}, the same query run under a setting such as
-\texttt{SET enable\_hashjoin = off}, must return the same multiset as the
-original.
+We now state the problem precisely, using the terms of
+Section~\ref{sec:background}. Let $G$ be a typed grammar for the SQL dialect of
+\pg and $S$ a database schema. A \emph{test case} is a sequence of statements
+derived from $G$ over $S$ and run in one transaction that is rolled back at the
+end. An \emph{oracle} looks at the server's response to a test case and decides
+between \emph{pass} and \emph{bug candidate}; metamorphic oracles and plan
+variants (Section~\ref{sec:background}) are the two kinds that can detect a
+wrong result.
 
 \paragraph{Sound rewrites.} A tree rewrite $r$ maps \Tree{\Q} to a second tree.
 We call it \emph{sound} for \Q if $\Res{\Q} = \Res{r(\Q)}$ holds on every correct

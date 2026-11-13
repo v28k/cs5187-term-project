@@ -145,7 +145,7 @@ reduction is a new bug and gets an upstream report.
 
 `results/*/report/*.tex` are LaTeX tables that drop into the paper
 (`table_summary.tex`, `table_comparison.tex`, `table_rq3.tex`); the PNG plots go
-to `paper-source/figs/`; `paper-source/scripts/make_tables.py` turns them into the paper's tables.
+to `paper/figs/`; `paper/scripts/make_tables.py` turns them into the paper's tables.
 
 ---
 
