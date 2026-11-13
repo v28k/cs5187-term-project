@@ -1,8 +1,8 @@
 """Generate the result tables of the paper from the raw campaign data in runs/ and triage/.
 
-    python3 paper/scripts/make_tables.py          (from the repository root)
+    python3 paper-source/scripts/make_tables.py          (from the repository root)
 
-Writes paper/tables/rq1.tex, rq2.tex, rq3.tex, rq4.tex and copies the plots to paper/figures/.
+Writes paper-source/tables/rq1.tex, rq2.tex, rq3.tex, rq4.tex and copies the plots to paper-source/figures/.
 Nothing is typed by hand: re-running after new data regenerates every number.
 """
 
@@ -25,8 +25,8 @@ from pgfuzz.triage.precision import load_verdicts, precision_table  # noqa: E402
 
 RQ1 = ROOT / "runs/memberB-rq1-llm"
 RQ3 = ROOT / "runs/memberA-rq3"
-OUT = ROOT / "paper/tables"
-FIG = ROOT / "paper/figures"
+OUT = ROOT / "paper-source/tables"
+FIG = ROOT / "paper-source/figures"
 
 ARMS = [("random", "Random"), ("grammar", "Grammar"), ("grammar_mm", "Grammar+Oracles"),
         ("grammar_mm_flat", "Grammar+Oracles, flat"), ("llm_frag", "+LLM fragments"),
