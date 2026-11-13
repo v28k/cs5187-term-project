@@ -4,7 +4,7 @@ Status: **confirmed (3/3 fresh databases), root-caused, patch written, `make che
 Confidence: **medium-high** that it is a real regression; medium that upstream fixes it this way
 (they may prefer a different fix, see "Fix" below).
 Found 23 Oct 2026 by hunter B (differential fuzzing of master vs 18.6, generator
-`fz2.py`, seed 1, query 482).
+`../scripts/B-fz2.py`, seed 1, query 482).
 
 ## Summary
 
@@ -121,7 +121,7 @@ Alternatives a reviewer may prefer:
 
 ## How found, how verified
 
-- Found by `fz2.py` (random nested LEFT/FULL/RIGHT joins, non-strict subquery outputs, IS NULL
+- Found by `../scripts/B-fz2.py` (random nested LEFT/FULL/RIGHT joins, non-strict subquery outputs, IS NULL
   predicates; master 5433 vs 18.6 5435): 1 such diff in the first 500 queries. Two later runs of
   60,000 queries each filtered this error pattern out (occurrences were not counted).
 - Minimal script `B-01-full-join-notnull-folding.sql` run 3 times, each on a freshly created
