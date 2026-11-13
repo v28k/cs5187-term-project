@@ -56,8 +56,7 @@ REPRODUCED      DF-02  DataFusion DF-02   VALUES with a scalar subquery: interna
 Generalized bugs reproduced: 5 of 5
 ```
 
-The PostgreSQL bugs (branch `main`) are reproduced by `sudo bash scripts/reproduce.sh` (10 of 10 in
-the base build; `REPRO_19828=1` adds #19828).
+The PostgreSQL bugs (branch `main`) are reproduced by `sudo bash scripts/reproduce.sh` (10 of 10).
 
 Found by the fuzzer but already fixed on the engine's development branch when we checked (not
 filed): Turso T-01, T-02, T-06, T-07; DuckDB D-02; four DataFusion 55.0.0 bugs fixed on `main`.

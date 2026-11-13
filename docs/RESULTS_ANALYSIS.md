@@ -106,7 +106,7 @@ False-positive classes found in the final campaigns (all fixed in the tool after
 * The `corr()` candidate (c5a5ed497011) is a **real new bug (E-01)**: `corr()`/`regr_r2()`/`regr_slope()` of a
   constant input are NULL serially but 1 under partitionwise or parallel partial aggregation (regression from
   64982876, still on master 633dee1b; 18.6 consistent). Patch + regression test, `make check` 239/239.
-  Report and filing text: `docs/bughunt/new/E-01-corr-partial-aggregate.md`. Not yet filed.
+  Report and filing text: `docs/bughunt/new/E-01-corr-partial-aggregate.md`. Filed as BUG #19826; fixed upstream with our patch.
 
 Precision (decided = real + false positive + not a bug; duplicates counted neither side): 8 / 50 = 0.16 before fixes;
 counting duplicates as true positives (they are real bugs the oracles found): 23 / 65 = 0.35. After the fixes to the tool: every
@@ -138,12 +138,11 @@ decided candidate left is real (the paper must say this is post hoc and not re-m
 
 | Bug | Found by | Upstream | Status |
 |---|---|---|---|
-| E-01 corr()/regr_r2() of constant input differ under partial aggregation | plan-variant oracle (campaign candidate c5a5ed497011) | **BUG #19826** | filed 2 Nov, patch sent (regression from 64982876; master and REL_19) |
-| E-02 "plan should not reference subplan's variable" with Memoize + correlated ALL/ANY sublink | internal-error oracle, hunt on master 633dee1b | pgsql-bugs (number pending) | filed 2 Nov, patch sent, author of f8da64e6 in Cc (regression from f8da64e6, same day) |
+| E-01 corr()/regr_r2() of constant input differ under partial aggregation | plan-variant oracle (campaign candidate c5a5ed497011) | **BUG #19826** | fixed upstream with our patch, `ef1b7404` (regression from 64982876; master and REL_19) |
 
 Hunt on master 633dee1b (2 Nov): 4 workers with the Grammar+Oracles configuration, plus targeted
 fuzzers for eager aggregation (about 2,000 queries), extended statistics (1,500) and outer joins / LATERAL.
-Only E-02 was real. The other candidates did not reproduce: four wrong results (three RLS, one plan
+No new bug: the candidates did not reproduce. Four wrong results (three RLS, one plan
 variant) gave identical results on re-run, and the "crash" entries were connection losses from server
 restarts (no assertion or signal in any server log). The restarts came from worker processes of an
 earlier, stopped run that kept fuzzing the same servers: their DDL held locks, statements waited past

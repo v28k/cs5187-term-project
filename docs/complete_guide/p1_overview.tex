@@ -33,11 +33,10 @@ RQ4 what the LLM adds and costs.
   \item The fuzzer is complete and tested on real \pg master servers: about
     10{,}500 lines of Python, a 78-rule typed grammar, 151 unit tests passing,
     MIT license.
-  \item \textbf{Eleven \pg bugs reported upstream: nine are fixed upstream, six of
+  \item \textbf{Ten \pg bugs reported upstream: eight are fixed upstream, six of
     them with our patches} (Part~\ref{part:bugs}). One
-    command (\file{scripts/reproduce.sh}) shows the fuzzer finding the ten that exist in
-    the base build in a 150-second run, and reproduces the eleventh on a build from the
-    day it existed.
+    command (\file{scripts/reproduce.sh}) shows the fuzzer finding all ten in a
+    150-second run.
   \item The four research questions are answered by final campaigns
     (5 trials $\times$ 1 h per arm; Part~\ref{part:results}).
   \item The paper is written in the ACM \texttt{sigconf} format (9 pages) with a
@@ -83,8 +82,8 @@ Grammar validity now & 99.5--99.7\% of statements run without error on master \\
 Throughput (one worker) & $\approx$17--23 grammar test cases per second with all oracles on (3{,}166 in 180 s full system; 5{,}516 in 240 s plain grammar) \\
 Plan variants & 18 planner configurations (Section~\ref{sec:variants}) \\
 Metamorphic check kinds & 12 (TLP-WHERE, TLP-HAVING, TLP-aggregate, NoREC, expression, predicate, NOT NULL, ORDER BY drop, CTE, table fence, RLS, CERT) \\
-Bugs reported upstream & \textbf{11}: \textbf{9 fixed upstream} (\#19803, \#19802, \#19771, statistics expression, \#19768, NOT IN, IGNORE NULLS, \#19826, \#19828), \textbf{6 with our patches}; \#19793 and MCV open (Part~\ref{part:bugs}) \\
-Rediscovery & 10 of 10 in the base build found in one 150-second run, \#19828 with \texttt{REPRO\_19828=1} (\file{scripts/reproduce.sh}) \\
+Bugs reported upstream & \textbf{10}: \textbf{8 fixed upstream} (\#19803, \#19802, \#19771, statistics expression, \#19768, NOT IN, IGNORE NULLS, \#19826), \textbf{6 with our patches}; \#19793 and MCV open (Part~\ref{part:bugs}) \\
+Rediscovery & all 10 found in one 150-second run (\file{scripts/reproduce.sh}) \\
 Benchmark & 23 reverted fixes (31 Jul--16 Oct 2026); 20 observable: 8 wrong results, 5 internal errors, 4 assertions, 2 missing errors, 1 wrong error \\
 Crash-only visibility & 9 of 20 observable benchmark bugs \\
 RQ3 smoke (15 min/arm) & Grammar+Oracles and +LLM found \texttt{rb-dfcf6fa7} at $\approx$160 s; Random and plain Grammar found none \\

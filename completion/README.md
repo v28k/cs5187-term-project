@@ -29,13 +29,13 @@ Team: **Venu Kummari, Bhuvan Chilukuti, Gowtham Reddy** (IIT Guwahati). License:
 | Each member's contribution: signed statement + commit history | last section of [`paper.pdf`](paper.pdf); commit history (GitHub users `v28k` = Venu Kummari, `Blazing-bhuvi` = Bhuvan Chilukuti, `doma2542` = Gowtham Reddy) |
 | Public GitHub repository, permissive license | MIT ([`../LICENSE`](../LICENSE)) |
 | `README.md` with build + run instructions and exact dependencies | [`../README.md`](../README.md), [`../src/requirements-lock.txt`](../src/requirements-lock.txt) |
-| One-command reproduction of the headline result | `sudo bash scripts/reproduce.sh` -> "Known bugs reproduced: 10 of 10" (tested 13 Nov 2026); `REPRO_19828=1` adds #19828; branch `generalized`: `bash scripts/reproduce_generalized.sh` -> 5 of 5 |
+| One-command reproduction of the headline result | `sudo bash scripts/reproduce.sh` -> "Known bugs reproduced: 10 of 10" (tested 13 Nov 2026); branch `generalized`: `bash scripts/reproduce_generalized.sh` -> 5 of 5 |
 | Bug reports / PRs / patches filed upstream, with their state | table below and [`../README.md`](../README.md); reproducers and patches in [`../docs/bughunt/`](../docs/bughunt/) |
-| A bug accepted by upstream maintainers | **nine PostgreSQL bugs fixed upstream, six of them with our patches**; DuckDB fix approved by a maintainer |
+| A bug accepted by upstream maintainers | **eight PostgreSQL bugs fixed upstream, six of them with our patches**; DuckDB fix approved by a maintainer |
 
 ## Upstream reports and their state (13 Nov 2026)
 
-PostgreSQL (eleven bugs found by the tool and reported):
+PostgreSQL (ten bugs found by the tool and reported):
 
 | Bug | Report | State |
 |---|---|---|
@@ -49,7 +49,6 @@ PostgreSQL (eleven bugs found by the tool and reported):
 | `range @> NULL` folded to a constant | [BUG #19793](https://www.postgresql.org/message-id/19793-16d3a1bf33dff0fb@postgresql.org) | **open**: reported with a patch |
 | non-finite imported MCV frequencies | pgsql-hackers ([patch](../docs/bughunt/bhuvan/patches/0001-Reject-non-finite-MCV-frequencies-in-pg_restore_exte.patch)) | **open**: patch submitted |
 | `corr()`/`regr_*()` of a constant input under partial aggregation | [BUG #19826](https://postgr.es/m/19826-4b769cb5342fdfe7@postgresql.org) | **merged**: our patch, [`ef1b7404`](https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=ef1b740441) (Tom Lane), back-patched to 19 |
-| Memoize: "plan should not reference subplan's variable" | BUG #19828 (with our patch) | **fixed**: [`45ff0b4a`](https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=45ff0b4a31) (Richard Guo, for a separate report of the same error) |
 
 
 Generalized fuzzer (branch `generalized` of <https://github.com/v28k/cs5187-term-project>), each filed with a fix and a regression test:
