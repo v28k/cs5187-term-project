@@ -97,3 +97,14 @@ bugs:
       outcome: performance
       message_regex: "-> 1e\\+100"
     poc: pocs/mcv_nonfinite_freqs.sql
+
+  - id: pgbug-19826
+    title: "corr()/regr_r2()/regr_slope() of a constant input: NULL serially, 1 under partial aggregation"
+    source: "pgsql-bugs BUG #19826 (2 Nov 2026)"
+    affected: "master since 649828769 (26bd08fb, 633dee1b)"
+    fixed_in: "ef1b740441 (12 Nov 2026), back-patched to 19; our patch"
+    match:
+      outcome: wrong_result
+      message_regex: "plan variant (partitionwise|parallel)"
+      sql_regex: "(?i)\\b(corr|regr_r2|regr_slope)\\s*\\("
+    poc: pocs/pg19826_corr_partial_aggregate.sql

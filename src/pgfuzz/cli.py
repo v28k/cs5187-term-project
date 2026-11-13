@@ -128,7 +128,7 @@ def cmd_replay(a: argparse.Namespace) -> int:
                 if cls.is_bug_candidate:
                     found += 1
                     sig = signature.compute(cls, tc)
-                    rec.update(signature=sig.id, strength=sig.strength, known_bugs=catalog.match(cls),
+                    rec.update(signature=sig.id, strength=sig.strength, known_bugs=catalog.match(cls, tc),
                                details={k: v for k, v in cls.details.items() if k != "backtrace"})
                 print(json.dumps(rec))
     finally:

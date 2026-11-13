@@ -108,6 +108,7 @@ class GrammarGenerator(Generator):
         extra_grammars: list[str] | str | None = None,
         seeds: list[str] | str | None = None,
         seed_prob: float = 0.05,
+        seed_cycle: bool = False,
     ) -> None:
         self.grammar_path, self.schema_path = grammar, schema
         self.start, self.setup_rule = start, setup_rule
@@ -130,6 +131,7 @@ class GrammarGenerator(Generator):
         self.extra_grammars = _paths(extra_grammars, "*.pgg")
         self.seed_paths = _paths(seeds, "*.sql")
         self.seed_prob = float(seed_prob)
+        self.seed_cycle = bool(seed_cycle)  # replay the seeds in turn instead of at random
         self.fragments_loaded: list[str] = []
         self.fragments_rejected: dict[str, str] = {}
         self.seed_cases: list[list[str]] = []
@@ -285,7 +287,8 @@ class GrammarGenerator(Generator):
         if self.seed_cases and self.rng.random() < self.seed_prob:
             self.ops["seed"] += 1
             self.n_testcases += 1
-            k = self.rng.randrange(len(self.seed_cases))
+            k = (self.ops["seed"] - 1) % len(self.seed_cases) if self.seed_cycle \
+                else self.rng.randrange(len(self.seed_cases))
             meta: dict[str, Any] = {"op": "seed"}
             if self.seed_checks[k]:
                 meta["checks"] = [dict(c) for c in self.seed_checks[k]]

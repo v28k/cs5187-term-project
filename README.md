@@ -30,7 +30,9 @@ grammar from recent PostgreSQL commits with an LLM behind a server-side validati
 
 Arbor found **eleven PostgreSQL bugs** that we reported upstream: **nine are fixed upstream, six of
 them with our patches**, and the other two are under review with our patches. One command reproduces
-the fuzzer finding the first nine in a 150-second run (section "One-command reproduction").
+the fuzzer finding the ten of them that exist in our base build in a 150-second run; the eleventh,
+which existed on master for one day, is reproduced on a build from that day (section
+"One-command reproduction").
 
 ## Upstream bug reports and their state (13 Nov 2026)
 
@@ -72,11 +74,11 @@ sudo bash scripts/reproduce.sh
 On Ubuntu 22.04/24.04 this installs the build packages, builds PostgreSQL at `26bd08fb` with
 assertions (about 10 minutes on 4 cores), installs the Python dependencies, starts one server as
 the user `pg`, runs one 150-second fuzzing trial and prints the reported bugs the trial found.
-Output of the run on 9 Nov 2026 (ids as in `src/known_bugs/known_bugs.yaml`):
+Output of the run on 13 Nov 2026 (ids as in `src/known_bugs/known_bugs.yaml`):
 
 ```
 == 6/6 result
-Known bugs reproduced: 9 of 9
+Known bugs reproduced: 10 of 10
   - audit-f1          # NOT IN anti-join
   - audit-f2          # IGNORE NULLS hang
   - c-01              # duplicate statistics expression
@@ -86,7 +88,20 @@ Known bugs reproduced: 9 of 9
   - pgbug-19793       # range @> NULL
   - pgbug-19802       # MERGE
   - pgbug-19803       # parallel Append
+  - pgbug-19826       # corr() under partial aggregation
 ```
+
+BUG #19828 was introduced on master on 2 Nov 2026 (`f8da64e6`) and fixed a day later
+(`45ff0b4a`), so it is not in the base build. `sudo REPRO_19828=1 bash scripts/reproduce.sh` also
+builds master `633dee1b` from that window and runs its reproducer:
+
+```
+== 7/7 BUG #19828 on master 633dee1b (between f8da64e6 and the fix 45ff0b4a)
+BUG #19828 reproduced: ERROR: plan should not reference subplan's variable (400 rows with enable_memoize = off)
+```
+
+The bugs found by the generalized fuzzer (DuckDB, Turso, DataFusion) have their own one-command
+reproduction on branch `generalized`: `bash scripts/reproduce_generalized.sh` (5 of 5).
 
 ## Build and run
 

@@ -2,8 +2,9 @@
 
 One 150-second trial of the Grammar+Oracles configuration (`src/configs/rediscover.yaml`,
 seed probability 0.02) on the assertion-enabled base build 26bd08fb reported all nine bugs
-our project found and reported upstream, each matched to its entry in
-`src/known_bugs/known_bugs.yaml` ("Known bugs reproduced: 9").
+our project found and reported upstream up to then, each matched to its entry in
+`src/known_bugs/known_bugs.yaml` ("Known bugs reproduced: 9"). The tenth, #19826, was added later;
+`scripts/reproduce.sh` reports all ten (13 Nov 2026).
 
 | Bug | Upstream | Oracle |
 |---|---|---|
