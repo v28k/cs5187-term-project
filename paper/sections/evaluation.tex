@@ -132,11 +132,12 @@ Table~\ref{tab:rq2} gives the verdicts per oracle.
   \input{tables/rq2}
 \end{table*}
 
-\paragraph{Bugs.} Table~\ref{tab:bugs} lists the nine bugs we reported. Five
-came from the fuzzing campaigns; four came from the targeted bug hunt that
-accompanied them, in which we audited recent planner and executor features with
-differential probes. Seven reports were answered by \pg developers, and all seven bugs are
-fixed upstream, five of them with fixes written by the authors. The oracles also found three bugs reported by others days
+\paragraph{Bugs.} Table~\ref{tab:bugs} lists the eleven bugs we reported. Seven
+came from running the fuzzer (the campaigns and later runs on newer master builds); four came from
+the targeted bug hunt that accompanied them, in which we audited recent planner and executor features with
+differential probes. Nine of the eleven bugs are fixed upstream, six of them with fixes written by the
+authors; \#19828 was fixed by a committer's patch for a separate report of
+the same error. The other two are open with our patches. The oracles also found three bugs reported by others days
 before us, which we count as duplicates: a wrong result of self-join
 elimination under \texttt{ROLLUP} in 18.6 (\#19800, a plan variant), \#19772
 (the \texttt{(SELECT e)} rewrite) and \#19784.
@@ -144,9 +145,10 @@ elimination under \texttt{ROLLUP} in 18.6 (\#19800, a plan variant), \#19772
 \begin{table*}[t]
   \centering
   \footnotesize
-  \caption{The nine bugs we reported upstream, the oracle that recognises each,
-  and their state on 12~November~2026. All reproduce on the base build
-  \texttt{26bd08fb}, which predates the fixes.}
+  \caption{The eleven bugs we reported upstream, the oracle that recognises each,
+  and their state on 13~November~2026. All but \#19828 reproduce on the base build
+  \texttt{26bd08fb}, which predates the fixes; \#19828 is a regression of a later
+  master commit and was found by a run on newer master.}
   \label{tab:bugs}
   \begin{tabular}{@{}llll@{}}
     \toprule
@@ -161,6 +163,8 @@ elimination under \texttt{ROLLUP} in 18.6 (\#19800, a plan variant), \#19772
     \texttt{IGNORE NULLS} frame never returns & pgsql-bugs & hang & fixed (our patch) \\
     duplicate statistics expression & pgsql-bugs & assertion & fixed (our patch) \\
     non-finite imported MCV frequencies & pgsql-hackers & CERT estimate & patch \\
+    \texttt{corr()} of a constant under partial aggregation & \#19826 & plan variant & fixed (our patch) \\
+    Memoize: subplan variable in a sublink & \#19828 & internal error & fixed \\
     \bottomrule
   \end{tabular}
 \end{table*}
@@ -172,7 +176,7 @@ boundary values, a user-defined implicit cast, \texttt{IGNORE NULLS} over
 whole-partition frames), and added a \emph{hang} oracle that restarts a server
 whose statement outlives its \texttt{statement\_timeout} by ten seconds. One
 150-second trial of \arm{Grammar+Oracles} on the base build then reported all
-nine bugs, each matched to its catalogue entry, at unchanged validity (99.3\%).
+nine bugs reported up to that point, each matched to its catalogue entry, at unchanged validity (99.3\%).
 
 \begin{observation}
 \label{obs:wrong}
@@ -195,8 +199,8 @@ after an \texttt{INSERT} only master accepts (5), an RLS rewrite that left a
 protected table inside a repeated sub-select unfiltered (5), and an LLM rewrite
 that is not an identity (Section~\ref{sec:rq4}). One remaining candidate is
 a new bug, which we reported as BUG~\#19826: \texttt{corr()} of a constant input is NULL
-serially but 1 under partial aggregation. A committer reviewed our patch and
-revised it with us; it awaits commit.
+serially but 1 under partial aggregation. It is fixed upstream with our patch
+(\texttt{ef1b7404}, back-patched to 19).
 
 \subsection{\rqref{3}: Re-injected Bugs}
 \label{sec:rq3}

@@ -31,11 +31,11 @@ Team: **Venu Kummari, Bhuvan Chilukuti, Gowtham Reddy** (IIT Guwahati). License:
 | `README.md` with build + run instructions and exact dependencies | [`../README.md`](../README.md), [`../src/requirements-lock.txt`](../src/requirements-lock.txt) |
 | One-command reproduction of the headline result | `sudo bash scripts/reproduce.sh` -> "Known bugs reproduced: 9 of 9" (tested 9 Nov 2026) |
 | Bug reports / PRs / patches filed upstream, with their state | table below and [`../README.md`](../README.md); reproducers and patches in [`../docs/bughunt/`](../docs/bughunt/) |
-| A bug accepted by upstream maintainers | **seven PostgreSQL bugs fixed upstream, five of them with our patches**; DuckDB fix approved by a maintainer |
+| A bug accepted by upstream maintainers | **nine PostgreSQL bugs fixed upstream, six of them with our patches**; DuckDB fix approved by a maintainer |
 
-## Upstream reports and their state (12 Nov 2026)
+## Upstream reports and their state (13 Nov 2026)
 
-PostgreSQL (nine bugs found by the tool and reported):
+PostgreSQL (eleven bugs found by the tool and reported):
 
 | Bug | Report | State |
 |---|---|---|
@@ -48,8 +48,9 @@ PostgreSQL (nine bugs found by the tool and reported):
 | `MERGE`: SubPlan with no parent | [BUG #19802](https://www.postgresql.org/message-id/19802-ef50a8f1a4b5deee@postgresql.org) | **merged**: `7a5559a6` (Tender Wang, committed by Dean Rasheed), back-patched to 15 |
 | `range @> NULL` folded to a constant | [BUG #19793](https://www.postgresql.org/message-id/19793-16d3a1bf33dff0fb@postgresql.org) | **open**: reported with a patch |
 | non-finite imported MCV frequencies | pgsql-hackers ([patch](../docs/bughunt/bhuvan/patches/0001-Reject-non-finite-MCV-frequencies-in-pg_restore_exte.patch)) | **open**: patch submitted |
+| `corr()`/`regr_*()` of a constant input under partial aggregation | [BUG #19826](https://postgr.es/m/19826-4b769cb5342fdfe7@postgresql.org) | **merged**: our patch, [`ef1b7404`](https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=ef1b740441) (Tom Lane), back-patched to 19 |
+| Memoize: "plan should not reference subplan's variable" | BUG #19828 (with our patch) | **fixed**: [`45ff0b4a`](https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=45ff0b4a31) (Richard Guo, for a separate report of the same error) |
 
-Also reported: BUG #19826 (`corr()`/`regr_*()` under partial aggregation). Tom Lane reviewed our patch and revised it (v3); our v4 with the tests he asked for was sent on 12 Nov 2026 and awaits commit.
 
 Generalized fuzzer (branch `generalized` of <https://github.com/v28k/cs5187-term-project>), each filed with a fix and a regression test:
 

@@ -1,6 +1,6 @@
 # E-01: corr() / regr_r2() / regr_slope() of a constant input differ between serial and partial aggregation
 
-Status: **reproduced (base 26bd08fb, 126976a8, newest master 633dee1b), root-caused,
+Status: **FIXED upstream with our patch: ef1b740441 "Make float8_regr_combine() handle edge cases like float8_regr_accum()" (Tom Lane, 12 Nov 2026, Author: Venu Kummari, back-patched to 19).** Earlier: **reproduced (base 26bd08fb, 126976a8, newest master 633dee1b), root-caused,
 patch with regression test, `make check` 239/239 on 633dee1b + patch. Duplicate search:
 none found on pgsql-bugs or in master's git log (2 Nov 2026). FILED as BUG #19826 (2 Nov 2026), patch sent as a reply.**
 Found by our fuzzer (plan-variant oracle, campaign candidate `c5a5ed497011`).

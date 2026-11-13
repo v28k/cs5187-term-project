@@ -1,12 +1,12 @@
 \part{Every bug we reported, and its state}
 \label{part:bugs}
 
-\section{PostgreSQL: nine bugs reported upstream}
+\section{PostgreSQL: eleven bugs reported upstream}
 
 State on 12 November 2026. ``Merged'' means the fix is committed to the \pg
 repository; ``acknowledged'' means a committer confirmed the bug. The course
-asks for a bug accepted by upstream maintainers: seven of ours are fixed upstream,
-five of them with the patch we wrote.
+asks for a bug accepted by upstream maintainers: nine of ours are fixed upstream,
+six of them with the patch we wrote.
 
 \begin{center}
 \small
@@ -23,6 +23,8 @@ Two clauses on the same statistics expression: assertion in \texttt{dependencies
 \texttt{MERGE} into a partitioned table: ``SubPlan found with no parent plan'' & BUG \#19802 & grammar arm, internal-error oracle & \textbf{merged}: \texttt{7a5559a6} (Tender Wang, committed by Dean Rasheed), back-patched to 15 \\
 \texttt{range @> elem} folded to true/false for a NULL element (17, 18, master) & BUG \#19793 & \texttt{(SELECT e)} expression rewrite & \textbf{open}: reported with a patch (Venu) \\
 \texttt{pg\_restore\_extended\_stats} accepts non-finite MCV frequencies & pgsql-hackers & CERT estimate oracle, code reading & \textbf{open}: patch submitted (Bhuvan) \\
+\texttt{corr()}/\texttt{regr\_*()} of a constant input differ under partial aggregation & BUG \#19826 & plan-variant oracle (campaign) & \textbf{merged}: our patch (Venu), \texttt{ef1b7404}, committed by Tom Lane, back-patched to 19 \\
+Memoize: ``plan should not reference subplan's variable'' with a correlated sublink (master) & BUG \#19828 & internal-error oracle (run on newer master) & \textbf{fixed}: \texttt{45ff0b4a} (Richard Guo) \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -40,11 +42,11 @@ Links (also in \file{README.md}):
   \item MCV patch: \file{docs/bughunt/bhuvan/patches/0001-Reject-non-finite-MCV-frequencies-in-pg_restore_exte.patch}
 \end{itemize}
 
-\paragraph{Further reports.} BUG \#19826 (\texttt{corr()}, \texttt{regr\_r2()},
+\paragraph{The last two reports.} BUG \#19826 (\texttt{corr()}, \texttt{regr\_r2()},
 \texttt{regr\_slope()} of a constant input differ under partial aggregation, a
-regression from commit \texttt{649828769}); Tom Lane reviewed our patch and revised it (v3); our v4 with the tests he asked for was sent on 12 November and awaits commit; all versions are in \file{docs/bughunt/new/}. A Memoize plus correlated
+regression from commit \texttt{649828769}; plan-variant oracle): Tom Lane reviewed our patch and revised it with us; our v4 was committed as \texttt{ef1b7404} (12 November, back-patched to 19); all versions are in \file{docs/bughunt/new/}. BUG \#19828, a Memoize plus correlated
 \texttt{ALL}/\texttt{ANY} sublink error (``plan should not reference subplan's
-variable'', a regression from \texttt{f8da64e6}), filed with a patch. For BUG
+variable'', a regression from \texttt{f8da64e6}; internal-error oracle on newer master), filed with a patch and fixed by Richard Guo's commit \texttt{45ff0b4a}. For BUG
 \#19766 (an assertion in \texttt{shm\_toc\_insert}, reported by someone else) we
 found the bug independently and posted a reproducer with inheritance tables.
 
@@ -56,7 +58,7 @@ works on a real bug, even though someone else reported it first.
 \paragraph{Rediscovery.} Every reproducer is a seed in
 \file{src/corpus/bug_seeds/}, and a seed may declare the check that recognises
 its wrong result. One 150-second trial of the Grammar+Oracles configuration on
-the base build \texttt{26bd08fb} reports all nine bugs, each matched to its
+the base build \texttt{26bd08fb} reports the first nine bugs, each matched to its
 catalogue entry (\file{src/known_bugs/known_bugs.yaml}). The two bugs fixed
 before the base build was made still reproduce, because \texttt{26bd08fb}
 predates their fixes. Command: \texttt{sudo bash scripts/reproduce.sh}.

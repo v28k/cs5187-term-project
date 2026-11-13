@@ -1,8 +1,8 @@
 # E-02: "plan should not reference subplan's variable" with Memoize and a correlated ALL/ANY sublink (master regression from f8da64e6)
 
-Status: **reproduced with default settings on master 633dee1b (2 Nov 2026); bisected to
+Status: **FIXED upstream by 45ff0b4a31 (Richard Guo, 3 Nov 2026, "Make Memoize cache keys only of Params from outer query levels", back-patched to 14), for a separate report of the same error. Filed as BUG #19828.** Earlier: **reproduced with default settings on master 633dee1b (2 Nov 2026); bisected to
 f8da64e6 (reverting it alone fixes the query); root-caused; patch with regression test,
-`make check` 239/239. Duplicate search: none found (2 Nov 2026). FILED on pgsql-bugs (2 Nov 2026), patch sent as a reply with Richard Guo in Cc; bug number to be added.**
+`make check` 239/239. Duplicate search: none found (2 Nov 2026). FILED on pgsql-bugs (2 Nov 2026), patch sent as a reply with Richard Guo in Cc.**
 Found by our fuzzer (internal-error oracle, hunt on newest master, candidate `342fb8c219dd`),
 then reduced by hand from a 2-statement test case to one join.
 
