@@ -1,7 +1,7 @@
 # Generalized fuzzer
 
 The extension of the fuzzer to DuckDB, SQLite, Turso and Apache DataFusion lives on branch
-[`generalized`](https://github.com/v28k/cs5187-term-project/tree/generalized). Its code, configurations,
+[`generalized`](https://github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi/tree/generalized). Its code, configurations,
 plan, evaluation results and bug packages are only there.
 
 What it adds to the PostgreSQL fuzzer on this branch:

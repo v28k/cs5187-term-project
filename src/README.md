@@ -33,7 +33,7 @@ pip install -r requirements.txt
 All commands run from `src/`.
 
 ```sh
-python -m pytest                                   # 84 tests after the random baseline was added
+python -m pytest                                   # 151 unit tests, no database needed
 python -m pgfuzz run configs/smoke.yaml            # whole pipeline on a simulated server, ~40 s
 python -m pgfuzz selftest configs/stage1.yaml      # acceptance checks against the real harness
 python -m pgfuzz run configs/stage1.yaml -j 4      # the real Stage 1 experiment

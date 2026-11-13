@@ -1,6 +1,6 @@
 # Results of the final campaigns (analysis, 29 Oct 2026)
 
-All nine reported bugs were found with the project (fuzzers, oracles and the audits built on them) and reproduced on the assertion-enabled build; reproducers and patches are in `docs/bughunt/`.
+All ten reported bugs were found with the project (fuzzers, oracles and the audits built on them) and reproduced on the assertion-enabled build; reproducers and patches are in `docs/bughunt/`.
 
 Single source for the numbers used in the paper, slides and guide. Raw data:
 `runs/memberA-rq3/` (RQ3, member A's laptop) and `runs/memberB-rq1-llm/` (LLM arm
@@ -114,20 +114,20 @@ decided candidate left is real (the paper must say this is post hoc and not re-m
 
 ### Real bugs and duplicates behind these numbers
 
-| Bug | Found by | Upstream | Status (29 Oct) |
+| Bug | Found by | Upstream | Status (13 Nov 2026) |
 |---|---|---|---|
-| BUG-01 JSON_TABLE collations | grammar arm, 10 signatures | #19768 | filed 16 Oct, patch sent; **accepted upstream 6 Nov** (not yet committed) |
-| BUG-02 range containment NULL | metamorphic `expr:scalar_sub` | #19793 | filed 23 Oct, patch sent |
+| BUG-01 JSON_TABLE collations | grammar arm, 10 signatures | #19768 | **merged**: our patch, `e405a46c` (Amit Langote), back-patched to 17 |
+| BUG-02 range containment NULL | metamorphic `expr:scalar_sub` | #19793 | filed 23 Oct with a patch; open |
 | N1 MERGE "SubPlan found with no parent plan" | grammar arm (`3dc78dd95f41`) | **#19802** | **fixed upstream** in `7a5559a6` (patch by Tender Wang, committed by Dean Rasheed, 11 Nov 2026) |
-| N2 Parallel Append assertion | LLM-fragment arm via TLP (`8a4e039bb76f`) | **#19803** | **confirmed by David Rowley; fixed on master in `abda2a2c`** |
+| N2 Parallel Append assertion | LLM-fragment arm via TLP (`8a4e039bb76f`) | **#19803** | **merged**: `abda2a2c` (David Rowley), back-patched to 14 |
 | C-01 dependencies.c assertion | hunter C | pgsql-bugs | **fixed in b0392c26 (30 Oct, author: team member, reviewed by David Rowley, backpatched to 14)** |
-| AUDIT-F1 NOT IN anti-join cast | audit + differential checks | pgsql-bugs | filed 23 Oct, patch sent; **accepted upstream 6 Nov** (not yet committed) |
-| AUDIT-F2 IGNORE NULLS hang | audit (timeout watchdog) | pgsql-bugs | filed 23 Oct; confirmed by Tatsuo Ishii, not yet fixed |
+| AUDIT-F1 NOT IN anti-join cast | audit + differential checks | pgsql-bugs | **merged**: our patch, `b7eee09e` (Richard Guo) |
+| AUDIT-F2 IGNORE NULLS hang | audit (timeout watchdog) | pgsql-bugs | **merged**: our patch, `69b20fdd` (Tatsuo Ishii) |
 | #19766 shm_toc assertion | grammar arm | #19766 | reply sent |
-| duplicates rediscovered by the oracles | plan-variant (SJE off/on) -> **#19800**; `e` vs `(SELECT e)` -> **#19772**; `c51c4dacc7f1` -> **#19784**; to_char NaN crash -> **#19771** (fixed 776df8a6) | | found independently by the project; also reported upstream by others |
+| duplicates rediscovered by the oracles | plan-variant (SJE off/on) -> **#19800**; `e` vs `(SELECT e)` -> **#19772**; `c51c4dacc7f1` -> **#19784** | | found independently by the project; also reported upstream by others. The campaigns also rediscovered our own #19771 (to_char NaN crash, fixed by our patch 776df8a6) |
 
 * `to_char`/`NORMALIZE` crash (`efa9efb8acc1`, grammar arm, reduced to 27 tokens): crashes on the base commit, not on 126976a8.
-  The fix commit 776df8a6 (BUG #19771) is authored by a team member (confirmed): an upstream-accepted, committed fix.
+  BUG #19771 was reported by a team member, and its fix commit 776df8a6 is authored by a team member: an upstream-accepted, committed fix.
 * The self-join-elimination duplicate (#19800) shows the plan-variant oracle finding a real released-version wrong result
   (18.6 and master): `a2.v IS NULL` over `ROLLUP` subtotal rows is `f` with SJE on, `t` with it off. Our symptom (SELECT-list
   values, not only ORDER BY) can be added to that thread.

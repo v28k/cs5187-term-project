@@ -2,10 +2,10 @@
 
 CS-5187 term project A3 (IIT Guwahati, 2026). Team: **Venu Kummari, Bhuvan Chilukuti, Gowtham Reddy**.
 The tool is called `pgfuzz` in the code and **Arbor** in the paper. License: [MIT](LICENSE).
-Course repository: <https://github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi>; working
-repository with the `generalized` branch: <https://github.com/v28k/cs5187-term-project>.
+Repository: <https://github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi>. Branch `main` holds the course project (this README); branch
+[`generalized`](https://github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi/tree/generalized) holds the generalized fuzzer.
 
-Arbor generates SQL as typed derivation trees from a grammar of 78 rules, rewrites the trees into
+Arbor generates SQL as typed derivation trees from a grammar of 78 rules (83 after the additions for the rediscovery runs), rewrites the trees into
 metamorphic checks (TLP, NoREC, typed expression rewrites, a row-level-security check, a
 cardinality-estimate check, plan-variant and cross-version oracles), detects crashes, assertion
 failures, internal errors and hangs, reduces every finding on its tree and tokens, and extends the
@@ -15,10 +15,10 @@ grammar from recent PostgreSQL commits with an LLM behind a server-side validati
 * **Other deliverables:** [`completion/`](completion/README.md) (slides, complete project guide,
   progress material, contributions, bug list).
 * **Generalized fuzzer** (DuckDB, SQLite, Turso, DataFusion): branch
-  [`generalized`](https://github.com/v28k/cs5187-term-project/tree/generalized), summary in
+  [`generalized`](https://github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi/tree/generalized), summary in
   [`docs/generalized/README.md`](docs/generalized/README.md).
 * **Further techniques after the course paper** (same branch
-  [`generalized`](https://github.com/v28k/cs5187-term-project/tree/generalized)):
+  [`generalized`](https://github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi/tree/generalized)):
   optimizer-rule *kernels* (minimal queries that trigger one rule, learned by reduction, also from
   the engines' own test suites), a composition oracle over pairs of kernels, identity grafts, a
   state-restoration oracle for rolled-back test cases, and cross-engine kernel transfer. In 15-minute
