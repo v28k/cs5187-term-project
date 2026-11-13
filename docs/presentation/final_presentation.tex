@@ -20,7 +20,7 @@ fixed upstream, six with our patches; five more bugs reported with fixes to Duck
 \begin{columns}[T]
 \column{0.55\textwidth}
 \begin{itemize}
-  \item Target: \textbf{\pg}, the most used open-source database; its planner changes weekly.
+  \item Target: \textbf{\pg}, a widely used open-source database; its planner changes every week.
   \item Worst bug class: a \textbf{wrong result}: no error, no crash, no log line.
   \item Crash fuzzers (SQLsmith, Squirrel) cannot see it; SQLancer finds it with small hand-written generators.
   \item Both need a \textbf{test oracle}: how do we know the right answer?
@@ -52,7 +52,7 @@ comparison: the same question asked in a different but equivalent way must give 
 \centering\resizebox{\linewidth}{!}{\input{arch_main}}
 \small
 \begin{itemize}
-  \item Python, about 10{,}500 lines, 151 unit tests; one worker per server, savepoints isolate test cases.
+  \item Python, about 11{,}000 lines, 151 unit tests; one worker per server, savepoints isolate test cases.
   \item The derivation tree is used four times: \alert{generate, mutate, rewrite into oracles, reduce}.
 \end{itemize}
 \end{frame}
@@ -68,7 +68,7 @@ into the corpus and the weights.}
 \column{0.5\textwidth}
 \small
 \begin{itemize}
-  \item Own DSL (\texttt{.pgg}): 78 rules, 421 alternatives, 13 SQL types; types are parameters (\texttt{expr<T>}).
+  \item Own DSL (\texttt{.pgg}): 78 rules, 421 alternatives, 13 SQL types in the campaigns (83 rules after the rediscovery additions); types are parameters (\texttt{expr<T>}).
   \item Scope-aware: names, aliases, column types bound while deriving $\Rightarrow$ \alert{99.3\%} of statements valid (random mutation: 26\%).
   \item Each test case is kept as trees; \textbf{replay} re-derives a tree after an edit and re-binds names.
   \item Feedback: corpus of novel test cases, subtree mutation, bandit weights per alternative, data-profile literals near real values.
@@ -279,7 +279,7 @@ committed six of our patches.}
 \small
 \begin{itemize}
   \item Same trees and oracles; new: drivers, overlays, rule firing, Z3 data, learned normalizers, autonomous loop.
-  \item Branch \texttt{generalized}, 192 unit tests.
+  \item Branch \texttt{generalized}, 205 unit tests.
 \end{itemize}
 \end{frame}
 \note{VENU. The PostgreSQL fuzzer is tied to PostgreSQL in three places: the executor, the
@@ -337,17 +337,16 @@ DuckDB & internal error (2.0.0 regression) & internal-error oracle on the nightl
 DataFusion & internal error in DML & internal-error oracle; root cause: common-subexpression elimination leaks a plan-only column into DML planning & \wa{filed with fix}, validated by a contributor; \#27235 / PR \#27236 \\
 DataFusion & internal error (planning order) & internal-error oracle; a scalar subquery in \texttt{VALUES} was evaluated before it ran & \wa{filed with fix} (13 Nov) \\
 Turso & panic / spurious error & worker caught a Rust panic; reduced to an aggregate in \texttt{IN (SELECT ...)} next to a window function; still on the newest \texttt{main} & \wa{filed with fix} \#11796 / PR \#11797 \\
-Turso, DuckDB & panic, rejected join, bind error & worker caught a Rust panic / error; bisection on \texttt{main} & fixed upstream before we filed \\
+9 more & panics, wrong results, errors & several oracles; re-checked on \texttt{main} & already fixed upstream \\
 \bottomrule
 \end{tabularx}
 
 \medskip
-\small Every filed fix has a regression test in the engine's own format and passes the engine's full test suite (e.g.\ 12{,}700 Turso tests, all 546 DataFusion sqllogictest files).
+\small Every filed fix has a regression test in the engine's own format and passes the engine's test suite.
 \end{frame}
 \note{GOWTHAM. Same pipeline as for PostgreSQL. The Turso bug was found only by comparing with
 SQLite; the others by the internal-error oracle. Before filing, we re-checked each one on the
-engine's newest code built from source; three had already been fixed, which we found by
-bisection. Five are filed with a fix; the DuckDB one is approved by a maintainer, the others are
+engine's newest code; nine of the fourteen had already been fixed there, so we did not file them. Five are filed with a fix; the DuckDB one is approved by a maintainer, the others are
 in review. One script reproduces all five on the released versions.}
 
 \section{Wrap-up}
@@ -360,7 +359,8 @@ in review. One script reproduces all five on the released versions.}
 \begin{itemize}
   \item tool design and implementation: grammar, oracles, triage, LLM gate, benchmark
   \item paper; \#19768, \#19793
-  \item generalized fuzzer and its 3 fixes
+  \item \#19826 (\texttt{corr()}), fixed with his patch
+  \item generalized fuzzer and its 5 fixes
 \end{itemize}
 \column{0.32\textwidth}
 \textbf{Bhuvan Chilukuti}
@@ -374,7 +374,7 @@ in review. One script reproduces all five on the released versions.}
 \begin{itemize}
   \item server builds, RQ1/RQ2/RQ4 campaigns
   \item LLM arm (10 commits)
-  \item \#19802, \#19803; \texttt{to\_char} fix
+  \item \#19802, \#19803; \#19771 (\texttt{to\_char}) report and fix
 \end{itemize}
 \end{columns}
 \medskip
@@ -387,7 +387,7 @@ in review. One script reproduces all five on the released versions.}
 \begin{itemize}
   \item 5 trials per arm: effect sizes rather than always significance; false-positive fixes not re-measured by a new campaign.
   \item One schema, one commit for \pg; LLM: free-tier model on ten commits.
-  \item Generalized: evaluation runs (rule feedback, Z3, normalizers, SQLancer baseline, DuckDB benchmark) are scripted and dry-run tested; the full runs take about four days.
+  \item Generalized: the rule-kernel campaigns ran (3 trials $\times$ 15 min per arm); the other evaluation runs (rule feedback, Z3, normalizers, SQLancer baseline, DuckDB benchmark) are scripted and dry-run tested, and take about four days in full: future work.
   \item DataFusion validity (79\%) below the 95\% of the other engines.
 \end{itemize}
 \end{frame}
@@ -412,7 +412,7 @@ carries over to other engines.
 \begin{frame}[standout]
 Thank you. Questions?\\[6pt]
 \normalsize github.com/PASS-IITG/cs5187-term-project-blazing-bhuvi\\
-\small generalized: github.com/v28k/cs5187-term-project (branch \texttt{generalized})
+\small generalized fuzzer: branch \texttt{generalized} of the same repository
 \end{frame}
 
 \end{document}

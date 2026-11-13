@@ -1,4 +1,4 @@
-# Rediscovery of the nine reported bugs
+# Rediscovery of the reported bugs
 
 One 150-second trial of the Grammar+Oracles configuration (`src/configs/rediscover.yaml`,
 seed probability 0.02) on the assertion-enabled base build 26bd08fb reported all nine bugs

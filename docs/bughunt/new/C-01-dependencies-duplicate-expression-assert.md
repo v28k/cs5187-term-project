@@ -1,8 +1,9 @@
 # C-01: assertion failure in dependencies_clauselist_selectivity() when two clauses use the same statistics expression
 
-Status: **confirmed (3/3 on master cassert, 3/3 on 18.6 cassert), root-caused, patch
-written and regression-tested. NOT YET FILED.**
-Found 23 Oct 2026 by hunter C (extended-statistics clause fuzzer, a mutation of
+Status: **FIXED upstream with our patch: b0392c26 (committed by David Rowley, back-patched to 14).**
+Confirmed 3/3 on master and 3/3 on 18.6 (assertion builds), root-caused, patch written and
+regression-tested, then reported on pgsql-bugs.
+Found 23 Oct 2026 by the extended-statistics clause fuzzer (extended-statistics clause fuzzer, a mutation of
 BUG #19789 / #19772).
 
 ## Summary

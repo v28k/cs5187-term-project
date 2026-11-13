@@ -1,7 +1,7 @@
 # BUG-01: JSON_TABLE does not assign collations to its context item and PASSING arguments
 
-Status: **reported upstream as BUG #19768 (official bug form). v1 patch
-prepared and verified; to be attached to the #19768 email thread.**
+Status: **FIXED upstream with our patch: e405a46c (committed by Amit Langote, back-patched to 17).
+Reported as BUG #19768 (official bug form) with the v1 patch.**
 
 Found 16 Oct 2026 by the grammar campaign (`configs/cloud_hunt.yaml`, trial 0,
 test case 13306, about 600 s into the run), as an assertion failure on the
